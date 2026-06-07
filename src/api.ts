@@ -1,0 +1,58 @@
+import type { AppConfig, CheckRun, NotificationRecord, RuleInput, WatchRule } from "./types";
+
+async function request<T>(url: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(url, {
+    ...init,
+    headers: {
+      "content-type": "application/json",
+      ...init?.headers
+    }
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.error ?? `Request failed with ${response.status}`);
+  }
+  return response.json() as Promise<T>;
+}
+
+export async function loadDashboard() {
+  const [rules, checkRuns, notifications, config] = await Promise.all([
+    request<WatchRule[]>("/api/rules"),
+    request<CheckRun[]>("/api/check-runs"),
+    request<NotificationRecord[]>("/api/notifications"),
+    request<AppConfig>("/api/config")
+  ]);
+  return { rules, checkRuns, notifications, config };
+}
+
+export function createRule(input: RuleInput) {
+  return request<WatchRule>("/api/rules", {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
+export function patchRule(id: string, patch: Partial<WatchRule>) {
+  return request<WatchRule>(`/api/rules/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch)
+  });
+}
+
+export function deleteRule(id: string) {
+  return fetch(`/api/rules/${id}`, { method: "DELETE" }).then((res) => {
+    if (!res.ok) throw new Error("Failed to delete rule");
+  });
+}
+
+export function searchRegions(query: string) {
+  return request<any[]>(`/api/regions/search?query=${encodeURIComponent(query)}`);
+}
+
+export function getApartments(lawdCode: string, dealMonth: string) {
+  return request<string[]>(`/api/apartments/list?lawd_cd=${lawdCode}&deal_ymd=${dealMonth}`);
+}
+
+export function runRule(id: string) {
+  return request(`/api/rules/${id}/run`, { method: "POST" });
+}
