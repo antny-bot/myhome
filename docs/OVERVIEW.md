@@ -18,8 +18,9 @@
 ```
 server/
   index.ts           ← 서버 엔트리 포인트 및 스케줄러 실행
-  routes.ts          ← REST API 라우팅 (rules, check-runs, notifications 등)
+  routes.ts          ← REST API 라우팅 (rules, check-runs, notifications, regions/search 등)
   mcpClient.ts       ← mcporter를 이용한 MCP 서버(AptInfo) 연동
+  addressSearch.ts   ← 카카오 주소 검색 (지역명 자동완성/범위 좁히기)
   ruleEngine.ts      ← 매물 매칭 및 중복 방지 로직
   scheduler.ts       ← 주기적 매물 확인 스케줄러
   notifications.ts   ← Telegram/Kakao 알림 어댑터
@@ -35,7 +36,8 @@ src/
 
 docs/
   OVERVIEW.md        ← 이 파일 (프로젝트 구조 파악용)
-  DESIGN.md          ← UI/UX 디자인 가이드라인 (현재 업데이트 필요)
+  DESIGN.md          ← UI/UX 디자인 가이드라인
+  features/          ← 기능별 상세 문서 (인덱스: features/README.md)
   superpowers/       ← 기능 설계 및 구현 계획
     plans/           ← 구현 단계별 상세 계획
     specs/           ← 기술 설계 명세서
@@ -63,6 +65,8 @@ data/
 
 | 작업 유형 | 필독 파일 |
 |-----------|-----------|
+| 구현된 기능 수정/이해 | `docs/features/README.md` (인덱스) → 해당 기능 문서 1개만 |
+| 지역 검색/주소 자동완성 | `docs/features/region-search.md` |
 | 서버 API/로직 수정 | `server/` 내 관련 파일, `docs/superpowers/specs/` |
 | MCP 연동/데이터 조회 | `server/mcpClient.ts`, `docs/superpowers/plans/` |
 | 대시보드 UI/UX 수정 | `src/App.tsx`, `docs/DESIGN.md` |
@@ -71,6 +75,9 @@ data/
 ## 개발 현황 요약
 
 - **Phase 1: Project Scaffold** 완료 ✓
-- **Phase 2-5: Backend & Engine** 구현 중
-- **Phase 6: Frontend Dashboard** 예정
+- **Phase 2-5: Backend & Engine** (규칙 엔진, 스케줄러, 저장소, Telegram 알림) 구현 ✓
+- **Phase 6: Frontend Dashboard** (조건 관리/이력 UI) 구현 ✓
+- **지역 검색 자동완성** (카카오 주소 검색 + MCP 폴백) 구현 ✓ → `docs/features/region-search.md`
+- 예정: Kakao "나에게 보내기" 알림(2차), 자연어 LLM 검색
+- 구현된 기능별 상세: `docs/features/README.md`
 - 상세 로드맵: `docs/superpowers/plans/2026-06-06-apartment-alert.md`
