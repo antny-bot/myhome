@@ -78,7 +78,14 @@ export type NotificationRecord = {
 export type AppConfig = {
   telegramConfigured: boolean;
   kakaoStatus: "phase-2";
+  kakaoSearchConfigured?: boolean;
   dataSourceNotice: string;
+};
+
+export type RegionSearchResult = {
+  lawdCode: string;
+  displayName: string;
+  raw?: unknown;
 };
 
 export type DashboardState = {

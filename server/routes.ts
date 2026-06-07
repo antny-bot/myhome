@@ -3,7 +3,8 @@ import { z } from "zod";
 import { isTelegramConfigured, sendNotifications } from "./notifications.js";
 import { getSourceLimitNotice, runRuleCheck } from "./ruleEngine.js";
 import { deleteRule, readState, updateRulePatch, upsertRule } from "./storage.js";
-import { getRegionCode } from "./mcpClient.js";
+import { getApartmentList, getRegionCode } from "./mcpClient.js";
+import { isKakaoConfigured, searchAddresses } from "./addressSearch.js";
 import type { ComparisonCriteria, RuleInput } from "./types.js";
 
 const comparisonValues: ComparisonCriteria[] = ["none", "parking", "large_complex", "transit", "newer", "livability"];
@@ -34,6 +35,7 @@ export function createRouter() {
     res.json({
       telegramConfigured: isTelegramConfigured(),
       kakaoStatus: "phase-2",
+      kakaoSearchConfigured: isKakaoConfigured(),
       dataSourceNotice: getSourceLimitNotice()
     });
   });
@@ -45,8 +47,23 @@ export function createRouter() {
         res.json([]);
         return;
       }
+
+      // 카카오 키가 있으면 주소 검색으로 여러 후보를 반환해 범위를 좁힌다.
+      if (isKakaoConfigured()) {
+        try {
+          const results = await searchAddresses(query);
+          if (results.length > 0) {
+            res.json(results);
+            return;
+          }
+        } catch (kakaoError) {
+          console.error("카카오 주소 검색 실패, MCP로 폴백합니다.", kakaoError);
+        }
+      }
+
+      // 폴백: MCP 지역코드 변환 (단일 결과)
       const result = await getRegionCode(query);
-      res.json([result]); // 간단하게 검색 결과 하나만 반환 (MCP 한계상)
+      res.json([result]);
     } catch (error) {
       next(error);
     }

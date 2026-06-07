@@ -40,7 +40,8 @@ function transactionToMatch(rule: WatchRule, item: unknown): TransactionMatch | 
   const dealYear = readString(record, ["dealYear", "년"]);
   const dealMonth = readString(record, ["dealMonth", "월"]);
   const dealDay = readString(record, ["dealDay", "일"]);
-  const fallbackDate = rule.dealMonth.length === 6 ? `${rule.dealMonth.slice(0, 4)}-${rule.dealMonth.slice(4)}-01` : rule.dealMonth;
+  const ruleMonth = rule.dealMonth ?? rule.startMonth ?? "";
+  const fallbackDate = ruleMonth.length === 6 ? `${ruleMonth.slice(0, 4)}-${ruleMonth.slice(4)}-01` : ruleMonth;
   const dealDate =
     dealYear && dealMonth && dealDay
       ? `${dealYear}-${dealMonth.padStart(2, "0")}-${dealDay.padStart(2, "0")}`
