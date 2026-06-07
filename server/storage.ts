@@ -79,6 +79,15 @@ export async function deleteRule(id: string): Promise<boolean> {
   return true;
 }
 
+export async function deleteCheckRun(id: string): Promise<boolean> {
+  const state = await readState();
+  const initialLength = state.checkRuns.length;
+  state.checkRuns = state.checkRuns.filter((run) => run.id !== id);
+  if (state.checkRuns.length === initialLength) return false;
+  await writeState(state);
+  return true;
+}
+
 export async function appendCheckRun(run: CheckRun, dedupeKeys: string[]): Promise<void> {
   const state = await readState();
   state.checkRuns = [run, ...state.checkRuns].slice(0, 100);

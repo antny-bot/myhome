@@ -14,6 +14,7 @@ export type {
   NotificationRecord,
   RuleInput,
   TransactionMatch,
+  TransactionRecord,
   WatchRule
 } from "../src/types.js";
 

@@ -1,4 +1,4 @@
-import type { AppConfig, CheckRun, NotificationRecord, RegionSearchResult, RuleInput, WatchRule } from "./types";
+import type { AppConfig, CheckRun, NotificationRecord, RegionSearchResult, RuleInput, TransactionRecord, WatchRule } from "./types";
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
@@ -45,14 +45,31 @@ export function deleteRule(id: string) {
   });
 }
 
+export function deleteCheckRun(id: string) {
+  return fetch(`/api/check-runs/${id}`, { method: "DELETE" }).then((res) => {
+    if (!res.ok) throw new Error("Failed to delete check run");
+  });
+}
+
 export function searchRegions(query: string) {
   return request<RegionSearchResult[]>(`/api/regions/search?query=${encodeURIComponent(query)}`);
 }
 
-export function getApartments(lawdCode: string, dealMonth: string) {
-  return request<string[]>(`/api/apartments/list?lawd_cd=${lawdCode}&deal_ymd=${dealMonth}`);
+export function getApartments(lawdCode: string) {
+  return request<string[]>(`/api/apartments/list?lawd_cd=${lawdCode}`);
 }
 
 export function runRule(id: string) {
   return request(`/api/rules/${id}/run`, { method: "POST" });
+}
+
+export function searchTransactions(lawdCode: string, period: { dealMonth: string } | { startMonth: string; endMonth: string }) {
+  const params = new URLSearchParams({ lawd_cd: lawdCode });
+  if ("dealMonth" in period) {
+    params.set("deal_ymd", period.dealMonth);
+  } else {
+    params.set("start_ymd", period.startMonth);
+    params.set("end_ymd", period.endMonth);
+  }
+  return request<TransactionRecord[]>(`/api/transactions?${params.toString()}`);
 }

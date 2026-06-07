@@ -1,6 +1,11 @@
+import { existsSync } from "node:fs";
 import express from "express";
 import { createRouter } from "./routes.js";
 import { startScheduler } from "./scheduler.js";
+
+if (existsSync(".env")) {
+  process.loadEnvFile(".env");
+}
 
 const app = express();
 const port = Number(process.env.PORT ?? "4174");

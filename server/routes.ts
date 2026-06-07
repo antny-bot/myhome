@@ -2,9 +2,10 @@ import express from "express";
 import { z } from "zod";
 import { isTelegramConfigured, sendNotifications } from "./notifications.js";
 import { getSourceLimitNotice, runRuleCheck } from "./ruleEngine.js";
-import { deleteRule, readState, updateRulePatch, upsertRule } from "./storage.js";
-import { getApartmentList, getRegionCode } from "./mcpClient.js";
-import { isKakaoConfigured, searchAddresses } from "./addressSearch.js";
+import { deleteCheckRun, deleteRule, readState, updateRulePatch, upsertRule } from "./storage.js";
+import { getApartmentList, getApartmentPrices, searchRegionCandidates } from "./mcpClient.js";
+import { isKakaoConfigured } from "./addressSearch.js";
+import { getMonthsInRange, normalizeTransaction } from "./transactions.js";
 import type { ComparisonCriteria, RuleInput } from "./types.js";
 
 const comparisonValues: ComparisonCriteria[] = ["none", "parking", "large_complex", "transit", "newer", "livability"];
@@ -13,9 +14,6 @@ const ruleSchema = z.object({
   name: z.string().min(1),
   regionName: z.string().min(1),
   apartmentKeywords: z.array(z.string()).optional(),
-  dealMonth: z.string().regex(/^\d{6}$/).optional(),
-  startMonth: z.string().regex(/^\d{6}$/).optional(),
-  endMonth: z.string().regex(/^\d{6}$/).optional(),
   minPriceEok: z.number().positive().optional(),
   maxPriceEok: z.number().positive().optional(),
   comparisonCriteria: z.enum(comparisonValues),
@@ -48,22 +46,9 @@ export function createRouter() {
         return;
       }
 
-      // 카카오 키가 있으면 주소 검색으로 여러 후보를 반환해 범위를 좁힌다.
-      if (isKakaoConfigured()) {
-        try {
-          const results = await searchAddresses(query);
-          if (results.length > 0) {
-            res.json(results);
-            return;
-          }
-        } catch (kakaoError) {
-          console.error("카카오 주소 검색 실패, MCP로 폴백합니다.", kakaoError);
-        }
-      }
-
-      // 폴백: MCP 지역코드 변환 (단일 결과)
-      const result = await getRegionCode(query);
-      res.json([result]);
+      // MCP 지역코드 조회의 동 단위 후보를 시/군/구 단위로 묶어 narrowing 후보로 반환한다.
+      const results = await searchRegionCandidates(query);
+      res.json(results);
     } catch (error) {
       next(error);
     }
@@ -72,13 +57,47 @@ export function createRouter() {
   router.get("/apartments/list", async (req, res, next) => {
     try {
       const lawdCode = String(req.query.lawd_cd || "");
-      const dealMonth = String(req.query.deal_ymd || "");
-      if (!lawdCode || !dealMonth) {
+      if (!lawdCode) {
         res.json([]);
         return;
       }
-      const list = await getApartmentList(lawdCode, dealMonth);
+      const list = await getApartmentList(lawdCode);
       res.json(list);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/transactions", async (req, res, next) => {
+    try {
+      const lawdCode = String(req.query.lawd_cd || "");
+      const dealMonth = String(req.query.deal_ymd || "");
+      const startMonth = String(req.query.start_ymd || "");
+      const endMonth = String(req.query.end_ymd || "");
+      if (!lawdCode) {
+        res.status(400).json({ error: "lawd_cd is required" });
+        return;
+      }
+
+      const monthPattern = /^\d{6}$/;
+      const months = startMonth && endMonth
+        ? (monthPattern.test(startMonth) && monthPattern.test(endMonth) ? getMonthsInRange(startMonth, endMonth) : [])
+        : (monthPattern.test(dealMonth) ? [dealMonth] : []);
+
+      if (months.length === 0) {
+        res.status(400).json({ error: "deal_ymd(YYYYMM) or start_ymd~end_ymd range is required" });
+        return;
+      }
+
+      const records = [];
+      for (const month of months) {
+        const prices = await getApartmentPrices(lawdCode, month);
+        for (const item of prices.transactions) {
+          const normalized = normalizeTransaction(item, month);
+          if (normalized) records.push(normalized);
+        }
+      }
+      res.json(records);
     } catch (error) {
       next(error);
     }
@@ -149,6 +168,19 @@ export function createRouter() {
     try {
       const state = await readState();
       res.json(state.checkRuns);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.delete("/check-runs/:id", async (req, res, next) => {
+    try {
+      const deleted = await deleteCheckRun(req.params.id);
+      if (!deleted) {
+        res.status(404).json({ error: "Check run not found" });
+        return;
+      }
+      res.status(204).end();
     } catch (error) {
       next(error);
     }

@@ -14,9 +14,6 @@ export type WatchRule = {
   regionName: string;
   regionCode?: string;
   apartmentKeywords?: string[];
-  dealMonth?: string;
-  startMonth?: string;
-  endMonth?: string;
   minPriceEok?: number;
   maxPriceEok?: number;
   comparisonCriteria: ComparisonCriteria;
@@ -32,9 +29,6 @@ export type RuleInput = {
   name: string;
   regionName: string;
   apartmentKeywords?: string[];
-  dealMonth?: string;
-  startMonth?: string;
-  endMonth?: string;
   minPriceEok?: number;
   maxPriceEok?: number;
   comparisonCriteria: ComparisonCriteria;
@@ -43,14 +37,17 @@ export type RuleInput = {
   enabled: boolean;
 };
 
-export type TransactionMatch = {
-  dedupeKey: string;
+export type TransactionRecord = {
   apartmentName: string;
   dealDate: string;
   priceEok: number;
   areaM2?: number;
   floor?: number;
   raw: unknown;
+};
+
+export type TransactionMatch = TransactionRecord & {
+  dedupeKey: string;
 };
 
 export type CheckRun = {

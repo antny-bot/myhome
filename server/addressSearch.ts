@@ -48,10 +48,19 @@ export async function searchAddresses(query: string): Promise<RegionCodeResult[]
   for (const doc of documents) {
     const bCode = doc.address?.b_code;
     if (!bCode || bCode.length < 5) continue;
-    const displayName = doc.address_name ?? doc.address?.address_name;
-    if (!displayName || seen.has(displayName)) continue;
-    seen.add(displayName);
-    results.push({ lawdCode: bCode.slice(0, 5), displayName, raw: doc });
+    const lawdCode = bCode.slice(0, 5);
+    if (seen.has(lawdCode)) continue;
+
+    const region1 = doc.address?.region_1depth_name;
+    const region2 = doc.address?.region_2depth_name;
+    const displayName =
+      region1 && region2
+        ? `${region1} ${region2}`
+        : doc.address_name ?? doc.address?.address_name;
+    if (!displayName) continue;
+
+    seen.add(lawdCode);
+    results.push({ lawdCode, displayName, raw: doc });
   }
 
   return results;

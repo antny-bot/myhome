@@ -145,11 +145,10 @@ Apartment Alert API listening on http://127.0.0.1:4174
 
 1. <https://developers.kakao.com> 에서 애플리케이션을 생성합니다.
 2. `앱 키`의 **REST API 키**를 복사합니다.
-3. 실행 전에 환경변수로 설정합니다.
+3. 프로젝트 루트의 `.env` 파일에 추가합니다 (서버 시작 시 자동으로 읽습니다).
 
-```powershell
-$env:KAKAO_REST_API_KEY="YOUR_REST_API_KEY"
-npm run dev
+```
+KAKAO_REST_API_KEY=YOUR_REST_API_KEY
 ```
 
 키를 설정하지 않으면 기존처럼 PlayMCP `get_region_code` 기반 단일 검색으로 동작합니다(자동완성 없음).
@@ -161,12 +160,11 @@ Telegram BotFather에서 봇을 만들고 다음 값을 준비합니다.
 - Bot token
 - 알림을 받을 Chat ID
 
-현재 Backend는 `.env` 파일을 자동으로 읽지 않습니다. 프로그램 실행 전에 같은 PowerShell 창에서 환경변수를 설정해야 합니다.
+프로젝트 루트의 `.env` 파일에 추가합니다 (서버 시작 시 자동으로 읽습니다).
 
-```powershell
-$env:TELEGRAM_BOT_TOKEN="YOUR_BOT_TOKEN"
-$env:TELEGRAM_CHAT_ID="YOUR_CHAT_ID"
-npm run dev
+```
+TELEGRAM_BOT_TOKEN=YOUR_BOT_TOKEN
+TELEGRAM_CHAT_ID=YOUR_CHAT_ID
 ```
 
 설정 여부는 다음 API에서 확인할 수 있습니다.

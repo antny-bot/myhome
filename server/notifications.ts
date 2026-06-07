@@ -12,7 +12,7 @@ function formatAlert(rule: WatchRule, matches: TransactionMatch[]) {
   const lines = [
     `[아파트 알림] ${rule.name}`,
     `지역: ${rule.regionName}${rule.apartmentKeywords?.length ? ` / 단지: ${rule.apartmentKeywords.join(", ")}` : ""}`,
-    `조건: ${rule.minPriceEok ?? "-"}억 ~ ${rule.maxPriceEok ?? "-"}억, ${rule.dealMonth ?? rule.startMonth ?? "-"}`,
+    `조건: ${rule.minPriceEok ?? "-"}억 ~ ${rule.maxPriceEok ?? "-"}억 (최근 거래 자동 추적)`,
     "",
     ...matches.slice(0, 5).map((match, index) => {
       const area = match.areaM2 ? ` / ${match.areaM2}㎡` : "";
