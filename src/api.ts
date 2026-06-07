@@ -1,4 +1,4 @@
-import type { AppConfig, CheckRun, NotificationRecord, RuleInput, WatchRule } from "./types";
+import type { AppConfig, CheckRun, NotificationRecord, RegionSearchResult, RuleInput, WatchRule } from "./types";
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
@@ -46,7 +46,7 @@ export function deleteRule(id: string) {
 }
 
 export function searchRegions(query: string) {
-  return request<any[]>(`/api/regions/search?query=${encodeURIComponent(query)}`);
+  return request<RegionSearchResult[]>(`/api/regions/search?query=${encodeURIComponent(query)}`);
 }
 
 export function getApartments(lawdCode: string, dealMonth: string) {

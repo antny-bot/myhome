@@ -19,9 +19,9 @@ import {
   Trash2,
   X
 } from "lucide-react";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { createRule, deleteRule, getApartments, loadDashboard, patchRule, runRule, searchRegions } from "./api";
-import type { CheckRun, ComparisonCriteria, DashboardState, RuleInput, WatchRule } from "./types";
+import type { CheckRun, ComparisonCriteria, DashboardState, RegionSearchResult, RuleInput, WatchRule } from "./types";
 import { useBreakpoint } from "./useBreakpoint";
 
 const sourceNotice = "PlayMCP 실거래가/단지정보 기반입니다. 현재 매물, 호가, 매물 등록/삭제 알림이 아닙니다.";
@@ -156,6 +156,9 @@ function RuleForm({
   const [lawdCode, setLawdCode] = useState("");
   const [error, setError] = useState("");
   const [aptSearchQuery, setAptSearchQuery] = useState("");
+  const [regionResults, setRegionResults] = useState<RegionSearchResult[]>([]);
+  const [showSuggest, setShowSuggest] = useState(false);
+  const suppressSuggestRef = useRef(false);
 
   const filteredApts = useMemo(() => {
     const q = aptSearchQuery.trim().toLowerCase();
@@ -213,6 +216,40 @@ function RuleForm({
     }
   };
 
+  // 입력 중 디바운스로 지역 후보를 실시간 조회한다.
+  useEffect(() => {
+    if (suppressSuggestRef.current) {
+      suppressSuggestRef.current = false;
+      return;
+    }
+    const query = form.regionName.trim();
+    if (query.length < 2) {
+      setRegionResults([]);
+      setShowSuggest(false);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const results = await searchRegions(query);
+        setRegionResults(results);
+        setShowSuggest(results.length > 0);
+      } catch {
+        setRegionResults([]);
+        setShowSuggest(false);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [form.regionName]);
+
+  function selectRegion(item: RegionSearchResult) {
+    suppressSuggestRef.current = true;
+    setForm(prev => ({ ...prev, regionName: item.displayName }));
+    setLawdCode(item.lawdCode);
+    setRegionResults([]);
+    setShowSuggest(false);
+    setError("");
+  }
+
   async function handleSearch() {
     if (!form.regionName.trim()) return;
     setSearching(true);
@@ -221,8 +258,11 @@ function RuleForm({
       const results = await searchRegions(form.regionName);
       if (results.length > 0) {
         const bestMatch = results[0];
+        suppressSuggestRef.current = true;
         setForm(prev => ({ ...prev, regionName: bestMatch.displayName }));
         setLawdCode(bestMatch.lawdCode);
+        setRegionResults([]);
+        setShowSuggest(false);
         setStep(2);
       } else {
         setError("검색된 지역이 없습니다. 정확한 구/군 이름을 입력해 주세요.");
@@ -298,23 +338,46 @@ function RuleForm({
               </label>
               <div className="space-y-1.5">
                 <span className="text-sm font-semibold text-strong">지역명 검색</span>
-                <div className="flex gap-2">
-                  <input
-                    className="flex-1 rounded-lg border border-normal bg-normal px-4 py-2.5 text-sm text-strong focus:border-primary outline-none"
-                    value={form.regionName}
-                    onChange={(event) => setForm({ ...form, regionName: event.target.value })}
-                    onKeyDown={(e) => e.key === 'Enter' && void handleSearch()}
-                    placeholder="예: 서울 강남구"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleSearch}
-                    disabled={searching || !form.regionName.trim()}
-                    className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white hover:opacity-90 disabled:opacity-50 transition-all flex items-center gap-2 shadow-sm shadow-blue-500/20"
-                  >
-                    {searching ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-                    검색
-                  </button>
+                <div className="relative">
+                  <div className="flex gap-2">
+                    <input
+                      className="flex-1 rounded-lg border border-normal bg-normal px-4 py-2.5 text-sm text-strong focus:border-primary outline-none"
+                      value={form.regionName}
+                      onChange={(event) => setForm({ ...form, regionName: event.target.value })}
+                      onFocus={() => regionResults.length > 0 && setShowSuggest(true)}
+                      onBlur={() => setTimeout(() => setShowSuggest(false), 150)}
+                      onKeyDown={(e) => e.key === 'Enter' && void handleSearch()}
+                      placeholder="예: 경기도 수원시"
+                      autoComplete="off"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSearch}
+                      disabled={searching || !form.regionName.trim()}
+                      className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white hover:opacity-90 disabled:opacity-50 transition-all flex items-center gap-2 shadow-sm shadow-blue-500/20"
+                    >
+                      {searching ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                      검색
+                    </button>
+                  </div>
+                  {showSuggest && regionResults.length > 0 && (
+                    <ul className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-lg border border-normal bg-normal py-1 shadow-lg">
+                      {regionResults.map((item, index) => (
+                        <li key={`${item.displayName}-${index}`}>
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => selectRegion(item)}
+                            className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-strong hover:bg-primary/10 transition-colors"
+                          >
+                            <Search className="h-3.5 w-3.5 text-neutral shrink-0" />
+                            <span className="flex-1">{item.displayName}</span>
+                            <span className="text-xs text-neutral">{item.lawdCode}</span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
               </div>
               <div className="space-y-1.5">
