@@ -1,0 +1,38 @@
+{
+  "rules": [
+    {
+      "id": "CGrPZ2yHEMJi4aj88IJK5",
+      "createdAt": "2026-06-07T13:11:38.151Z",
+      "updatedAt": "2026-07-03T16:23:03.136Z",
+      "name": "분당구",
+      "regionName": "경기도 성남시 분당구",
+      "apartmentKeywords": [
+        "성남판교백현마을2단지"
+      ],
+      "minPriceEok": 15,
+      "maxPriceEok": 30,
+      "comparisonCriteria": "none",
+      "intervalMinutes": 720,
+      "channels": [
+        "telegram"
+      ],
+      "enabled": true,
+      "regionCode": "41135",
+      "lastCheckedAt": "2026-07-03T16:23:03.136Z"
+    }
+  ],
+  "checkRuns": [
+    {
+      "id": "LJQ6mF8fPyM1757ECq-5O",
+      "ruleId": "CGrPZ2yHEMJi4aj88IJK5",
+      "ruleName": "분당구",
+      "matched": false,
+      "summary": "분당구: 조건에 맞는 신규 실거래가 없습니다.",
+      "matches": [],
+      "sourceLimitNotice": "기준: PlayMCP 실거래가/단지정보. 현재 매물, 호가, 매물 등록/삭제 알림이 아닙니다.",
+      "createdAt": "2026-07-03T16:23:03.136Z"
+    }
+  ],
+  "notifications": [],
+  "alertedDedupeKeys": []
+}

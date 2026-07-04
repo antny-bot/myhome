@@ -1,0 +1,178 @@
+{
+  "critical": [
+    {
+      "id": "C1",
+      "description": "storage.ts: writeState 동시 쓰기 Race Condition 방지 (락 메커니즘)",
+      "status": "X"
+    },
+    {
+      "id": "C2",
+      "description": "storage.ts: ensureStateFile 에러 처리 개선 (ENOENT만 초기화)",
+      "status": "X"
+    },
+    {
+      "id": "C3",
+      "description": "routes.ts: PATCH /rules/:id 요청에 Zod 검증 적용",
+      "status": "X"
+    },
+    {
+      "id": "C4",
+      "description": "addressSearch.ts: searchAddresses 활성화 (routes.ts와 연결)",
+      "status": "X"
+    },
+    {
+      "id": "C5",
+      "description": "StatCard.tsx / Settings.tsx: text-signal, text-warn CSS 클래스 정의 (Tailwind 설정 추가)",
+      "status": "X"
+    },
+    {
+      "id": "C6",
+      "description": "Layout.tsx: 모바일 햄버거 버튼 클릭 시 사이드바 드로어 활성화 UX 구현",
+      "status": "X"
+    },
+    {
+      "id": "C7",
+      "description": "Rules.tsx: 지역 자동완성 선택 시 Step 2로 자동 이동하도록 개선",
+      "status": "X"
+    }
+  ],
+  "high": [
+    {
+      "id": "H1",
+      "description": "ruleEngine.ts + notifications.ts: sourceLimitNotice 중복 문자열 공통 상수로 추출",
+      "status": "X"
+    },
+    {
+      "id": "H2",
+      "description": "mcpClient.ts: maxPages 하드코딩 제거 및 환경변수(APT_LIST_MAX_PAGES) 처리",
+      "status": "X"
+    },
+    {
+      "id": "H3",
+      "description": "notifications.ts: Telegram fetch API에 타임아웃 추가",
+      "status": "X"
+    },
+    {
+      "id": "H4",
+      "description": "notifications.ts: 5건 초과 매칭 시 '외 N건 더 있음' 메시지 표시",
+      "status": "X"
+    },
+    {
+      "id": "H5",
+      "description": "scheduler.ts: scheduler 중첩 실행 방지 플래그 적용",
+      "status": "X"
+    },
+    {
+      "id": "H6",
+      "description": "scheduler.ts: 프로세스 종료 시 graceful shutdown 처리 (SIGTERM/SIGINT)",
+      "status": "X"
+    },
+    {
+      "id": "H7",
+      "description": "ruleEngine.ts: alertedDedupeKeys 탐색 성능 최적화 (Set 적용)",
+      "status": "X"
+    },
+    {
+      "id": "H8",
+      "description": "transactions.ts: 거래금액 0 이하의 비정상 데이터 필터링",
+      "status": "X"
+    },
+    {
+      "id": "H9",
+      "description": "addressSearch.ts: 카카오 Local API fetch에 타임아웃 추가",
+      "status": "X"
+    },
+    {
+      "id": "H10",
+      "description": "ExploreV2.tsx + exploreV2Trend.ts: PYEONG_M2 상수를 src/lib/constants.ts로 통합",
+      "status": "X"
+    },
+    {
+      "id": "H11",
+      "description": "Explore.tsx + ExploreV2.tsx: defaultMonth 계산 로직 공통 함수화",
+      "status": "X"
+    },
+    {
+      "id": "H12",
+      "description": "Layout.tsx + StatCard.tsx: 아이콘 props 타입을 LucideIcon으로 규격화 (any 제거)",
+      "status": "X"
+    },
+    {
+      "id": "H13",
+      "description": "api.ts: delete API 통신 시 request 헬퍼 적용 및 에러 메시지 일관화",
+      "status": "X"
+    },
+    {
+      "id": "H14",
+      "description": "useBreakpoint.ts: window resize 리스너에 requestAnimationFrame 디바운스 적용",
+      "status": "X"
+    },
+    {
+      "id": "H15",
+      "description": "exploreV2Trend.ts: 사용되지 않는 모듈 분석 후 정리",
+      "status": "X"
+    }
+  ],
+  "medium": [
+    {
+      "id": "M1",
+      "description": "RegionSearchInput.tsx: 키보드 내비게이션(↑↓, Enter) 및 ARIA 속성 추가",
+      "status": "X"
+    },
+    {
+      "id": "M2",
+      "description": "Layout.tsx: <a href='#'> 링크 요소를 <button>으로 교체하여 웹 접근성 강화",
+      "status": "X"
+    },
+    {
+      "id": "M3",
+      "description": "ConstraintBanner.tsx: 경고 배너에 적절한 ARIA role(note/alert) 부여",
+      "status": "X"
+    },
+    {
+      "id": "M4",
+      "description": "Explore.tsx: 18개 상태 값 중 연관성 높은 변수들 구조화",
+      "status": "X"
+    },
+    {
+      "id": "M5",
+      "description": "ExploreV2.tsx: 인라인 번역 객체를 src/locales/ko.ts로 분리",
+      "status": "X"
+    },
+    {
+      "id": "M6",
+      "description": "server/types.ts: RegionCodeResult와 RegionSearchResult 타입 정리 및 중복 제거",
+      "status": "X"
+    },
+    {
+      "id": "M7",
+      "description": "transactions.ts + mcpClient.ts: readString, readNumber, findFirstStringByKey 중복 로직 통합",
+      "status": "X"
+    },
+    {
+      "id": "M8",
+      "description": "Dashboard.tsx: 대시보드 로딩 시 스켈레톤 화면 노출 및 카운트 통일",
+      "status": "X"
+    },
+    {
+      "id": "M9",
+      "description": "RecentRuns.tsx: confirm() 제거하고 커스텀 컨펌 모달 다이얼로그 도입",
+      "status": "X"
+    },
+    {
+      "id": "M10",
+      "description": "ComplexGroupView.tsx: Sparkline SVG 반응형 처리 (viewBox 적용)",
+      "status": "X"
+    },
+    {
+      "id": "M11",
+      "description": "Settings.tsx: 버전 하드코딩 제거 및 package.json 연동",
+      "status": "X"
+    },
+    {
+      "id": "M12",
+      "description": "Dashboard.tsx: skipped / failed 알림 발송 상태 구분하여 렌더링",
+      "status": "X"
+    }
+  ]
+}

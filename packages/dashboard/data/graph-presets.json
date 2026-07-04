@@ -1,0 +1,24 @@
+[
+  {
+    "name": "분당",
+    "filter": {
+      "lawdCode": "41135",
+      "regionName": "경기 성남시 분당구",
+      "startDate": "2025-07",
+      "endDate": "2026-07"
+    },
+    "id": "preset_1783125884942_yii5loif3",
+    "createdAt": "2026-07-04T00:44:44.942Z"
+  },
+  {
+    "name": "수원 영통",
+    "filter": {
+      "lawdCode": "41117",
+      "regionName": "경기 수원시 영통구",
+      "startDate": "2025-07",
+      "endDate": "2026-07"
+    },
+    "id": "preset_1783126102058_b6uql6b9j",
+    "createdAt": "2026-07-04T00:48:22.058Z"
+  }
+]
