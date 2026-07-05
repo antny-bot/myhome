@@ -4,3 +4,15 @@ dist/
 data/app-state.json
 tmp/
 *.tsbuildinfo
+
+# SQLite databases & temp files
+**/*.db
+**/*.db-journal
+**/*.db-wal
+**/*.db-shm
+
+# Local configuration files
+config.yaml
+config.yml
+app.yaml
+app.yml

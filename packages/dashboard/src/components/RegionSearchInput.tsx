@@ -1,5 +1,5 @@
 import { Search } from "lucide-react";
-import { useEffect, useRef, useState, KeyboardEvent } from "react";
+import React, { useEffect, useRef, useState, KeyboardEvent } from "react";
 import { searchRegions } from "../api";
 import type { RegionSearchResult } from "../types";
 
@@ -18,6 +18,7 @@ export function RegionSearchInput({
   const [showSuggest, setShowSuggest] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const suppressSuggestRef = useRef(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (suppressSuggestRef.current) {
@@ -28,14 +29,15 @@ export function RegionSearchInput({
     if (query.length < 2) {
       setResults([]);
       setShowSuggest(false);
-      setActiveIndex(-1);
+      activeIndex !== -1 && setActiveIndex(-1);
       return;
     }
     const timer = setTimeout(async () => {
       try {
         const found = await searchRegions(query);
         setResults(found);
-        setShowSuggest(found.length > 0);
+        const isCurrentFocused = document.activeElement === inputRef.current;
+        setShowSuggest(found.length > 0 && isCurrentFocused);
         setActiveIndex(-1);
       } catch {
         setResults([]);
@@ -77,6 +79,7 @@ export function RegionSearchInput({
   return (
     <div className="relative">
       <input
+        ref={inputRef}
         className="w-full rounded-lg border border-normal bg-normal px-4 py-2.5 text-sm text-strong focus:border-primary outline-none"
         value={value}
         onChange={(event) => onChange(event.target.value)}

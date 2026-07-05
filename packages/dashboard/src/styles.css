@@ -67,3 +67,16 @@ textarea {
 .bg-primary { background-color: var(--color-semantic-primary-normal); }
 .text-signal { color: var(--color-semantic-status-positive); }
 .text-warn { color: var(--color-semantic-status-negative); }
+
+/* 마우스/터치 클릭 시 발생하는 파란색/검은색 outline 테두리 제거 */
+*:focus:not(:focus-visible) {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* 차트 컨테이너 및 SVG 포커스 링 전면 방지 */
+svg:focus,
+.recharts-wrapper:focus,
+button:focus {
+  outline: none !important;
+}

@@ -3,10 +3,10 @@ import { loadDashboard } from "./api";
 import { Layout, type View } from "./components/Layout";
 import { DashboardPage } from "./pages/Dashboard";
 import { ExplorePage } from "./pages/Explore";
-import { ExploreV2Page } from "./pages/ExploreV2";
 import { RulesPage } from "./pages/Rules";
 import { SettingsPage } from "./pages/Settings";
 import GraphDashboard from "./pages/GraphDashboard";
+import { DatabaseAdminPage } from "./pages/DatabaseAdmin";
 import type { DashboardState } from "./types";
 
 function App() {
@@ -33,9 +33,9 @@ function App() {
       {view === "dashboard" && <DashboardPage state={state} onChanged={() => void refresh()} />}
       {view === "rules" && <RulesPage state={state} onChanged={() => void refresh()} />}
       {view === "explore" && <ExplorePage />}
-      {view === "exploreV2" && <ExploreV2Page />}
-      {view === "graphAnalytics" && <GraphDashboard />}
-      {view === "settings" && <SettingsPage state={state} />}
+      {view === "analytics" && <GraphDashboard />}
+      {view === "dbAdmin" && <DatabaseAdminPage />}
+      {view === "settings" && <SettingsPage state={state} onChanged={() => void refresh()} />}
     </Layout>
   );
 }

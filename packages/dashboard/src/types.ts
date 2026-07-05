@@ -76,12 +76,18 @@ export type AppConfig = {
   telegramConfigured: boolean;
   kakaoStatus: "phase-2";
   kakaoSearchConfigured?: boolean;
+  kakaoConfigured?: boolean;
+  jusoConfigured?: boolean;
+  dataGoKrConfigured?: boolean;
+  kakaoJavascriptConfigured?: boolean;
+  kakaoNativeAppConfigured?: boolean;
   dataSourceNotice: string;
 };
 
 export type RegionSearchResult = {
   lawdCode: string;
   displayName: string;
+  placeName?: string;
   raw?: unknown;
 };
 

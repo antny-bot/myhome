@@ -1,3 +1,4 @@
+import React from "react";
 import { classNames } from "../lib/format";
 
 export function SectionCard({

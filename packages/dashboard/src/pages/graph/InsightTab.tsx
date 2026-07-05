@@ -1,8 +1,129 @@
 import React, { useState, useEffect } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { GraphFilter, Insight } from "@myhome/shared";
 import { loadGraphContext, loadInsights, saveInsight, deleteInsight } from "../../api";
 import { promptTemplates, compileTemplate } from "./PromptTemplates";
-import { Clipboard, Check, Save, Sparkles, Trash2, Calendar, FileText, ChevronDown, ChevronUp } from "lucide-react";
+import { Clipboard, Check, Save, Sparkles, Trash2, Calendar, FileText, ChevronDown, ChevronUp, Maximize2, X } from "lucide-react";
+
+const i18n = {
+  ko: {
+    write: "작성",
+    preview: "미리보기",
+    noContent: "입력된 내용이 없습니다.",
+    aiPromptBuilder: "AI 프롬프트 생성기 (Text-to-Insight)",
+    promptBuilderDesc: "필터 기반 통계를 추출하여 LLM 프롬프트를 빌드합니다.",
+    templateType: "템플릿 유형",
+    compiledPrompt: "조합된 프롬프트",
+    copied: "복사 완료!",
+    copyToClipboard: "클립보드 복사",
+    usageTips: "사용 방법: 복사하기 버튼을 눌러 내용을 복사한 뒤, Gemini나 Claude, ChatGPT 등 평소 사용하는 외부 LLM 대화창에 바로 붙여넣어 인사이트를 분석하세요.",
+    registerReport: "분석 보고서 등록",
+    registerReportDesc: "외부 LLM의 답변 결과를 복사해 영구 리포트로 저장합니다.",
+    reportTitle: "보고서 제목",
+    titlePlaceholder: "예: 서울 서초구 2026년 상반기 아파트 가격추이 심층 분석",
+    llmResponseLabel: "LLM 분석 응답 (마크다운 지원)",
+    llmResponsePlaceholder: "외부 AI의 응답 분석 본문을 여기에 그대로 붙여넣어 주세요...",
+    saveReport: "인사이트 보고서 저장하기",
+    savingReport: "보고서 저장 중...",
+    aiReportHistory: "저장된 AI 분석 보고서 이력",
+    noSavedReports: "저장된 분석 보고서가 없습니다.",
+    deleteConfirm: "이 분석 보고서를 삭제하시겠습니까?",
+    deleteReport: "보고서 삭제",
+    promptSourceFolding: "프롬프트 원본 접기/펴기",
+    reportSaved: "인사이트 분석 보고서가 저장되었습니다.",
+    saveFailed: "저장 실패",
+    priceTrend: "가격 추세",
+    investmentEval: "투자 가치",
+    abnormalDetect: "이상 거래",
+    summaryTitle: "요약 통계 기반 LLM 응답 분석",
+    promptTitle: "전송되었던 AI 프롬프트 본문",
+    inputTitleAlert: "분석 결과 제목을 입력해 주세요.",
+    inputResponseAlert: "외부 LLM(Gemini, Claude 등)의 응답 본문을 붙여넣어 주세요.",
+    viewInModal: "모달로 보기",
+    close: "닫기"
+  },
+  en: {
+    write: "Write",
+    preview: "Preview",
+    noContent: "No content entered.",
+    aiPromptBuilder: "AI Prompt Builder (Text-to-Insight)",
+    promptBuilderDesc: "Builds an LLM prompt by extracting statistics based on filters.",
+    templateType: "Template Type",
+    compiledPrompt: "Compiled Prompt",
+    copied: "Copied!",
+    copyToClipboard: "Copy to Clipboard",
+    usageTips: "How to use: Click the copy button to copy the content, then paste it into your external LLM chat window (like Gemini, Claude, or ChatGPT) to analyze insights.",
+    registerReport: "Register Analysis Report",
+    registerReportDesc: "Copy and paste the response from the external LLM to save it as a permanent report.",
+    reportTitle: "Report Title",
+    titlePlaceholder: "e.g., In-depth analysis of apartment price trends in Seocho-gu, Seoul, H1 2026",
+    llmResponseLabel: "LLM Analysis Response (Markdown supported)",
+    llmResponsePlaceholder: "Please paste the response body of the external AI here...",
+    saveReport: "Save Insight Report",
+    savingReport: "Saving report...",
+    aiReportHistory: "Saved AI Analysis Report History",
+    noSavedReports: "No saved analysis reports.",
+    deleteConfirm: "Are you sure you want to delete this analysis report?",
+    deleteReport: "Delete Report",
+    promptSourceFolding: "Toggle Prompt Source",
+    reportSaved: "Insight analysis report has been saved.",
+    saveFailed: "Failed to save",
+    priceTrend: "Price Trend",
+    investmentEval: "Investment Value",
+    abnormalDetect: "Abnormal Deal",
+    summaryTitle: "LLM Response Analysis Based on Summary Statistics",
+    promptTitle: "Sent AI Prompt Body",
+    inputTitleAlert: "Please enter the title of the analysis report.",
+    inputResponseAlert: "Please paste the response body from the external LLM (Gemini, Claude, etc.).",
+    viewInModal: "View in Modal",
+    close: "Close"
+  }
+};
+
+const currentLang: "ko" | "en" = (navigator.language.startsWith("ko") ? "ko" : "en") as "ko" | "en";
+const t = (key: keyof typeof i18n["ko"]) => i18n[currentLang][key];
+
+const MarkdownComponents = {
+  h1: ({ ...props }) => <h1 className="text-base font-bold border-b border-normal pb-1.5 mb-3 mt-5 text-strong" {...props} />,
+  h2: ({ ...props }) => <h2 className="text-sm font-bold border-b border-normal pb-1 mb-2.5 mt-4 text-strong" {...props} />,
+  h3: ({ ...props }) => <h3 className="text-xs font-bold mb-2 mt-3.5 text-strong" {...props} />,
+  p: ({ ...props }) => <p className="mb-2.5 text-neutral leading-relaxed text-xs" {...props} />,
+  ul: ({ ...props }) => <ul className="list-disc pl-4 mb-3 space-y-1 text-neutral text-xs" {...props} />,
+  ol: ({ ...props }) => <ol className="list-decimal pl-4 mb-3 space-y-1 text-neutral text-xs" {...props} />,
+  li: ({ ...props }) => <li className="text-neutral text-xs" {...props} />,
+  strong: ({ ...props }) => <strong className="font-bold text-strong" {...props} />,
+  em: ({ ...props }) => <em className="italic" {...props} />,
+  code: ({ className, children, ...props }: any) => {
+    const match = /language-(\w+)/.exec(className || "");
+    const inline = !match;
+    return inline ? (
+      <code className="bg-normal border border-normal px-1 py-0.5 rounded text-[10px] font-mono text-primary" {...props}>
+        {children}
+      </code>
+    ) : (
+      <pre className="bg-normal border border-normal p-3 rounded-lg overflow-x-auto text-[10px] font-mono text-neutral mb-3.5 leading-relaxed">
+        <code className={className} {...props}>
+          {children}
+        </code>
+      </pre>
+    );
+  },
+  blockquote: ({ ...props }) => (
+    <blockquote className="border-l-3 border-primary pl-2.5 italic my-3 text-assistive text-xs" {...props} />
+  ),
+  table: ({ ...props }) => (
+    <div className="overflow-x-auto my-3 border border-normal rounded-lg">
+      <table className="min-w-full divide-y divide-normal text-left text-[11px]" {...props} />
+    </div>
+  ),
+  thead: ({ ...props }) => <thead className="bg-alternative text-neutral" {...props} />,
+  tbody: ({ ...props }) => <tbody className="divide-y divide-normal bg-elevated/40" {...props} />,
+  tr: ({ ...props }) => <tr {...props} />,
+  th: ({ ...props }) => <th className="px-3 py-1.5 font-semibold text-strong" {...props} />,
+  td: ({ ...props }) => <td className="px-3 py-1.5 text-neutral" {...props} />,
+};
+
 
 interface InsightTabProps {
   filter: GraphFilter;
@@ -15,6 +136,8 @@ export default function InsightTab({ filter }: InsightTabProps) {
   const [compiledPrompt, setCompiledPrompt] = useState("");
   const [llmResponse, setLlmResponse] = useState("");
   const [insightTitle, setInsightTitle] = useState("");
+  const [writeMode, setWriteMode] = useState<"write" | "preview">("write");
+  const [modalInsight, setModalInsight] = useState<Insight | null>(null);
   
   // 상태 피드백
   const [loadingContext, setLoadingContext] = useState(false);
@@ -74,11 +197,11 @@ export default function InsightTab({ filter }: InsightTabProps) {
 
   const handleSaveResult = async () => {
     if (!insightTitle.trim()) {
-      alert("분석 결과 제목을 입력해 주세요.");
+      alert(t("inputTitleAlert"));
       return;
     }
     if (!llmResponse.trim()) {
-      alert("외부 LLM(Gemini, Claude 등)의 응답 본문을 붙여넣어 주세요.");
+      alert(t("inputResponseAlert"));
       return;
     }
 
@@ -95,10 +218,10 @@ export default function InsightTab({ filter }: InsightTabProps) {
       setInsightTitle("");
       setLlmResponse("");
       fetchInsights();
-      alert("인사이트 분석 보고서가 저장되었습니다.");
+      alert(t("reportSaved"));
     } catch (err) {
       console.error("Failed to save insight", err);
-      alert("저장 실패");
+      alert(t("saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -106,7 +229,7 @@ export default function InsightTab({ filter }: InsightTabProps) {
 
   const handleDeleteInsight = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm("이 분석 보고서를 삭제하시겠습니까?")) return;
+    if (!confirm(t("deleteConfirm"))) return;
     try {
       await deleteInsight(id);
       fetchInsights();
@@ -120,34 +243,34 @@ export default function InsightTab({ filter }: InsightTabProps) {
   };
 
   return (
-    <div className="space-y-6 text-slate-100">
+    <div className="space-y-6 text-strong">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* 좌측: 프롬프트 빌더 */}
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-xl space-y-4 flex flex-col justify-between">
+        <div className="bg-elevated border border-normal rounded-xl p-5 shadow-sm space-y-4 flex flex-col justify-between">
           <div className="space-y-4">
-            <div className="border-b border-slate-800 pb-2">
-              <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
-                <Sparkles size={16} className="text-emerald-400" />
-                <span>AI 프롬프트 생성기 (Text-to-Insight)</span>
+            <div className="border-b border-normal pb-2">
+              <h3 className="text-sm font-bold text-strong flex items-center gap-1.5">
+                <Sparkles size={16} className="text-primary" />
+                <span>{t("aiPromptBuilder")}</span>
               </h3>
-              <p className="text-xs text-slate-500 mt-1">필터 기반 통계를 추출하여 LLM 프롬프트를 빌드합니다.</p>
+              <p className="text-xs text-assistive mt-1">{t("promptBuilderDesc")}</p>
             </div>
 
             {/* 템플릿 선택 */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs text-slate-400 font-semibold">템플릿 유형</label>
+              <label className="text-xs text-neutral font-semibold">{t("templateType")}</label>
               <div className="grid grid-cols-3 gap-2">
-                {promptTemplates.map((t) => (
+                {promptTemplates.map((item) => (
                   <button
-                    key={t.id}
-                    onClick={() => setSelectedTemplateId(t.id)}
+                    key={item.id}
+                    onClick={() => setSelectedTemplateId(item.id)}
                     className={`py-2 px-3 text-xs font-semibold rounded-lg border transition ${
-                      selectedTemplateId === t.id
-                        ? "bg-emerald-600/20 border-emerald-500 text-emerald-300"
-                        : "bg-slate-850 border-slate-800 hover:bg-slate-800 text-slate-400"
+                      selectedTemplateId === item.id
+                        ? "bg-primary/20 border-primary text-primary"
+                        : "bg-normal border-normal hover:bg-alternative text-neutral"
                     }`}
                   >
-                    {t.name}
+                    {item.id === "price-trend" ? t("priceTrend") : item.id === "investment-eval" ? t("investmentEval") : t("abnormalDetect")}
                   </button>
                 ))}
               </div>
@@ -156,20 +279,20 @@ export default function InsightTab({ filter }: InsightTabProps) {
             {/* 생성된 프롬프트 영역 */}
             <div className="flex flex-col gap-1.5">
               <div className="flex justify-between items-center">
-                <label className="text-xs text-slate-400 font-semibold">조합된 프롬프트</label>
+                <label className="text-xs text-neutral font-semibold">{t("compiledPrompt")}</label>
                 <button
                   onClick={handleCopy}
-                  className="text-xs text-emerald-400 flex items-center gap-1 hover:underline focus:outline-none"
+                  className="text-xs text-primary flex items-center gap-1 hover:underline focus:outline-none"
                 >
                   {copied ? (
                     <>
                       <Check size={13} />
-                      <span>복사 완료!</span>
+                      <span>{t("copied")}</span>
                     </>
                   ) : (
                     <>
                       <Clipboard size={13} />
-                      <span>클립보드 복사</span>
+                      <span>{t("copyToClipboard")}</span>
                     </>
                   )}
                 </button>
@@ -177,73 +300,111 @@ export default function InsightTab({ filter }: InsightTabProps) {
               <textarea
                 value={compiledPrompt}
                 readOnly
-                className="w-full h-72 bg-slate-950 border border-slate-850 rounded-lg p-3 text-xs text-slate-300 font-mono focus:outline-none focus:ring-0 leading-relaxed resize-none"
+                className="w-full h-72 bg-normal border border-normal rounded-lg p-3 text-xs text-neutral font-mono focus:outline-none focus:ring-0 leading-relaxed resize-none"
               />
             </div>
           </div>
 
-          <div className="bg-slate-950/50 border border-slate-850 rounded-lg p-3 text-xs text-slate-400 mt-2 leading-relaxed">
-            💡 <strong className="text-slate-200">사용 방법:</strong> 복사하기 버튼을 눌러 내용을 복사한 뒤, Gemini나 Claude, ChatGPT 등 평소 사용하는 외부 LLM 대화창에 바로 붙여넣어 인사이트를 분석하세요.
+          <div className="bg-normal/50 border border-normal rounded-lg p-3 text-xs text-neutral mt-2 leading-relaxed">
+            💡 {t("usageTips")}
           </div>
         </div>
 
         {/* 우측: 결과 입력 및 저장 */}
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-xl space-y-4 flex flex-col justify-between">
+        <div className="bg-elevated border border-normal rounded-xl p-5 shadow-sm space-y-4 flex flex-col justify-between">
           <div className="space-y-4">
-            <div className="border-b border-slate-800 pb-2">
-              <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
-                <Save size={16} className="text-emerald-400" />
-                <span>분석 보고서 등록</span>
+            <div className="border-b border-normal pb-2">
+              <h3 className="text-sm font-bold text-strong flex items-center gap-1.5">
+                <Save size={16} className="text-primary" />
+                <span>{t("registerReport")}</span>
               </h3>
-              <p className="text-xs text-slate-500 mt-1">외부 LLM의 답변 결과를 복사해 영구 리포트로 저장합니다.</p>
+              <p className="text-xs text-assistive mt-1">{t("registerReportDesc")}</p>
             </div>
 
             {/* 리포트 제목 */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs text-slate-400 font-semibold">보고서 제목</label>
+              <label className="text-xs text-neutral font-semibold">{t("reportTitle")}</label>
               <input
                 type="text"
                 value={insightTitle}
                 onChange={(e) => setInsightTitle(e.target.value)}
-                placeholder="예: 서울 서초구 2026년 상반기 아파트 가격추이 심층 분석"
-                className="w-full bg-slate-855 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                placeholder={t("titlePlaceholder")}
+                className="w-full bg-normal border border-normal rounded-lg px-3 py-2 text-sm text-strong focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
 
-            {/* 답변 입력 */}
+            {/* 답변 입력 및 미리보기 탭 */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs text-slate-400 font-semibold">LLM 분석 응답 (마크다운 지원)</label>
-              <textarea
-                value={llmResponse}
-                onChange={(e) => setLlmResponse(e.target.value)}
-                placeholder="외부 AI의 응답 분석 본문을 여기에 그대로 붙여넣어 주세요..."
-                className="w-full h-64 bg-slate-955 border border-slate-700 rounded-lg p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 leading-relaxed resize-none"
-              />
+              <div className="flex justify-between items-center">
+                <label className="text-xs text-neutral font-semibold">{t("llmResponseLabel")}</label>
+                <div className="flex gap-1 bg-normal border border-normal rounded-md p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setWriteMode("write")}
+                    className={`px-2 py-0.5 text-[10px] font-semibold rounded transition ${
+                      writeMode === "write"
+                        ? "bg-primary text-white"
+                        : "text-neutral hover:bg-alternative"
+                    }`}
+                  >
+                    {t("write")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setWriteMode("preview")}
+                    className={`px-2 py-0.5 text-[10px] font-semibold rounded transition ${
+                      writeMode === "preview"
+                        ? "bg-primary text-white"
+                        : "text-neutral hover:bg-alternative"
+                    }`}
+                  >
+                    {t("preview")}
+                  </button>
+                </div>
+              </div>
+              {writeMode === "write" ? (
+                <textarea
+                  value={llmResponse}
+                  onChange={(e) => setLlmResponse(e.target.value)}
+                  placeholder={t("llmResponsePlaceholder")}
+                  className="w-full h-64 bg-normal border border-normal rounded-lg p-3 text-xs text-strong placeholder-assistive focus:outline-none focus:ring-2 focus:ring-primary leading-relaxed resize-none"
+                />
+              ) : (
+                <div className="w-full h-64 bg-normal border border-normal rounded-lg p-3 text-xs text-strong overflow-y-auto leading-relaxed border-l-2 border-primary">
+                  {llmResponse.trim() ? (
+                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={MarkdownComponents}>
+                      {llmResponse}
+                    </ReactMarkdown>
+                  ) : (
+                    <p className="text-assistive italic text-center mt-20">{t("noContent")}</p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
           <button
             onClick={handleSaveResult}
             disabled={saving}
-            className="w-full flex items-center justify-center gap-2 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 text-white font-semibold rounded-lg shadow-lg shadow-emerald-950/20 transition"
+            className="w-full flex items-center justify-center gap-2 py-2.5 bg-primary hover:bg-primary/80 disabled:bg-alternative text-white font-semibold rounded-lg shadow-lg shadow-primary/20 transition"
           >
             <Save size={16} />
-            <span>{saving ? "보고서 저장 중..." : "인사이트 보고서 저장하기"}</span>
+            <span>{saving ? t("savingReport") : t("saveReport")}</span>
           </button>
         </div>
       </div>
 
       {/* 하단: 저장된 분석 보고서 목록 */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-xl">
-        <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-1.5">
-          <FileText size={16} className="text-emerald-400" />
-          <span>저장된 AI 분석 보고서 이력</span>
+      <div className="bg-elevated border border-normal rounded-xl p-5 shadow-sm">
+        <h3 className="text-sm font-bold text-strong mb-4 flex items-center gap-1.5">
+          <FileText size={16} className="text-primary" />
+          <span>{t("aiReportHistory")}</span>
         </h3>
 
         {savedInsights.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-10 text-slate-500">
+          <div className="flex flex-col items-center justify-center py-10 text-assistive">
             <FileText size={32} className="mb-2 opacity-25" />
-            <p className="text-xs">저장된 분석 보고서가 없습니다.</p>
+            <p className="text-xs">{t("noSavedReports")}</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -252,52 +413,68 @@ export default function InsightTab({ filter }: InsightTabProps) {
               return (
                 <div
                   key={insight.id}
-                  className="border border-slate-800 rounded-lg overflow-hidden bg-slate-950/30"
+                  className="border border-normal rounded-lg overflow-hidden bg-normal/30"
                 >
                   <div
                     onClick={() => toggleExpandInsight(insight.id)}
-                    className="flex justify-between items-center p-4 bg-slate-900/60 hover:bg-slate-850/40 cursor-pointer transition"
+                    className="flex justify-between items-center p-4 bg-elevated/60 hover:bg-alternative cursor-pointer transition"
                   >
                     <div className="space-y-1">
-                      <p className="font-semibold text-sm text-white">{insight.title}</p>
-                      <div className="flex items-center gap-3 text-[11px] text-slate-500">
+                      <p className="font-semibold text-sm text-strong">{insight.title}</p>
+                      <div className="flex items-center gap-3 text-[11px] text-assistive">
                         <span className="flex items-center gap-1">
                           <Calendar size={11} />
                           {new Date(insight.createdAt).toLocaleDateString()}
                         </span>
-                        <span className="px-1.5 py-0.5 bg-slate-800 rounded text-[9px] font-semibold text-slate-400">
-                          {insight.promptTemplate === "price-trend" ? "가격 추세" : insight.promptTemplate === "investment-eval" ? "투자 가치" : "이상 거래"}
+                        <span className="px-1.5 py-0.5 bg-alternative rounded text-[9px] font-semibold text-neutral">
+                          {insight.promptTemplate === "price-trend"
+                            ? t("priceTrend")
+                            : insight.promptTemplate === "investment-eval"
+                            ? t("investmentEval")
+                            : t("abnormalDetect")}
                         </span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setModalInsight(insight);
+                        }}
+                        className="p-1.5 hover:bg-alternative text-assistive hover:text-primary rounded-lg transition"
+                        title={t("viewInModal")}
+                      >
+                        <Maximize2 size={14} />
+                      </button>
                       <button
                         onClick={(e) => handleDeleteInsight(insight.id, e)}
-                        className="p-1.5 hover:bg-slate-800 text-slate-500 hover:text-rose-400 rounded-lg transition"
-                        title="보고서 삭제"
+                        className="p-1.5 hover:bg-alternative text-assistive hover:text-warn rounded-lg transition"
+                        title={t("deleteReport")}
                       >
                         <Trash2 size={14} />
                       </button>
-                      {isExpanded ? <ChevronUp size={16} className="text-slate-400" /> : <ChevronDown size={16} className="text-slate-400" />}
+                      {isExpanded ? <ChevronUp size={16} className="text-neutral" /> : <ChevronDown size={16} className="text-neutral" />}
                     </div>
                   </div>
 
                   {isExpanded && (
-                    <div className="p-4 border-t border-slate-850 bg-slate-950/20 text-slate-300 text-xs leading-relaxed space-y-4 max-h-[400px] overflow-y-auto">
+                    <div className="p-4 border-t border-normal bg-normal/20 text-neutral text-xs leading-relaxed space-y-4 max-h-[400px] overflow-y-auto">
                       <div className="space-y-1.5">
-                        <span className="text-[10px] font-bold text-slate-500 uppercase block">요약 통계 기반 LLM 응답 분석</span>
-                        <div className="whitespace-pre-wrap font-sans text-slate-200 border-l-2 border-emerald-500 pl-3">
-                          {insight.response}
+                        <span className="text-[10px] font-bold text-assistive uppercase block">{t("summaryTitle")}</span>
+                        <div className="text-strong border-l-2 border-primary pl-3">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]} components={MarkdownComponents}>
+                            {insight.response}
+                          </ReactMarkdown>
                         </div>
                       </div>
 
-                      <div className="border-t border-slate-850/60 pt-3 space-y-1.5">
-                        <span className="text-[10px] font-bold text-slate-500 uppercase block">전송되었던 AI 프롬프트 본문</span>
+                      <div className="border-t border-normal/60 pt-3 space-y-1.5">
+                        <span className="text-[10px] font-bold text-assistive uppercase block">{t("promptTitle")}</span>
                         <details className="cursor-pointer group">
-                          <summary className="text-[10px] text-slate-500 hover:text-slate-300 outline-none select-none">
-                            프롬프트 원본 접기/펴기
+                          <summary className="text-[10px] text-assistive hover:text-neutral outline-none select-none">
+                            {t("promptSourceFolding")}
                           </summary>
-                          <pre className="mt-2 p-3 bg-slate-900 border border-slate-850 rounded text-[10px] font-mono text-slate-500 whitespace-pre-wrap select-all">
+                          <pre className="mt-2 p-3 bg-elevated border border-normal rounded text-[10px] font-mono text-assistive whitespace-pre-wrap select-all">
                             {insight.generatedPrompt}
                           </pre>
                         </details>
@@ -310,6 +487,73 @@ export default function InsightTab({ filter }: InsightTabProps) {
           </div>
         )}
       </div>
+
+      {/* 분석 보고서 상세 모달 */}
+      {modalInsight && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-opacity animate-fade-in">
+          <div className="bg-elevated border border-normal rounded-xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            {/* 모달 헤더 */}
+            <div className="flex justify-between items-center p-4 border-b border-normal bg-elevated/80">
+              <div className="space-y-1">
+                <h3 className="text-sm font-bold text-strong leading-none">{modalInsight.title}</h3>
+                <div className="flex items-center gap-2 text-[10px] text-assistive mt-1">
+                  <span className="flex items-center gap-0.5">
+                    <Calendar size={10} />
+                    {new Date(modalInsight.createdAt).toLocaleDateString()}
+                  </span>
+                  <span className="px-1.5 py-0.2 bg-alternative rounded text-[9px] font-semibold text-neutral">
+                    {modalInsight.promptTemplate === "price-trend"
+                      ? t("priceTrend")
+                      : modalInsight.promptTemplate === "investment-eval"
+                      ? t("investmentEval")
+                      : t("abnormalDetect")}
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => setModalInsight(null)}
+                className="text-neutral hover:text-strong p-1 hover:bg-alternative rounded-lg transition"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* 모달 바디 (스크롤 가능) */}
+            <div className="p-5 overflow-y-auto space-y-5 text-neutral text-xs leading-relaxed flex-1">
+              <div className="space-y-1.5">
+                <span className="text-[10px] font-bold text-assistive uppercase block">{t("summaryTitle")}</span>
+                <div className="text-strong border-l-2 border-primary pl-3">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={MarkdownComponents}>
+                    {modalInsight.response}
+                  </ReactMarkdown>
+                </div>
+              </div>
+
+              <div className="border-t border-normal/60 pt-4 space-y-1.5">
+                <span className="text-[10px] font-bold text-assistive uppercase block">{t("promptTitle")}</span>
+                <details className="cursor-pointer group">
+                  <summary className="text-[10px] text-assistive hover:text-neutral outline-none select-none">
+                    {t("promptSourceFolding")}
+                  </summary>
+                  <pre className="mt-2 p-3 bg-elevated border border-normal rounded text-[10px] font-mono text-assistive whitespace-pre-wrap select-all">
+                    {modalInsight.generatedPrompt}
+                  </pre>
+                </details>
+              </div>
+            </div>
+
+            {/* 모달 푸터 */}
+            <div className="p-3 bg-normal/30 border-t border-normal flex justify-end">
+              <button
+                onClick={() => setModalInsight(null)}
+                className="px-4 py-1.5 bg-primary hover:bg-primary/80 text-white text-xs font-semibold rounded-lg transition shadow-md shadow-primary/10"
+              >
+                {t("close")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,391 +1,692 @@
-import { ArrowDown, ArrowUp, ArrowUpDown, LayoutGrid, RefreshCw, Search, TableProperties, X } from "lucide-react";
-import { useMemo, useState } from "react";
-import { searchTransactions } from "../api";
-import { ComplexGroupView } from "../components/ComplexGroupView";
-import { ConstraintBanner } from "../components/ConstraintBanner";
+import { ArrowDownRight, ArrowUpRight, ChevronRight, ChevronDown, LayoutGrid, TableProperties, RefreshCw, Search, MapPin } from "lucide-react";
+import React, { useMemo, useState } from "react";
+import { searchTransactions, getApartments } from "../api";
+
 import { RegionSearchInput } from "../components/RegionSearchInput";
 import { SectionCard } from "../components/SectionCard";
+import { ComplexGroupView } from "../components/ComplexGroupView";
+import { KakaoMap } from "../components/KakaoMap";
 import { classNames } from "../lib/format";
 import type { RegionSearchResult, TransactionRecord } from "../types";
-import { getDefaultMonth } from "../lib/constants";
+import { PYEONG_M2, getDefaultMonth } from "../lib/constants";
+import { copy } from "../locales/ko";
+import { useBreakpoint } from "../useBreakpoint";
 
 const defaultMonth = getDefaultMonth();
 
-type SortKey = "apartmentName" | "floor" | "areaM2" | "priceEok" | "dealMonth" | "dealDate";
+type Locale = keyof typeof copy;
+type SortMode = "date" | "price-d" | "price-a" | "area-d" | "ppy-d";
 
-const columns: Array<{ key: SortKey; label: string }> = [
-  { key: "apartmentName", label: "아파트명" },
-  { key: "floor", label: "층수" },
-  { key: "areaM2", label: "평수" },
-  { key: "priceEok", label: "가격" },
-  { key: "dealMonth", label: "거래월" },
-  { key: "dealDate", label: "거래일자" }
+const locale: Locale = "ko";
+const t = copy[locale];
+
+type EnrichedRecord = TransactionRecord & {
+  pyeong: number;
+  ppy: number;
+  deltaEok?: number;
+};
+
+const sortOptions: Array<{ value: SortMode; label: string }> = [
+  { value: "date", label: t.latestSort },
+  { value: "price-d", label: t.highPriceSort },
+  { value: "price-a", label: t.lowPriceSort },
+  { value: "area-d", label: t.largeAreaSort },
+  { value: "ppy-d", label: t.highPpySort }
 ];
 
-function sortValue(item: TransactionRecord, key: SortKey): string | number | undefined {
-  switch (key) {
-    case "apartmentName":
-      return item.apartmentName;
-    case "floor":
-      return item.floor;
-    case "areaM2":
-      return item.areaM2;
-    case "priceEok":
-      return item.priceEok;
-    case "dealMonth":
-      return item.dealDate.slice(0, 7);
-    case "dealDate":
+function enrichRecords(records: TransactionRecord[]): EnrichedRecord[] {
+  const groups = new Map<string, TransactionRecord[]>();
+  for (const item of records) {
+    const key = `${item.apartmentName}__${item.areaM2 ?? "?"}`;
+    const list = groups.get(key);
+    if (list) list.push(item);
+    else groups.set(key, [item]);
+  }
+
+  const deltaByRef = new Map<TransactionRecord, number | undefined>();
+  for (const items of groups.values()) {
+    const sorted = [...items].sort((a, b) => a.dealDate.localeCompare(b.dealDate));
+    sorted.forEach((item, idx) => {
+      deltaByRef.set(item, idx === 0 ? undefined : item.priceEok - sorted[idx - 1].priceEok);
+    });
+  }
+
+  return records.map((item) => {
+    const pyeong = item.areaM2 !== undefined ? item.areaM2 / PYEONG_M2 : 0;
+    const ppy = pyeong > 0 ? Math.round((item.priceEok * 10000) / pyeong) : 0;
+    return { ...item, pyeong, ppy, deltaEok: deltaByRef.get(item) };
+  });
+}
+
+function sortValue(item: EnrichedRecord, mode: SortMode): number | string {
+  switch (mode) {
+    case "date":
       return item.dealDate;
+    case "price-d":
+    case "price-a":
+      return item.priceEok;
+    case "area-d":
+      return item.areaM2 ?? 0;
+    case "ppy-d":
+      return item.ppy;
   }
 }
 
+function sortRecords(items: EnrichedRecord[], mode: SortMode) {
+  const direction = mode === "price-a" ? 1 : -1;
+  return [...items].sort((a, b) => {
+    const av = sortValue(a, mode);
+    const bv = sortValue(b, mode);
+    if (typeof av === "number" && typeof bv === "number") return (av - bv) * direction;
+    return String(av).localeCompare(String(bv)) * direction;
+  });
+}
+
+function formatArea(item: EnrichedRecord) {
+  if (item.areaM2 === undefined) return "-";
+  if (item.pyeong <= 0) return `${item.areaM2}㎡`;
+  return `${item.areaM2}㎡ · ${item.pyeong.toFixed(1)}평`;
+}
+
+function DeltaTag({ value }: { value?: number }) {
+  if (value === undefined) return <span className="text-assistive">-</span>;
+  if (value === 0) return <span className="text-neutral">{t.noChange}</span>;
+  const up = value > 0;
+  const Icon = up ? ArrowUpRight : ArrowDownRight;
+  return (
+    <span className={classNames("inline-flex items-center gap-1 font-bold text-[13px]", up ? "text-red-500" : "text-blue-500")}>
+      <Icon className="h-3.5 w-3.5" />
+      {Math.abs(value).toFixed(2)}
+      {t.unitDeal}
+    </span>
+  );
+}
+
+function KpiCard({ label, value, hint }: { label: string; value: string; hint: string }) {
+  return (
+    <div className="rounded-2xl bg-alternative px-4 py-3.5">
+      <p className="text-[12px] font-semibold text-neutral">{label}</p>
+      <p className="mt-2 text-[22px] font-black tracking-tight text-strong leading-none">{value}</p>
+      <p className="mt-1.5 text-[11px] text-assistive">{hint}</p>
+    </div>
+  );
+}
+
 export function ExplorePage() {
-  const [searchParams, setSearchParams] = useState({
-    regionName: "",
-    lawdCode: "",
-    isRange: false,
-    dealMonth: defaultMonth,
-    startMonth: defaultMonth,
-    endMonth: defaultMonth
-  });
-
-  const [filters, setFilters] = useState({
-    name: "",
-    areaMin: "",
-    areaMax: "",
-    priceMin: "",
-    priceMax: "",
-    month: ""
-  });
-
+  const { isMobile } = useBreakpoint();
+  const [regionName, setRegionName] = useState("");
+  const [lawdCode, setLawdCode] = useState("");
+  const [isRange, setIsRange] = useState(true);
+  const [dealMonth, setDealMonth] = useState(defaultMonth);
+  const [startMonth, setStartMonth] = useState(defaultMonth);
+  const [endMonth, setEndMonth] = useState(defaultMonth);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [results, setResults] = useState<TransactionRecord[]>([]);
   const [searchedRegion, setSearchedRegion] = useState("");
-  const [sort, setSort] = useState<{ key: SortKey; direction: "asc" | "desc" } | null>(null);
-  const [viewMode, setViewMode] = useState<"table" | "grouped">("grouped");
+  const [nameFilter, setNameFilter] = useState("");
+  const [areaMin, setAreaMin] = useState("");
+  const [areaMax, setAreaMax] = useState("");
+  const [priceMin, setPriceMin] = useState("");
+  const [priceMax, setPriceMax] = useState("");
+  const [sortMode, setSortMode] = useState<SortMode>("date");
+  const [viewMode, setViewMode] = useState<"grouped" | "table">("grouped");
 
-  const filteredResults = useMemo(() => {
-    const name = filters.name.trim();
-    const month = filters.month.trim();
-    const aMin = filters.areaMin ? Number(filters.areaMin) : undefined;
-    const aMax = filters.areaMax ? Number(filters.areaMax) : undefined;
-    const pMin = filters.priceMin ? Number(filters.priceMin) : undefined;
-    const pMax = filters.priceMax ? Number(filters.priceMax) : undefined;
+  // 아파트 단지 연동 및 탭 상태
+  const [selectedApartment, setSelectedApartment] = useState<string | null>(null);
+  const [mobileActiveTab, setMobileActiveTab] = useState<"map" | "list">("list");
 
-    return results.filter((item) => {
+  // 아파트 단지 드롭다운용 상태
+  const [apartments, setApartments] = useState<string[]>([]);
+  const [loadingApartments, setLoadingApartments] = useState(false);
+
+  // Autocomplete 콤보박스용 상태
+  const [complexQuery, setComplexQuery] = useState("");
+  const [showComplexDropdown, setShowComplexDropdown] = useState(false);
+  const [activeAptIndex, setActiveAptIndex] = useState(-1);
+
+  const filteredApartments = useMemo(() => {
+    const q = complexQuery.trim().toLowerCase();
+    if (!q) return apartments;
+    return apartments.filter((apt) => apt.toLowerCase().includes(q));
+  }, [apartments, complexQuery]);
+
+  const enriched = useMemo(() => enrichRecords(results), [results]);
+
+  const filtered = useMemo(() => {
+    const name = nameFilter.trim();
+    const minArea = areaMin ? Number(areaMin) : undefined;
+    const maxArea = areaMax ? Number(areaMax) : undefined;
+    const minPrice = priceMin ? Number(priceMin) : undefined;
+    const maxPrice = priceMax ? Number(priceMax) : undefined;
+
+    return enriched.filter((item) => {
       if (name && !item.apartmentName.includes(name)) return false;
-      if (aMin !== undefined && (item.areaM2 === undefined || item.areaM2 < aMin)) return false;
-      if (aMax !== undefined && (item.areaM2 === undefined || item.areaM2 > aMax)) return false;
-      if (pMin !== undefined && item.priceEok < pMin) return false;
-      if (pMax !== undefined && item.priceEok > pMax) return false;
-      if (month && !item.dealDate.replace(/-/g, "").startsWith(month)) return false;
+      if (minArea !== undefined && (item.areaM2 === undefined || item.areaM2 < minArea)) return false;
+      if (maxArea !== undefined && (item.areaM2 === undefined || item.areaM2 > maxArea)) return false;
+      if (minPrice !== undefined && item.priceEok < minPrice) return false;
+      if (maxPrice !== undefined && item.priceEok > maxPrice) return false;
       return true;
     });
-  }, [results, filters]);
+  }, [enriched, nameFilter, areaMin, areaMax, priceMin, priceMax]);
+
+  const sorted = useMemo(() => sortRecords(filtered, sortMode), [filtered, sortMode]);
+
+  const kpis = useMemo(() => {
+    const prices = filtered.map((item) => item.priceEok);
+    const ppys = filtered.filter((item) => item.ppy > 0).map((item) => item.ppy);
+    return {
+      count: filtered.length,
+      avgPrice: prices.length > 0 ? prices.reduce((sum, value) => sum + value, 0) / prices.length : 0,
+      avgPpy: ppys.length > 0 ? Math.round(ppys.reduce((sum, value) => sum + value, 0) / ppys.length) : 0,
+      maxPrice: prices.length > 0 ? Math.max(...prices) : 0,
+      minPrice: prices.length > 0 ? Math.min(...prices) : 0
+    };
+  }, [filtered]);
+
+  const hasActiveFilters = Boolean(nameFilter || areaMin || areaMax || priceMin || priceMax);
+
+  async function selectRegion(item: RegionSearchResult) {
+    setRegionName(item.displayName);
+    setLawdCode(item.lawdCode);
+    setNameFilter("");
+    setComplexQuery("");
+    setError("");
+    setApartments([]);
+    setSelectedApartment(null);
+
+    if (item.lawdCode) {
+      setLoadingApartments(true);
+      try {
+        const list = await getApartments(item.lawdCode);
+        setApartments(list);
+      } catch (err) {
+        console.error("Failed to load apartments for dropdown", err);
+      } finally {
+        setLoadingApartments(false);
+      }
+    }
+  }
 
   function resetFilters() {
-    setFilters({
-      name: "",
-      areaMin: "",
-      areaMax: "",
-      priceMin: "",
-      priceMax: "",
-      month: ""
-    });
-    setSort(null);
-  }
-
-  const hasActiveFilters = Boolean(
-    filters.name ||
-    filters.areaMin ||
-    filters.areaMax ||
-    filters.priceMin ||
-    filters.priceMax ||
-    filters.month
-  );
-
-  function toggleSort(key: SortKey) {
-    setSort((prev) => {
-      if (prev?.key !== key) return { key, direction: "asc" };
-      if (prev.direction === "asc") return { key, direction: "desc" };
-      return null;
-    });
-  }
-
-  const sortedResults = useMemo(() => {
-    if (!sort) return filteredResults;
-    const { key, direction } = sort;
-    const factor = direction === "asc" ? 1 : -1;
-    return [...filteredResults].sort((a, b) => {
-      const av = sortValue(a, key);
-      const bv = sortValue(b, key);
-      if (av === undefined && bv === undefined) return 0;
-      if (av === undefined) return 1;
-      if (bv === undefined) return -1;
-      if (typeof av === "number" && typeof bv === "number") return (av - bv) * factor;
-      return String(av).localeCompare(String(bv)) * factor;
-    });
-  }, [filteredResults, sort]);
-
-  function selectRegion(item: RegionSearchResult) {
-    setSearchParams((prev) => ({
-      ...prev,
-      regionName: item.displayName,
-      lawdCode: item.lawdCode
-    }));
-    setError("");
+    setNameFilter("");
+    setAreaMin("");
+    setAreaMax("");
+    setPriceMin("");
+    setPriceMax("");
+    setSelectedApartment(null);
   }
 
   async function handleSearch() {
-    if (!searchParams.lawdCode) {
-      setError("지역을 먼저 검색해서 선택해 주세요.");
+    if (!lawdCode) {
+      setError(t.selectRegionFirst);
       return;
     }
+
     const monthPattern = /^\d{6}$/;
-    if (searchParams.isRange 
-      ? (!monthPattern.test(searchParams.startMonth) || !monthPattern.test(searchParams.endMonth)) 
-      : !monthPattern.test(searchParams.dealMonth)) {
-      setError("기간을 YYYYMM 형식으로 입력해 주세요.");
+    if (isRange ? (!monthPattern.test(startMonth) || !monthPattern.test(endMonth)) : !monthPattern.test(dealMonth)) {
+      setError(t.monthFormatError);
       return;
     }
 
     setLoading(true);
     setError("");
+    setSelectedApartment(null);
+
     try {
-      const records = searchParams.isRange
-        ? await searchTransactions(searchParams.lawdCode, { startMonth: searchParams.startMonth, endMonth: searchParams.endMonth })
-        : await searchTransactions(searchParams.lawdCode, { dealMonth: searchParams.dealMonth });
+      const records = isRange
+        ? await searchTransactions(lawdCode, regionName, { startMonth, endMonth })
+        : await searchTransactions(lawdCode, regionName, { dealMonth });
       setResults(records);
-      setSearchedRegion(searchParams.regionName);
+      setSearchedRegion(regionName);
       resetFilters();
+
+      // 검색 성공 시, 모바일 기기라면 바로 지도 탭으로 전환하여 시각적 정보를 먼저 제공
+      if (isMobile) {
+        setMobileActiveTab("map");
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "실거래 조회에 실패했습니다.");
       setResults([]);
+      setError(err instanceof Error ? err.message : t.searchFailed);
     } finally {
       setLoading(false);
     }
   }
 
+  const showList = !isMobile || mobileActiveTab === "list";
+  const showMap = !isMobile || mobileActiveTab === "map";
+
   return (
-    <div className="space-y-6">
-      <header className="flex flex-col gap-1">
-        <h2 className="text-2xl font-black text-strong tracking-tight">실거래 탐색</h2>
-        <p className="text-sm text-neutral">관심 지역의 과거 실거래 이력을 기간별로 조회합니다. 알림 조건과는 별개로 동작하며 저장되지 않습니다.</p>
+    <div className="space-y-4 flex flex-col min-h-0">
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="mb-1 flex items-center gap-1.5 text-xs text-assistive font-bold">
+            <span>{t.breadcrumb}</span>
+            <ChevronRight className="h-3 w-3" />
+            <span>{t.subBreadcrumb}</span>
+          </p>
+          <h2 className="text-2xl font-black tracking-tight text-strong">{t.title}</h2>
+          <p className="mt-1 max-w-3xl text-xs text-neutral">{t.subtitle}</p>
+        </div>
       </header>
 
-      <SectionCard>
-        <div className="space-y-4">
-          <ConstraintBanner compact />
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <span className="text-sm font-semibold text-strong">지역명 검색</span>
-              <RegionSearchInput
-                value={searchParams.regionName}
-                onChange={(val) => setSearchParams((prev) => ({ ...prev, regionName: val }))}
-                onSelect={selectRegion}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold text-strong">조회 기간</span>
-                <label className="flex items-center gap-1.5 text-xs text-neutral cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={searchParams.isRange}
-                    onChange={(e) => setSearchParams((prev) => ({ ...prev, isRange: e.target.checked }))}
-                  />
-                  기간 조회
-                </label>
+      <SectionCard className="p-3 md:p-4">
+        <div className="space-y-3">
+          <div className="rounded-xl border border-normal bg-normal p-3">
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="space-y-1">
+                <span className="text-[11px] font-bold tracking-wide text-neutral">{t.tradeType}</span>
+                <div className="inline-flex gap-1 rounded-lg bg-alternative p-0.5">
+                  <button type="button" className="rounded-md bg-elevated px-3 py-1.5 text-xs font-bold text-strong shadow-sm">
+                    {t.sale}
+                  </button>
+                  <button type="button" disabled title={t.notReady} className="cursor-not-allowed rounded-md px-3 py-1.5 text-xs font-semibold text-assistive">
+                    {t.jeonse}
+                  </button>
+                </div>
               </div>
-              {searchParams.isRange ? (
-                <div className="flex items-center gap-2">
+
+              <div className="min-w-[200px] flex-1 space-y-1">
+                <span className="text-[11px] font-bold tracking-wide text-neutral">{t.region}</span>
+                <RegionSearchInput
+                  value={regionName}
+                  onChange={setRegionName}
+                  onSelect={selectRegion}
+                  placeholder={t.regionPlaceholder}
+                />
+              </div>
+
+              {lawdCode && (apartments.length > 0 || loadingApartments) && (
+                <div className="min-w-[180px] flex-1 space-y-1 relative">
+                  <span className="text-[11px] font-bold tracking-wide text-neutral">아파트 단지</span>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      className="w-full h-[38px] rounded-lg border border-normal bg-normal pl-3 pr-8 text-xs font-semibold text-strong outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                      value={complexQuery}
+                      onChange={(e) => {
+                        setComplexQuery(e.target.value);
+                        if (e.target.value === "") {
+                          setNameFilter("");
+                        }
+                        setShowComplexDropdown(true);
+                      }}
+                      onFocus={() => setShowComplexDropdown(true)}
+                      onBlur={() => {
+                        setTimeout(() => {
+                          setShowComplexDropdown(false);
+                          setActiveAptIndex(-1);
+                        }, 200);
+                      }}
+                      onKeyDown={(e) => {
+                        if (!showComplexDropdown || filteredApartments.length === 0) return;
+                        if (e.key === "ArrowDown") {
+                          e.preventDefault();
+                          setActiveAptIndex((prev) => (prev < filteredApartments.length - 1 ? prev + 1 : prev));
+                        } else if (e.key === "ArrowUp") {
+                          e.preventDefault();
+                          setActiveAptIndex((prev) => (prev > 0 ? prev - 1 : -1));
+                        } else if (e.key === "Enter") {
+                          e.preventDefault();
+                          if (activeAptIndex >= 0 && activeAptIndex < filteredApartments.length) {
+                            const selected = filteredApartments[activeAptIndex];
+                            setComplexQuery(selected);
+                            setNameFilter(selected);
+                            setShowComplexDropdown(false);
+                          }
+                        } else if (e.key === "Escape") {
+                          setShowComplexDropdown(false);
+                          setActiveAptIndex(-1);
+                        }
+                      }}
+                      placeholder={loadingApartments ? "단지 로딩 중..." : "전체 단지 (직접 입력)"}
+                      disabled={loadingApartments}
+                      autoComplete="off"
+                    />
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      onClick={() => !loadingApartments && setShowComplexDropdown((prev) => !prev)}
+                      className="absolute inset-y-0 right-0 flex items-center pr-2 text-neutral hover:text-strong"
+                      disabled={loadingApartments}
+                    >
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    </button>
+
+                    {showComplexDropdown && filteredApartments.length > 0 && (
+                      <ul className="absolute z-30 left-0 right-0 top-full mt-1 max-h-48 overflow-auto rounded-lg border border-normal bg-elevated py-1 shadow-lg">
+                        {complexQuery && (
+                          <li>
+                            <button
+                              type="button"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => {
+                                setComplexQuery("");
+                                setNameFilter("");
+                                setShowComplexDropdown(false);
+                              }}
+                              className="w-full text-left px-3 py-1.5 text-xs text-primary font-semibold hover:bg-alternative transition-colors"
+                            >
+                              전체 아파트 선택 해제
+                            </button>
+                          </li>
+                        )}
+                        {filteredApartments.map((apt, index) => (
+                          <li key={`${apt}-${index}`}>
+                            <button
+                              type="button"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => {
+                                setComplexQuery(apt);
+                                setNameFilter(apt);
+                                setShowComplexDropdown(false);
+                              }}
+                              className={`w-full text-left px-3 py-1.5 text-xs text-strong transition-colors ${
+                                index === activeAptIndex ? "bg-primary/10 text-primary font-semibold" : "hover:bg-alternative"
+                              }`}
+                            >
+                               {apt}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-1">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[11px] font-bold tracking-wide text-neutral">{t.period}</span>
+                  <label className="flex cursor-pointer select-none items-center gap-1 text-[11px] text-neutral">
+                    <input type="checkbox" className="rounded" checked={isRange} onChange={(event) => setIsRange(event.target.checked)} />
+                    {t.rangeSearch}
+                  </label>
+                </div>
+                {isRange ? (
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      className="w-24 h-[38px] rounded-lg border border-normal bg-normal px-2.5 text-xs text-strong outline-none focus:border-primary"
+                      value={startMonth}
+                      onChange={(event) => setStartMonth(event.target.value)}
+                      placeholder={t.startMonth}
+                    />
+                    <span className="text-xs text-assistive">~</span>
+                    <input
+                      className="w-24 h-[38px] rounded-lg border border-normal bg-normal px-2.5 text-xs text-strong outline-none focus:border-primary"
+                      value={endMonth}
+                      onChange={(event) => setEndMonth(event.target.value)}
+                      placeholder={t.endMonth}
+                    />
+                  </div>
+                ) : (
                   <input
-                    className="w-full rounded-lg border border-normal bg-normal px-4 py-2.5 text-sm text-strong focus:border-primary outline-none"
-                    value={searchParams.startMonth}
-                    onChange={(event) => setSearchParams((prev) => ({ ...prev, startMonth: event.target.value }))}
-                    placeholder="시작 YYYYMM"
+                    className="w-32 h-[38px] rounded-lg border border-normal bg-normal px-2.5 text-xs text-strong outline-none focus:border-primary"
+                    value={dealMonth}
+                    onChange={(event) => setDealMonth(event.target.value)}
+                    placeholder={t.singleMonth}
                   />
-                  <span className="text-neutral text-xs">~</span>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => void handleSearch()}
+                disabled={loading}
+                className="flex items-center gap-1.5 h-[38px] rounded-xl bg-primary px-4 py-2 text-xs font-bold text-white shadow-sm shadow-blue-500/20 transition-all hover:opacity-90 disabled:opacity-50"
+              >
+                {loading ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
+                {t.search}
+              </button>
+            </div>
+
+            {results.length > 0 && (
+              <div className="mt-3 grid gap-2 border-t border-dashed border-normal pt-3 md:grid-cols-[minmax(140px,1.2fr)_repeat(2,minmax(0,1fr))_auto]">
+                <input
+                  className="rounded-lg h-[36px] border border-normal bg-normal px-2.5 text-xs text-strong outline-none focus:border-primary"
+                  value={nameFilter}
+                  onChange={(event) => setNameFilter(event.target.value)}
+                  placeholder={t.complexFilter}
+                />
+                <div className="flex items-center gap-1.5">
                   <input
-                    className="w-full rounded-lg border border-normal bg-normal px-4 py-2.5 text-sm text-strong focus:border-primary outline-none"
-                    value={searchParams.endMonth}
-                    onChange={(event) => setSearchParams((prev) => ({ ...prev, endMonth: event.target.value }))}
-                    placeholder="종료 YYYYMM"
+                    className="w-full rounded-lg h-[36px] border border-normal bg-normal px-2 text-xs text-strong outline-none focus:border-primary"
+                    value={areaMin}
+                    onChange={(event) => setAreaMin(event.target.value)}
+                    placeholder={t.areaMin}
+                    inputMode="decimal"
+                  />
+                  <span className="text-xs text-assistive">~</span>
+                  <input
+                    className="w-full rounded-lg h-[36px] border border-normal bg-normal px-2 text-xs text-strong outline-none focus:border-primary"
+                    value={areaMax}
+                    onChange={(event) => setAreaMax(event.target.value)}
+                    placeholder={t.areaMax}
+                    inputMode="decimal"
                   />
                 </div>
-              ) : (
-                <input
-                  className="w-full rounded-lg border border-normal bg-normal px-4 py-2.5 text-sm text-strong focus:border-primary outline-none"
-                  value={searchParams.dealMonth}
-                  onChange={(event) => setSearchParams((prev) => ({ ...prev, dealMonth: event.target.value }))}
-                  placeholder="YYYYMM"
-                />
-              )}
-            </div>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    className="w-full rounded-lg h-[36px] border border-normal bg-normal px-2 text-xs text-strong outline-none focus:border-primary"
+                    value={priceMin}
+                    onChange={(event) => setPriceMin(event.target.value)}
+                    placeholder={t.priceMin}
+                    inputMode="decimal"
+                  />
+                  <span className="text-xs text-assistive">~</span>
+                  <input
+                    className="w-full rounded-lg h-[36px] border border-normal bg-normal px-2 text-xs text-strong outline-none focus:border-primary"
+                    value={priceMax}
+                    onChange={(event) => setPriceMax(event.target.value)}
+                    placeholder={t.priceMax}
+                    inputMode="decimal"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={sortMode}
+                    onChange={(event) => setSortMode(event.target.value as SortMode)}
+                    className="h-[36px] rounded-lg border border-normal bg-normal px-2 text-xs font-semibold text-strong outline-none"
+                    disabled={viewMode === "grouped"}
+                  >
+                    {sortOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  {hasActiveFilters && (
+                    <button
+                      type="button"
+                      onClick={() => resetFilters()}
+                      className="rounded-lg border border-normal px-2.5 h-[36px] text-xs font-semibold text-neutral transition-colors hover:bg-alternative hover:text-strong"
+                    >
+                      {t.resetFilters}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
-          {error && <p className="text-sm text-red-500 font-medium">{error}</p>}
-
-          <button
-            type="button"
-            onClick={() => void handleSearch()}
-            disabled={loading}
-            className="rounded-lg bg-primary px-5 py-2.5 text-sm font-bold text-white hover:opacity-90 disabled:opacity-50 transition-all flex items-center gap-2 shadow-sm shadow-blue-500/20"
-          >
-            {loading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-            조회
-          </button>
+          {error && <p className="text-xs font-bold text-red-500">{error}</p>}
         </div>
       </SectionCard>
 
-      <SectionCard
-        title="조회 결과"
-        subtitle={
-          searchedRegion
-            ? hasActiveFilters
-              ? `${searchedRegion} · 전체 ${results.length}건 중 ${filteredResults.length}건`
-              : `${searchedRegion} · ${results.length}건`
-            : "지역과 기간을 선택해 조회하세요"
-        }
-        right={
-          results.length > 0 ? (
-            <div className="flex items-center gap-1 rounded-lg border border-normal p-1">
-              <button
-                type="button"
-                onClick={() => setViewMode("grouped")}
-                className={classNames(
-                  "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-bold transition-colors",
-                  viewMode === "grouped" ? "bg-primary text-white" : "text-neutral hover:bg-alternative hover:text-strong"
-                )}
-              >
-                <LayoutGrid className="h-3.5 w-3.5" />
-                단지별 시계열
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode("table")}
-                className={classNames(
-                  "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-bold transition-colors",
-                  viewMode === "table" ? "bg-primary text-white" : "text-neutral hover:bg-alternative hover:text-strong"
-                )}
-              >
-                <TableProperties className="h-3.5 w-3.5" />
-                표
-              </button>
+      {/* KPI 카드 섹션 */}
+      <section className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+        <KpiCard label={t.recordCount} value={`${kpis.count}${t.unitCount}`} hint={t.searchScope} />
+        <KpiCard label={t.averagePrice} value={`${kpis.avgPrice.toFixed(1)}${t.unitDeal}`} hint={searchedRegion || t.prompt} />
+        <KpiCard label={t.averagePpy} value={kpis.avgPpy > 0 ? `${kpis.avgPpy.toLocaleString()}${t.unitPpy}` : "-"} hint={t.ppyHint} />
+        <KpiCard label={t.priceRange} value={kpis.count > 0 ? `${kpis.maxPrice.toFixed(1)} · ${kpis.minPrice.toFixed(1)}${t.unitDeal}` : "-"} hint={t.searchScope} />
+      </section>
+
+      {/* 메인 결과 분할 뷰 영역 */}
+      <div className="flex-1 min-h-[420px] md:h-[580px] flex gap-4 overflow-hidden">
+        {/* 1. 결과 리스트 패널 */}
+        {showList && (
+          <div className={classNames(
+            "flex flex-col min-w-0 border border-normal bg-elevated rounded-2xl overflow-hidden shadow-sm transition-all duration-200",
+            isMobile ? "w-full h-full" : "w-[430px] shrink-0"
+          )}>
+            {/* 리스트 패널 헤더 */}
+            <div className="flex-none p-3 border-b border-normal bg-alternative/25 flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-strong text-xs">{t.resultTitle}</h3>
+                <p className="text-[10px] text-neutral mt-0.5">{t.resultSubtitle}</p>
+              </div>
+              {results.length > 0 && (
+                <div className="flex items-center gap-0.5 rounded-lg border border-normal p-0.5 bg-alternative">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("grouped")}
+                    className={classNames(
+                      "flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-bold transition-colors",
+                      viewMode === "grouped" ? "bg-primary text-white" : "text-neutral hover:text-strong"
+                    )}
+                  >
+                    <LayoutGrid className="h-3 w-3" />
+                    {t.groupedView}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("table")}
+                    className={classNames(
+                      "flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-bold transition-colors",
+                      viewMode === "table" ? "bg-primary text-white" : "text-neutral hover:text-strong"
+                    )}
+                  >
+                    <TableProperties className="h-3 w-3" />
+                    {t.tableView}
+                  </button>
+                </div>
+              )}
             </div>
-          ) : undefined
-        }
-      >
-        {results.length > 0 && (
-          <div className="mb-4 space-y-2">
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              <input
-                className="rounded-lg border border-normal bg-normal px-3 py-2 text-xs text-strong focus:border-primary outline-none"
-                value={filters.name}
-                onChange={(e) => setFilters((prev) => ({ ...prev, name: e.target.value }))}
-                placeholder="단지명 검색"
-              />
-              <div className="flex items-center gap-1.5">
-                <input
-                  className="w-full rounded-lg border border-normal bg-normal px-3 py-2 text-xs text-strong focus:border-primary outline-none"
-                  value={filters.areaMin}
-                  onChange={(e) => setFilters((prev) => ({ ...prev, areaMin: e.target.value }))}
-                  placeholder="최소 평수(㎡)"
-                  inputMode="decimal"
-                />
-                <span className="text-neutral text-xs shrink-0">~</span>
-                <input
-                  className="w-full rounded-lg border border-normal bg-normal px-3 py-2 text-xs text-strong focus:border-primary outline-none"
-                  value={filters.areaMax}
-                  onChange={(e) => setFilters((prev) => ({ ...prev, areaMax: e.target.value }))}
-                  placeholder="최대 평수(㎡)"
-                  inputMode="decimal"
-                />
-              </div>
-              <div className="flex items-center gap-1.5">
-                <input
-                  className="w-full rounded-lg border border-normal bg-normal px-3 py-2 text-xs text-strong focus:border-primary outline-none"
-                  value={filters.priceMin}
-                  onChange={(e) => setFilters((prev) => ({ ...prev, priceMin: e.target.value }))}
-                  placeholder="최소 가격(억)"
-                  inputMode="decimal"
-                />
-                <span className="text-neutral text-xs shrink-0">~</span>
-                <input
-                  className="w-full rounded-lg border border-normal bg-normal px-3 py-2 text-xs text-strong focus:border-primary outline-none"
-                  value={filters.priceMax}
-                  onChange={(e) => setFilters((prev) => ({ ...prev, priceMax: e.target.value }))}
-                  placeholder="최대 가격(억)"
-                  inputMode="decimal"
-                />
-              </div>
-              <input
-                className="rounded-lg border border-normal bg-normal px-3 py-2 text-xs text-strong focus:border-primary outline-none"
-                value={filters.month}
-                onChange={(e) => setFilters((prev) => ({ ...prev, month: e.target.value }))}
-                placeholder="거래월 (YYYYMM)"
-              />
-              {hasActiveFilters && (
-                <button
-                  type="button"
-                  onClick={resetFilters}
-                  className="flex items-center justify-center gap-1 rounded-lg border border-normal px-3 py-2 text-xs font-bold text-neutral hover:bg-alternative hover:text-strong transition-colors"
-                >
-                  <X className="h-3.5 w-3.5" />
-                  필터 초기화
-                </button>
+
+            {/* 리스트 패널 리스트 (내부 스크롤) */}
+            <div className="flex-1 overflow-y-auto p-3">
+              {results.length > 0 && (
+                <div className="mb-3 flex flex-wrap items-center justify-between text-xs text-neutral">
+                  <span>
+                    {t.showing} <b className="font-bold text-strong">{viewMode === "grouped" ? filtered.length : sorted.length}</b>
+                    {t.unitCount}
+                    {searchedRegion ? ` · ${searchedRegion}` : ""}
+                  </span>
+                  {hasActiveFilters && (
+                    <span>
+                      {t.filteredResults} / {t.allResults} {results.length}
+                      {t.unitCount}
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {filtered.length > 0 ? (
+                viewMode === "grouped" ? (
+                  <ComplexGroupView
+                    records={filtered}
+                    selectedApartment={selectedApartment}
+                    onSelectApartment={(aptName) => {
+                      setSelectedApartment(aptName);
+                      // 지도로 포커스도 주고, 원한다면 검색 필터를 고정
+                    }}
+                  />
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-normal bg-alternative/80">
+                          <th className="px-3 py-2 text-left font-bold text-neutral">{t.apartmentName}</th>
+                          <th className="px-3 py-2 text-left font-bold text-neutral">{t.area}</th>
+                          <th className="px-3 py-2 text-right font-bold text-neutral">{t.floor}</th>
+                          <th className="px-3 py-2 text-right font-bold text-neutral">{t.price}</th>
+                          <th className="px-3 py-2 text-right font-bold text-neutral">{t.ppy}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sorted.map((item, index) => {
+                          const isSelected = selectedApartment === item.apartmentName;
+                          return (
+                            <tr
+                              key={`${item.apartmentName}-${item.dealDate}-${index}`}
+                              onClick={() => setSelectedApartment(item.apartmentName)}
+                              className={classNames(
+                                "border-b border-normal/50 last:border-b-0 cursor-pointer transition-colors duration-150",
+                                isSelected ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-alternative/40"
+                              )}
+                            >
+                              <td className="px-3 py-2.5">
+                                <p className="font-bold text-strong text-xs">{item.apartmentName}</p>
+                                <p className="text-[10px] text-assistive mt-0.5">{item.dealDate}</p>
+                              </td>
+                              <td className="px-3 py-2.5 text-neutral">{formatArea(item)}</td>
+                              <td className="px-3 py-2.5 text-right tabular-nums text-strong">{item.floor ? `${item.floor}층` : "-"}</td>
+                              <td className="px-3 py-2.5 text-right tabular-nums text-strong font-extrabold text-primary">{item.priceEok.toFixed(2)}{t.unitDeal}</td>
+                              <td className="px-3 py-2.5 text-right tabular-nums text-neutral">{item.ppy > 0 ? `${item.ppy.toLocaleString()}` : "-"}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )
+              ) : (
+                <p className="py-16 text-center text-xs text-neutral">{loading ? t.loading : results.length > 0 ? t.noResults : t.prompt}</p>
               )}
             </div>
           </div>
         )}
-        {filteredResults.length > 0 ? (
-          viewMode === "grouped" ? (
-            <ComplexGroupView records={filteredResults} />
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-normal">
-                    {columns.map((col) => (
-                      <th
-                        key={col.key}
-                        onClick={() => toggleSort(col.key)}
-                        className="px-3 py-2 text-left text-xs font-bold text-neutral cursor-pointer select-none hover:text-strong transition-colors whitespace-nowrap"
-                      >
-                        <span className="inline-flex items-center gap-1">
-                          {col.label}
-                          {sort?.key === col.key ? (
-                            sort.direction === "asc" ? <ArrowUp className="h-3 w-3 text-primary" /> : <ArrowDown className="h-3 w-3 text-primary" />
-                          ) : (
-                            <ArrowUpDown className="h-3 w-3 opacity-30" />
-                          )}
-                        </span>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedResults.map((item, idx) => (
-                    <tr key={idx} className="border-b border-normal/30 hover:bg-normal/30 transition-colors">
-                      <td className="px-3 py-2 font-bold text-strong whitespace-nowrap">{item.apartmentName}</td>
-                      <td className="px-3 py-2 text-neutral whitespace-nowrap">{item.floor ? `${item.floor}층` : "-"}</td>
-                      <td className="px-3 py-2 text-neutral whitespace-nowrap">{item.areaM2 ? `${item.areaM2}㎡` : "-"}</td>
-                      <td className="px-3 py-2 font-bold text-primary whitespace-nowrap">{item.priceEok.toFixed(2)}억</td>
-                      <td className="px-3 py-2 text-neutral whitespace-nowrap">{item.dealDate.slice(0, 7)}</td>
-                      <td className="px-3 py-2 text-assistive text-[11px] whitespace-nowrap">{item.dealDate}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )
-        ) : (
-          <p className="text-center py-10 text-sm text-neutral">
-            {loading ? "조회 중..." : hasActiveFilters && results.length > 0 ? "필터 조건에 맞는 결과가 없습니다." : "조회 결과가 없습니다."}
-          </p>
+
+        {/* 2. 카카오 지도 패널 */}
+        {showMap && (
+          <div className="flex-1 h-full min-h-[350px]">
+            <KakaoMap
+              searchedRegion={searchedRegion}
+              records={filtered}
+              selectedApartment={selectedApartment}
+              onSelectApartment={(aptName) => {
+                setSelectedApartment(aptName);
+                setNameFilter(aptName);
+                if (isMobile) {
+                  setMobileActiveTab("list");
+                }
+              }}
+            />
+          </div>
         )}
-      </SectionCard>
+      </div>
+
+      {/* 모바일 탭 전환 플로팅 버튼 */}
+      {isMobile && results.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1 rounded-full border border-normal bg-elevated/95 backdrop-blur-sm p-1.5 shadow-lg shadow-black/10">
+          <button
+            type="button"
+            onClick={() => setMobileActiveTab("list")}
+            className={classNames(
+              "flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-bold transition-all duration-200",
+              mobileActiveTab === "list" ? "bg-primary text-white shadow-sm" : "text-neutral hover:text-strong"
+            )}
+          >
+            <TableProperties className="h-3.5 w-3.5" />
+            {t.listView}
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileActiveTab("map")}
+            className={classNames(
+              "flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-bold transition-all duration-200",
+              mobileActiveTab === "map" ? "bg-primary text-white shadow-sm" : "text-neutral hover:text-strong"
+            )}
+          >
+            <MapPin className="h-3.5 w-3.5" />
+            {t.mapView}
+          </button>
+        </div>
+      )}
+
+      <div className="rounded-xl border border-amber-200/50 bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-900 flex-none">
+        {t.sourceNote}
+      </div>
     </div>
   );
 }

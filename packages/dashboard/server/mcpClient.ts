@@ -4,6 +4,7 @@ import path from "node:path";
 import { createMcporterLimiter } from "./mcpThrottle.js";
 import type { McpPriceResult, RegionCodeResult } from "./types.js";
 import { findFirstStringByKey } from "./transactions.js";
+import { fetchApartmentPricesDirect } from "@myhome/shared";
 
 const mcporterLimiter = createMcporterLimiter({
   minIntervalMs: 800,
@@ -178,8 +179,8 @@ export async function getRegionCode(regionName: string): Promise<RegionCodeResul
 }
 
 export async function getApartmentPrices(lawdCode: string, dealMonth: string): Promise<McpPriceResult> {
-  const raw = await runMcporter("mcp-gateway.AptInfo-get_apt_price", { lawd_cd: lawdCode, deal_ymd: dealMonth });
-  return { transactions: findTransactionArray(raw), raw };
+  const transactions = await fetchApartmentPricesDirect(lawdCode, dealMonth);
+  return { transactions, raw: { result: { transactions } } };
 }
 
 export async function getApartmentList(lawdCode: string): Promise<string[]> {

@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { nanoid } from "nanoid";
-import type { AppState, CheckRun, NotificationRecord, RuleInput, WatchRule } from "./types.js";
+import type { AppState, CheckRun, NotificationRecord, RuleInput, WatchRule, SystemConfig } from "./types.js";
 
 const dataDir = path.resolve("data");
 const statePath = path.join(dataDir, "app-state.json");
@@ -10,7 +10,8 @@ const initialState: AppState = {
   rules: [],
   checkRuns: [],
   notifications: [],
-  alertedDedupeKeys: []
+  alertedDedupeKeys: [],
+  systemConfig: {}
 };
 
 let writeQueue: Promise<any> = Promise.resolve();
@@ -112,4 +113,40 @@ export async function appendNotification(notification: NotificationRecord): Prom
   const state = await readState();
   state.notifications = [notification, ...state.notifications].slice(0, 100);
   await writeState(state);
+}
+
+export async function getSystemConfig(): Promise<SystemConfig> {
+  const state = await readState();
+  return state.systemConfig ?? {};
+}
+
+export async function saveSystemConfig(config: SystemConfig): Promise<SystemConfig> {
+  const state = await readState();
+  state.systemConfig = {
+    ...state.systemConfig,
+    ...config
+  };
+  await writeState(state);
+
+  // process.env 즉시 반영
+  if (config.telegramBotToken !== undefined) process.env.TELEGRAM_BOT_TOKEN = config.telegramBotToken;
+  if (config.telegramChatId !== undefined) process.env.TELEGRAM_CHAT_ID = config.telegramChatId;
+  if (config.kakaoRestApiKey !== undefined) process.env.KAKAO_REST_API_KEY = config.kakaoRestApiKey;
+  if (config.jusoConfmKey !== undefined) process.env.JUSO_CONFM_KEY = config.jusoConfmKey;
+  if (config.dataGoKrApiKey !== undefined) process.env.DATA_GO_KR_API_KEY = config.dataGoKrApiKey;
+  if (config.kakaoJavascriptKey !== undefined) process.env.KAKAO_JAVASCRIPT_KEY = config.kakaoJavascriptKey;
+  if (config.kakaoNativeAppKey !== undefined) process.env.KAKAO_NATIVE_APP_KEY = config.kakaoNativeAppKey;
+
+  return state.systemConfig;
+}
+
+export async function applySystemConfigToEnv() {
+  const config = await getSystemConfig();
+  if (config.telegramBotToken) process.env.TELEGRAM_BOT_TOKEN = config.telegramBotToken;
+  if (config.telegramChatId) process.env.TELEGRAM_CHAT_ID = config.telegramChatId;
+  if (config.kakaoRestApiKey) process.env.KAKAO_REST_API_KEY = config.kakaoRestApiKey;
+  if (config.jusoConfmKey) process.env.JUSO_CONFM_KEY = config.jusoConfmKey;
+  if (config.dataGoKrApiKey) process.env.DATA_GO_KR_API_KEY = config.dataGoKrApiKey;
+  if (config.kakaoJavascriptKey) process.env.KAKAO_JAVASCRIPT_KEY = config.kakaoJavascriptKey;
+  if (config.kakaoNativeAppKey) process.env.KAKAO_NATIVE_APP_KEY = config.kakaoNativeAppKey;
 }

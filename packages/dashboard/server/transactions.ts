@@ -61,6 +61,19 @@ export function normalizeTransaction(item: unknown, fallbackMonth: string): Tran
   if (!item || typeof item !== "object") return undefined;
   const record = item as Record<string, unknown>;
   const apartmentName = readString(record, ["apartmentName", "aptName", "아파트", "아파트명", "name"]);
+  
+  // 1. 이미 정규화되어 priceEok 필드가 직접 존재하는 경우 (새로운 apiClient 직접 조회 데이터 호환)
+  if (apartmentName && typeof record.priceEok === "number" && record.priceEok > 0) {
+    const priceEok = record.priceEok;
+    const areaM2 = readNumber(record, ["areaM2", "exclusiveArea", "area", "전용면적"]);
+    const floor = readNumber(record, ["floor", "층"]);
+    const rawDealDate = readString(record, ["dealDate", "date", "거래일", "transactionDate"]);
+    const fallbackDate = fallbackMonth.length === 6 ? `${fallbackMonth.slice(0, 4)}-${fallbackMonth.slice(4)}-01` : fallbackMonth;
+    const dealDate = rawDealDate || fallbackDate;
+    return { apartmentName, dealDate, priceEok, areaM2, floor, raw: item };
+  }
+
+  // 2. 원시 API/MCP 응답인 경우 파싱 진행
   const rawPrice = readNumber(record, ["transactionPriceRaw", "dealAmount", "price", "amount", "거래금액", "매매가", "transactionPrice"]);
   if (!apartmentName || rawPrice === undefined || rawPrice <= 0) return undefined;
 

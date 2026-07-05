@@ -1,7 +1,7 @@
 import { Check, ChevronLeft, ChevronRight, History, Pencil, Play, RefreshCw, Search, Send, Trash2, X } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { createRule, deleteRule, getApartments, patchRule, runRule, searchRegions } from "../api";
-import { ConstraintBanner } from "../components/ConstraintBanner";
+
 import { RegionSearchInput } from "../components/RegionSearchInput";
 import { SectionCard } from "../components/SectionCard";
 import { classNames, formatDate } from "../lib/format";
@@ -168,7 +168,6 @@ function RuleForm({
       <div className="space-y-6">
         {step === 1 && (
           <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <ConstraintBanner compact />
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="space-y-1.5 sm:col-span-2">
                 <span className="text-sm font-semibold text-strong">조건 이름</span>

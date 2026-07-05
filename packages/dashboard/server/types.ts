@@ -26,11 +26,22 @@ export type {
   RegionSearchResult
 };
 
+export type SystemConfig = {
+  telegramBotToken?: string;
+  telegramChatId?: string;
+  kakaoRestApiKey?: string;
+  jusoConfmKey?: string;
+  dataGoKrApiKey?: string;
+  kakaoJavascriptKey?: string;
+  kakaoNativeAppKey?: string;
+};
+
 export type AppState = {
   rules: WatchRule[];
   checkRuns: CheckRun[];
   notifications: NotificationRecord[];
   alertedDedupeKeys: string[];
+  systemConfig?: SystemConfig;
 };
 
 export type RegionCodeResult = RegionSearchResult;

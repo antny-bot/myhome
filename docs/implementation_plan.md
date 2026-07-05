@@ -1,490 +1,171 @@
-# Neo4j 그래프 DB 분석 대시보드 (v2)
+# SQLite 전환 및 아키텍처 단순화 구현 계획 (v1.0)
 
-> 모노레포 전환 + 데이터 수집 봇 + LLM 인사이트 기능 포함
+> 복잡한 Neo4j 그래프 DB와 분리된 배포 환경(Oracle VM)을 걷어내고, 단일 서버 내에서 가볍게 구동 가능한 SQLite 파일 DB 기반의 심플한 아키텍처로 전환합니다. 
 
-## 아키텍처 개요
+---
+
+## 1. 아키텍처 변경 비교
+
+### AS-IS (기존 설계)
+* **데이터 수집기 (Collector Bot)**: Oracle Free Tier (ARM VM)에서 별도 실행
+* **대시보드 (Dashboard)**: Synology NAS (Docker)에서 실행
+* **데이터베이스 (Graph DB)**: Neo4j Aura (Cloud Free Tier, 최대 20만 노드 용량 제한)
+* **시각화**: react-force-graph-2d 기반의 노드-링크 네트워크 시각화 탭 존재
+
+### TO-BE (단일 서버 + SQLite)
+* **통합 인프라**: 하나의 서버(Synology NAS 또는 로컬 개발 환경)에서 대시보드 백엔드와 스케줄 기반 데이터 수집기가 함께 동작
+* **데이터베이스 (RDBMS)**: 파일 기반의 **SQLite (`better-sqlite3` 대신 내장 `node:sqlite` 채택)** 도입. 로컬 디스크 상에 `data/myhome.db` 파일로 영구 저장
+* **시각화**: 복잡한 네트워크 그래프 탭을 제거하고, 통계 중심의 4개 탭(종합 현황, 단지별 분석, 드릴다운, AI 인사이트)으로 단순화
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    myhome (monorepo)                     │
-│                   npm workspaces 기반                    │
-├──────────────┬──────────────────┬────────────────────────┤
-│ packages/    │ packages/        │ packages/              │
-│ shared/      │ collector/       │ dashboard/             │
-│              │                  │                        │
-│ • Neo4j      │ • 매일 크론      │ • Express + React      │
-│   클라이언트 │ • 최근 2달 수집  │ • 그래프 분석 대시보드  │
-│ • 공통 타입  │ • MCP 연동       │ • LLM 프롬프트 빌더    │
-│ • 유틸리티   │ • 경량 단일 파일  │ • Docker 배포          │
-│              │                  │                        │
-│              │ 🏠 Oracle Free   │ 🏠 Synology NAS        │
-│              │    Tier VM       │    Docker              │
-└──────────────┴──────────────────┴────────────────────────┘
-                        │                    │
-                        └────────┬───────────┘
-                                 ▼
-                      ☁️ Neo4j Aura (Free Tier)
+┌──────────────────────────────────────────────┐
+│             myhome (단일 서버)                │
+│             npm workspaces 기반              │
+├───────────────┬──────────────────────────────┤
+│ packages/     │ packages/                    │
+│ shared/       │ dashboard/                   │
+│               │                              │
+│ • SQLite      │ • Express Server + React     │
+│   클라이언트   │ • 주기적 수집 스케줄러 내장  │
+│   (node:      │ • REST API                   │
+│    sqlite)    │ • 실거래 통계 대시보드       │
+│ • 테이블      │                              │
+│   스키마 정의  │                              │
+└───────────────┴──────────────────────────────┘
+                        │
+                        ▼ (로컬 파일)
+             💾 SQLite (data/myhome.db)
 ```
 
-## User Review Required
+---
+
+## 2. User Review Required
 
 > [!IMPORTANT]
-> **모노레포 전환 방식**: 기존 `myhome/` 루트의 서버/프론트 코드를 `packages/dashboard/`로 이동합니다. 기존 Git 히스토리는 유지됩니다. `graphDb.ts`와 공통 타입은 `packages/shared/`로 추출합니다.
+> **패키지 결합 구조**:
+> `packages/collector`에 작성되어 있던 데이터 수집 로직은 그대로 유지하되, 대시보드 서버(`packages/dashboard/server/scheduler.ts`)가 이 수집 라이브러리를 직접 import하여 주기적(예: 매일 오전 6시)으로 프로세스 내에서 직접 실행하도록 구성합니다. 이를 통해 추가 배포나 크론 설정 작업이 전혀 불필요해집니다.
 
-> [!WARNING]
-> **기존 코드 이동**: 모노레포 전환 시 기존 `server/`, `src/` 경로가 바뀝니다. 현재 돌리고 있는 서비스가 있다면 배포 경로 업데이트가 필요합니다.
-
-## Open Questions
-
-> [!NOTE]
-> **Oracle VM의 기존 봇**: Oracle Free Tier에서 이미 돌리고 있는 봇은 어떤 언어/런타임인가요? collector도 Node.js(tsx)로 구현할 예정인데, Node.js가 설치되어 있나요?
-
-> [!NOTE]
-> **Collector의 MCP 접근**: collector가 Oracle VM에서 `mcporter` CLI를 통해 MCP 서버(AptInfo)에 접근해야 합니다. Oracle VM에 `mcporter`가 설치/설정되어 있나요? 아니면 collector에서 직접 국토부 API를 호출하는 방식이 더 나을까요?
-
-> [!NOTE]
-> **수집 대상 지역 초기 목록**: 규칙 기반 + 수동 목록 모두 지원하기로 했는데, 수동 목록의 초기 대상 지역이 있나요? (예: 서울 강남구, 서초구 등)
+> [!IMPORTANT]
+> **UI 변경 사항**:
+> 프론트엔드에서 `react-force-graph-2d` 라이브러리 및 "그래프 네트워크" 탭이 제거됩니다. 의존성을 가볍게 줄여 Vite 빌드 크기를 최소화합니다.
 
 ---
 
-## Phase 구분
+## 3. 데이터베이스 스키마 설계
 
-전체 작업을 3단계로 나눕니다:
+SQLite 기반의 정규화된 3가지 테이블 스키마를 구성합니다.
 
-| Phase | 내용 | 우선순위 |
-|-------|------|----------|
-| **A** | 모노레포 전환 + shared 패키지 추출 | 🔴 먼저 |
-| **B** | Dashboard에 그래프 분석 페이지 추가 (4탭 + LLM 탭) | 🔴 먼저 |
-| **C** | Collector 봇 + Docker 설정 | 🟡 다음 |
+```sql
+-- 1. 지역 테이블
+CREATE TABLE IF NOT EXISTS regions (
+  lawd_code TEXT PRIMARY KEY,
+  display_name TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
 
-> Phase A→B를 먼저 완료하고, C는 이후에 진행합니다.
+-- 2. 단지 테이블
+CREATE TABLE IF NOT EXISTS complexes (
+  id TEXT PRIMARY KEY, -- 'lawd_code|complex_name' 형식의 고유 키
+  lawd_code TEXT NOT NULL,
+  name TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (lawd_code) REFERENCES regions(lawd_code),
+  UNIQUE(lawd_code, name)
+);
 
----
+-- 3. 실거래가 상세 테이블
+CREATE TABLE IF NOT EXISTS transactions (
+  dedupe_key TEXT PRIMARY KEY,
+  complex_id TEXT NOT NULL,
+  deal_date TEXT NOT NULL,
+  price_eok REAL NOT NULL,
+  area_m2 REAL,
+  floor INTEGER,
+  collected_at TEXT NOT NULL,
+  updated_at TEXT,
+  FOREIGN KEY (complex_id) REFERENCES complexes(id)
+);
 
-## Phase A: 모노레포 전환
-
-### 최종 디렉토리 구조
-
-```
-myhome/
-├── package.json              ← 루트 (workspaces 정의)
-├── tsconfig.base.json        ← 공통 TS 설정
-├── AGENTS.md / GEMINI.md
-├── docs/
-│
-├── packages/
-│   ├── shared/               ← 공통 모듈
-│   │   ├── package.json
-│   │   ├── tsconfig.json
-│   │   └── src/
-│   │       ├── index.ts      ← barrel export
-│   │       ├── graphDb.ts    ← Neo4j 클라이언트 (기존 server/graphDb.ts 이동)
-│   │       ├── types.ts      ← 공통 타입 (TransactionNode, RegionInfo 등)
-│   │       └── utils.ts      ← 공통 유틸 (dedupeKey 생성 등)
-│   │
-│   ├── collector/            ← 데이터 수집 봇
-│   │   ├── package.json
-│   │   ├── tsconfig.json
-│   │   ├── Dockerfile        ← Oracle VM용 경량 이미지
-│   │   └── src/
-│   │       ├── index.ts      ← 엔트리 + 크론 스케줄러
-│   │       ├── config.ts     ← 수집 대상 설정 로드
-│   │       └── fetcher.ts    ← MCP/직접 API로 데이터 가져오기
-│   │
-│   └── dashboard/            ← 기존 서버 + 프론트 (이동)
-│       ├── package.json
-│       ├── tsconfig.json
-│       ├── tsconfig.node.json
-│       ├── vite.config.ts
-│       ├── Dockerfile        ← Synology Docker용
-│       ├── docker-compose.yml
-│       ├── index.html
-│       ├── tailwind.config.js
-│       ├── postcss.config.js
-│       ├── server/           ← 기존 server/ 이동
-│       ├── src/              ← 기존 src/ 이동
-│       ├── public/
-│       └── data/
-```
-
-### [NEW] 루트 package.json
-
-```json
-{
-  "name": "myhome",
-  "private": true,
-  "workspaces": ["packages/shared", "packages/collector", "packages/dashboard"],
-  "scripts": {
-    "dev": "npm run dev -w packages/dashboard",
-    "build": "npm run build -w packages/shared && npm run build -w packages/dashboard",
-    "collect": "npm run start -w packages/collector"
-  }
-}
-```
-
-### [NEW] packages/shared/package.json
-
-```json
-{
-  "name": "@myhome/shared",
-  "version": "0.1.0",
-  "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "scripts": { "build": "tsc" },
-  "dependencies": { "neo4j-driver": "^6.2.0" }
-}
-```
-
-### 이동 대상 파일
-
-| 원본 | 대상 | 비고 |
-|------|------|------|
-| `server/graphDb.ts` | `packages/shared/src/graphDb.ts` | Neo4j 클라이언트 추출 |
-| `server/types.ts` (공통 부분) | `packages/shared/src/types.ts` | TransactionNode, RegionInfo 등 |
-| `server/*` (나머지) | `packages/dashboard/server/` | 기존 서버 코드 |
-| `src/*` | `packages/dashboard/src/` | 기존 프론트엔드 |
-| `data/` | `packages/dashboard/data/` | 상태 파일 |
-| 기타 설정 파일 | `packages/dashboard/` | vite, tailwind 등 |
-
----
-
-## Phase B: Dashboard 그래프 분석 페이지
-
-### 탭 구성 (5개)
-
-| 탭 | 이름 | 설명 |
-|----|------|------|
-| 1 | **Overview** | 전체 현황 KPI + 지역별/월별 가격 트렌드 + 거래량 추이 |
-| 2 | **단지 분석** | 특정 아파트 단지 → 평수별 가격 추이, 층별 분포, 최근 거래 |
-| 3 | **드릴다운** | 도시 → 지역 → 단지 → 평수 계층 탐색 + 시계열 |
-| 4 | **그래프 뷰** | Node-Link 다이어그램 (인터랙티브) |
-| 5 | **💡 인사이트** | LLM 프롬프트 빌더 + 분석 결과 관리 |
-
----
-
-### 탭 5: 인사이트 (LLM 프롬프트 빌더) — 신규
-
-```
-┌─────────────────────────────────────────────┐
-│ 💡 인사이트 분석                              │
-├─────────────────────────────────────────────┤
-│                                             │
-│ ┌─ 데이터 컨텍스트 자동 생성 ──────────────┐ │
-│ │ 현재 필터 기반으로 Neo4j 데이터를        │ │
-│ │ 요약하여 프롬프트에 포함                 │ │
-│ │                                         │ │
-│ │ ✅ 거래 통계 (건수, 평균가, 중위가)      │ │
-│ │ ✅ 월별 추이 데이터                      │ │
-│ │ ✅ 지역/단지 비교 데이터                 │ │
-│ │ ☐ 원본 거래 내역 (최근 N건)             │ │
-│ └─────────────────────────────────────────┘ │
-│                                             │
-│ ┌─ 프롬프트 템플릿 ───────────────────────┐ │
-│ │ [가격 추세 분석] [투자 적정성 평가]      │ │
-│ │ [지역 비교 분석] [이상 거래 탐지]        │ │
-│ │ [커스텀 프롬프트 작성]                   │ │
-│ └─────────────────────────────────────────┘ │
-│                                             │
-│ ┌─ 생성된 프롬프트 ───────────────────────┐ │
-│ │ 아래 데이터를 바탕으로 강남구 아파트     │ │
-│ │ 실거래가 추세를 분석해주세요...          │ │
-│ │                                         │ │
-│ │ [📋 복사] [✏️ 편집] [💾 저장]            │ │
-│ └─────────────────────────────────────────┘ │
-│                                             │
-│ ┌─ 분석 결과 (붙여넣기 or API) ───────────┐ │
-│ │ LLM 응답을 여기에 붙여넣으세요...       │ │
-│ │                                         │ │
-│ │ [💾 결과 저장] [📊 차트 추출]            │ │
-│ └─────────────────────────────────────────┘ │
-│                                             │
-│ ┌─ 저장된 인사이트 이력 ──────────────────┐ │
-│ │ 📝 2026-07-03 강남구 추세 분석          │ │
-│ │ 📝 2026-07-01 서초구 vs 강남구 비교     │ │
-│ └─────────────────────────────────────────┘ │
-└─────────────────────────────────────────────┘
-```
-
-**핵심 기능:**
-1. **데이터 컨텍스트 자동 생성**: 현재 필터 조건의 Neo4j 데이터를 요약하여 프롬프트에 자동 삽입
-2. **프롬프트 템플릿**: 미리 정의된 분석 유형 (추세, 투자, 비교, 이상탐지)
-3. **복사 → 외부 LLM 붙여넣기 → 결과 붙여넣기** 워크플로우 (1차)
-4. **결과 저장**: 인사이트 이력 관리 (`data/insights.json`)
-5. **향후 API 연동 대비**: Gemini/OpenAI API 키를 설정하면 직접 호출 가능한 구조로 설계
-
----
-
-### Backend 확장 (Phase B)
-
-#### [MODIFY] packages/shared/src/graphDb.ts
-
-기존 3개 함수 + **7개 함수 추가**:
-
-| 함수명 | 설명 |
-|--------|------|
-| `searchTransactions(filter)` | 기간/지역/아파트명/평수 필터 조합 검색 |
-| `getDrilldownRegions()` | 시/도 레벨 집계 (거래수, 평균가) |
-| `getDrilldownComplexes(lawdCode)` | 특정 지역 내 단지별 집계 |
-| `getDrilldownAreas(complexName, lawdCode)` | 특정 단지의 평수별 집계 |
-| `getGraphTopology(filter?)` | 노드-링크 시각화용 데이터 |
-| `getComplexDetail(complexName, lawdCode?)` | 단지 상세 분석 |
-| `getDataContext(filter)` | **LLM 프롬프트용 데이터 요약 생성** |
-
-#### [MODIFY] packages/dashboard/server/routes-graph.ts
-
-기존 3개 + **9개 엔드포인트 추가**:
-
-| 메서드 | 경로 | 설명 |
-|--------|------|------|
-| GET | `/api/graph/search` | 필터 조합 검색 |
-| GET | `/api/graph/drilldown/regions` | 지역 집계 |
-| GET | `/api/graph/drilldown/complexes` | 단지 집계 |
-| GET | `/api/graph/drilldown/areas` | 평수 집계 |
-| GET | `/api/graph/topology` | 노드-링크 데이터 |
-| GET | `/api/graph/complex/:name/detail` | 단지 상세 |
-| GET | `/api/graph/context` | LLM용 데이터 컨텍스트 |
-| **CRUD** | `/api/graph/presets` | 조회 프리셋 (GET/POST/DELETE) |
-| **CRUD** | `/api/graph/insights` | 인사이트 이력 (GET/POST/DELETE) |
-
-#### [NEW] packages/dashboard/server/graphPresets.ts
-
-프리셋 CRUD — `data/graph-presets.json` 저장
-
-#### [NEW] packages/dashboard/server/graphInsights.ts
-
-인사이트 이력 CRUD — `data/insights.json` 저장
-
-```ts
-type Insight = {
-  id: string;
-  title: string;
-  filter: GraphFilter;       // 당시 필터 조건
-  promptTemplate: string;    // 사용된 템플릿
-  generatedPrompt: string;   // 생성된 프롬프트
-  response?: string;         // LLM 응답 (붙여넣기)
-  source: 'manual' | 'api';  // 수동 or API
-  createdAt: string;
-};
+-- 인덱스 추가 (조회 속도 최적화)
+CREATE INDEX IF NOT EXISTS idx_transactions_deal_date ON transactions(deal_date);
+CREATE INDEX IF NOT EXISTS idx_transactions_complex_id ON transactions(complex_id);
+CREATE INDEX IF NOT EXISTS idx_complexes_lawd_code ON complexes(lawd_code);
 ```
 
 ---
 
-### Frontend 신규 파일 (Phase B)
+## 4. 세부 변경 파일 계획
 
-| 파일 | 설명 |
-|------|------|
-| `src/pages/GraphDashboard.tsx` | 메인 컨테이너 (필터 + 5탭) |
-| `src/pages/graph/FilterPanel.tsx` | 필터 패널 + 프리셋 관리 |
-| `src/pages/graph/OverviewTab.tsx` | Overview (KPI + 트렌드 차트) |
-| `src/pages/graph/ComplexTab.tsx` | 단지 분석 (평수별/층별) |
-| `src/pages/graph/DrilldownTab.tsx` | 드릴다운 (계층 탐색) |
-| `src/pages/graph/GraphViewTab.tsx` | 그래프 뷰 (노드-링크) |
-| `src/pages/graph/InsightTab.tsx` | 인사이트 (LLM 프롬프트 빌더) |
-| `src/pages/graph/PromptTemplates.ts` | 프롬프트 템플릿 정의 |
+### [Component: `@myhome/shared`]
 
----
+#### [DELETE] `packages/shared/src/graphDb.ts`
+* Neo4j 연동 및 드라이버 코드를 제거합니다.
 
-## Phase C: Collector 봇
+#### [NEW] [db.ts](file:///E:/apps/myhome/packages/shared/src/db.ts)
+* `node:sqlite`를 사용하여 연결을 생성합니다.
+* `initDb()`: 데이터베이스 기동 시 위 스키마의 DDL을 안전하게 실행합니다.
+* `upsertTransaction()`: 트랜잭션을 적용하여 `regions` ➔ `complexes` ➔ `transactions` 순으로 `INSERT OR IGNORE` 및 `ON CONFLICT DO UPDATE`를 수행합니다.
+* 기존 `graphDb.ts`가 노출하던 통계/조회 인터페이스를 SQL 쿼리로 매핑합니다:
+  * `getComplexTrend()`: 단지명 부분 일치 검색 및 월별 평균가 집계 SQL
+  * `getRegionTrend()`: 해당 지역코드 소속 단지들의 월별 평균가 집계 SQL
+  * `getGraphStats()`: 각 테이블 레코드 수 집계 SQL
+  * `searchTransactions()`: 다중 필터(기간, 평수, 단지명) 기반 검색 SQL
+  * `getDrilldownRegions()`, `getDrilldownComplexes()`, `getDrilldownAreas()`: 드릴다운 탐색용 그룹화 집계 SQL
+  * `getComplexDetail()`: 단지 통계, 층별 분포, 최근 거래 10건 조회 SQL
+  * `getDataContext()`: LLM 분석 전송용 데이터 포맷팅 SQL
 
-### 설계 원칙
+#### [MODIFY] [index.ts](file:///E:/apps/myhome/packages/shared/src/index.ts)
+* `graphDb.ts`를 가리키던 export 구문을 새 `db.ts`로 전환합니다.
 
-- **가볍고 단순**: 단일 엔트리 포인트, 의존성 최소
-- **매일 1회 크론**: 최근 2달 거래 데이터 수집 → Neo4j upsert
-- **수집 대상**: 규칙 기반(dashboard API에서 WatchRule 목록 fetch) + 수동 목록(config.json)
-- **로깅**: 수집 결과를 stdout으로 출력 (Oracle VM에서 cron 로그로 확인)
-
-### packages/collector/ 구조
-
-```
-collector/
-├── package.json
-├── tsconfig.json
-├── Dockerfile
-├── src/
-│   ├── index.ts          ← 엔트리 + 메인 로직
-│   ├── config.ts         ← 수집 대상 설정
-│   ├── fetcher.ts        ← MCP or 직접 API 호출
-│   └── collector.ts      ← 수집 → Neo4j upsert 파이프라인
-└── config/
-    └── targets.json      ← 수동 수집 대상 목록
-```
-
-#### config/targets.json 예시
-
-```json
-{
-  "targets": [
-    { "lawdCode": "11680", "displayName": "서울 강남구" },
-    { "lawdCode": "11650", "displayName": "서울 서초구" }
-  ],
-  "fetchFromDashboard": true,
-  "dashboardUrl": "http://synology-ip:4174"
-}
-```
-
-#### 실행 흐름
-
-```
-1. targets.json 로드
-2. fetchFromDashboard=true → dashboard API에서 활성 WatchRule의 지역 목록 가져오기
-3. 수동 목록 + 규칙 기반 목록 합치기 (중복 제거)
-4. 각 지역에 대해:
-   a. 현재월 & 이전월 (최근 2달) 데이터 수집
-   b. @myhome/shared의 upsertTransaction()으로 Neo4j에 적재
-   c. 결과 로깅 (수집 건수, 신규/업데이트 건수)
-5. 완료 로그 출력
-```
-
-#### Oracle VM 크론 설정
-
-```bash
-# crontab -e
-0 6 * * * cd /home/ubuntu/myhome && node packages/collector/dist/index.js >> /var/log/myhome-collector.log 2>&1
-```
+#### [MODIFY] [package.json](file:///E:/apps/myhome/packages/shared/package.json)
+* `neo4j-driver` 의존성을 제거하고 `better-sqlite3` 대신 내장 `node:sqlite`를 활용합니다.
 
 ---
 
-### Docker 설정 (Dashboard)
+### [Component: `@myhome/dashboard`]
 
-#### [NEW] packages/dashboard/Dockerfile
+#### [MODIFY] [package.json](file:///E:/apps/myhome/packages/dashboard/package.json)
+* `neo4j-driver` 및 `react-force-graph-2d` 의존성을 제거합니다.
 
-```dockerfile
-FROM node:20-alpine AS builder
-WORKDIR /app
-COPY package*.json ./
-COPY packages/shared/ packages/shared/
-COPY packages/dashboard/ packages/dashboard/
-RUN npm ci --workspace=packages/shared --workspace=packages/dashboard
-RUN npm run build -w packages/shared
-RUN npm run build -w packages/dashboard
+#### [MODIFY] [packages/dashboard/server/index.ts](file:///E:/apps/myhome/packages/dashboard/server/index.ts)
+* 서버 실행 시 `initDb()`를 호출하고, 종료 시 `closeDb()`를 연결합니다.
+* Neo4j 관련 안내 로그를 제거합니다.
 
-FROM node:20-alpine
-WORKDIR /app
-COPY --from=builder /app/packages/dashboard/dist ./dist
-COPY --from=builder /app/packages/dashboard/data ./data
-COPY --from=builder /app/node_modules ./node_modules
-EXPOSE 4174
-CMD ["node", "dist/server/index.js"]
-```
+#### [MODIFY] [packages/dashboard/server/routes-graph.ts](file:///E:/apps/myhome/packages/dashboard/server/routes-graph.ts)
+* 임포트 대상을 `closeGraphDb` 등에서 SQLite `db` 함수들로 전환합니다.
+* `/api/graph/topology` API는 빈 데이터를 리턴하도록 처리합니다 (호출에 의한 404/500 에러 방지).
 
-#### [NEW] packages/dashboard/docker-compose.yml
+#### [MODIFY] [packages/dashboard/server/ruleEngine.ts](file:///E:/apps/myhome/packages/dashboard/server/ruleEngine.ts)
+* `process.env.GRAPH_DB_ENABLED` 대신 항상 로컬 DB에 수집된 실거래가 upsert되도록 조건문을 수정하거나 완화합니다. (또는 `SQLITE_DB_ENABLED`와 같은 옵션으로 매핑)
 
-```yaml
-version: '3.8'
-services:
-  dashboard:
-    build:
-      context: ../../
-      dockerfile: packages/dashboard/Dockerfile
-    ports:
-      - "4174:4174"
-    environment:
-      - NODE_ENV=production
-      - GRAPH_DB_ENABLED=true
-      - NEO4J_URI=${NEO4J_URI}
-      - NEO4J_USERNAME=${NEO4J_USERNAME}
-      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
-    volumes:
-      - dashboard-data:/app/data
-    restart: unless-stopped
+#### [MODIFY] [packages/dashboard/server/scheduler.ts](file:///E:/apps/myhome/packages/dashboard/server/scheduler.ts)
+* 기존 룰 체킹 외에, 매일 새벽 6시가 되면 `@myhome/collector`의 데이터를 긁어오는 메인 함수를 프로세스 내에서 직접 실행할 수 있도록 통합 수집 스케줄 기능을 추가합니다.
 
-volumes:
-  dashboard-data:
-```
+#### [MODIFY] [packages/dashboard/src/pages/GraphDashboard.tsx](file:///E:/apps/myhome/packages/dashboard/src/pages/GraphDashboard.tsx)
+* "그래프 네트워크" 탭을 제거하고, 탭 구성을 4개로 축소합니다.
+* UI 제목 및 설명에서 "Neo4j" 키워드를 제거합니다.
+
+#### [DELETE] `packages/dashboard/src/pages/graph/GraphViewTab.tsx`
+* react-force-graph-2d를 사용하던 그래프 탭 파일 자체를 완전히 삭제합니다.
 
 ---
 
-## 전체 파일 변경 요약
+### [Component: `@myhome/collector`]
 
-### Phase A (모노레포 전환) — 4개 신규 + 파일 이동
-
-| 파일 | 변경 |
-|------|------|
-| `package.json` (루트) | [NEW] workspaces 정의 |
-| `tsconfig.base.json` | [NEW] 공통 TS 설정 |
-| `packages/shared/*` | [NEW] graphDb.ts, types.ts, utils.ts 추출 |
-| `packages/dashboard/*` | [MOVE] 기존 server/, src/ 이동 |
-
-### Phase B (대시보드 그래프 분석) — 12개 파일
-
-| 파일 | 변경 |
-|------|------|
-| 📦 `package.json` | `recharts`, `react-force-graph-2d` 추가 |
-| 🔧 `packages/shared/src/graphDb.ts` | 7개 쿼리 함수 추가 |
-| 🔧 `packages/dashboard/server/routes-graph.ts` | 9개 API 추가 |
-| ✨ `packages/dashboard/server/graphPresets.ts` | [NEW] 프리셋 CRUD |
-| ✨ `packages/dashboard/server/graphInsights.ts` | [NEW] 인사이트 CRUD |
-| 🔧 `packages/dashboard/src/api.ts` | 그래프 API 함수 추가 |
-| 🔧 `packages/dashboard/src/types.ts` | 분석 타입 추가 |
-| ✨ `src/pages/GraphDashboard.tsx` | [NEW] 메인 대시보드 |
-| ✨ `src/pages/graph/FilterPanel.tsx` | [NEW] 필터 + 프리셋 |
-| ✨ `src/pages/graph/OverviewTab.tsx` | [NEW] Overview |
-| ✨ `src/pages/graph/ComplexTab.tsx` | [NEW] 단지 분석 |
-| ✨ `src/pages/graph/DrilldownTab.tsx` | [NEW] 드릴다운 |
-| ✨ `src/pages/graph/GraphViewTab.tsx` | [NEW] 그래프 뷰 |
-| ✨ `src/pages/graph/InsightTab.tsx` | [NEW] 인사이트 |
-| ✨ `src/pages/graph/PromptTemplates.ts` | [NEW] 프롬프트 템플릿 |
-| 🔧 `src/components/Layout.tsx` | 네비게이션 추가 |
-| 🔧 `src/App.tsx` | 라우팅 추가 |
-| 🔧 `src/locales/ko.ts` | i18n 추가 |
-
-### Phase C (Collector) — 6개 파일
-
-| 파일 | 변경 |
-|------|------|
-| ✨ `packages/collector/package.json` | [NEW] |
-| ✨ `packages/collector/src/index.ts` | [NEW] 엔트리 |
-| ✨ `packages/collector/src/config.ts` | [NEW] 설정 로드 |
-| ✨ `packages/collector/src/fetcher.ts` | [NEW] 데이터 수집 |
-| ✨ `packages/collector/src/collector.ts` | [NEW] 수집 파이프라인 |
-| ✨ `packages/collector/config/targets.json` | [NEW] 대상 목록 |
-| ✨ `packages/collector/Dockerfile` | [NEW] Oracle VM용 |
-| ✨ `packages/dashboard/Dockerfile` | [NEW] Synology용 |
-| ✨ `packages/dashboard/docker-compose.yml` | [NEW] |
+#### [MODIFY] [packages/collector/src/index.ts](file:///E:/apps/myhome/packages/collector/src/index.ts)
+* Neo4j DB 대신 SQLite DB에 데이터를 긁어와 바로 Upsert하도록 참조 패키지를 수정합니다.
+* 외부 스케줄러가 호출할 수 있도록 메인 수집 함수(`runCollector()`)를 `export` 형태로 노출시킵니다.
 
 ---
 
-## MCP 서버에 대한 판단
+## 5. 검증 계획
 
-현재 단계에서 MCP 서버는 **불필요**합니다:
+### 1단계: 빌드 및 의존성 검증
+* `npm install` 실행 및 의존성 삭제/추가 확인
+* `npm run build`를 통해 공유 패키지(`@myhome/shared`), 데이터 수집기(`@myhome/collector`), 대시보드(`@myhome/dashboard`)가 정상적으로 빌드되는지 확인
 
-| 역할 | 현재 | MCP 서버 필요 시점 |
-|------|------|-------------------|
-| 데이터 수집 | `mcporter` CLI로 AptInfo MCP 서버 **소비** | - |
-| 대시보드 조회 | Neo4j 직접 쿼리 | - |
-| LLM 분석 (1차) | 프롬프트 복사→붙여넣기 | - |
-| LLM 분석 (2차) | Gemini/OpenAI API 직접 호출 | - |
-| **LLM이 Neo4j 직접 쿼리** | 미구현 | ✅ 이때 MCP 서버 필요 |
-
-→ Phase 8(LLM 연동) 때 `packages/mcp-server/`를 추가하면 됩니다.
-
----
-
-## Verification Plan
-
-### Phase A
-```bash
-# 모노레포 빌드 확인
-npm install
-npm run build -w packages/shared
-npm run dev -w packages/dashboard
-```
-
-### Phase B
-```bash
-# TypeScript 컴파일
-npx tsc --noEmit -p packages/dashboard/tsconfig.json
-# 프론트엔드 빌드
-npm run build -w packages/dashboard
-# 브라우저에서 그래프 분석 탭 확인
-```
-
-### Phase C
-```bash
-# Collector 빌드 & 드라이런
-npm run build -w packages/collector
-node packages/collector/dist/index.js --dry-run
-# Docker 빌드
-docker build -t myhome-dashboard -f packages/dashboard/Dockerfile .
-```
+### 2단계: 기능 검증 (런타임 테스트)
+* 서버 기동 시 `data/myhome.db` 파일이 자동 생성되고 스키마가 초기화되는지 검증
+* `collector` 수집 스크립트 수동 실행 테스트 ➔ SQLite DB 내에 데이터가 올바르게 쌓이는지 테이블 조회 검증
+* 대시보드 웹 UI에서 종합 현황, 단지별 분석, 드릴다운 탭의 데이터 및 그래프가 에러 없이 정확히 표현되는지 확인
+* AI 인사이트 탭에서 SQLite DB 요약 데이터(컨텍스트)가 프롬프트 빌더에 알맞게 자동 기입되는지 확인

@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { RegionSearchInput } from "../../components/RegionSearchInput";
 import { GraphFilter, GraphPreset } from "@myhome/shared";
-import { loadPresets, savePreset, deletePreset, getApartments } from "../../api";
-import { Play, Save, FolderOpen, Trash2, RotateCcw } from "lucide-react";
+import { loadPresets, savePreset, deletePreset, searchComplexNames as searchComplexNamesApi } from "../../api";
+import { Play, Save, RotateCcw, X, ChevronDown, ChevronUp } from "lucide-react";
+import { useBreakpoint } from "../../useBreakpoint";
 import type { RegionSearchResult } from "../../types";
 
 interface FilterPanelProps {
@@ -18,6 +19,8 @@ export default function FilterPanel({
   onFilterChange,
   onApply,
 }: FilterPanelProps) {
+  const { isMobile } = useBreakpoint();
+
   // 로컬 필터 상태
   const [regionText, setRegionText] = useState(regionName || "");
   const [startDate, setStartDate] = useState(filter.startDate || "");
@@ -26,49 +29,45 @@ export default function FilterPanel({
   const [minArea, setMinArea] = useState(filter.minArea !== undefined ? String(filter.minArea) : "");
   const [maxArea, setMaxArea] = useState(filter.maxArea !== undefined ? String(filter.maxArea) : "");
 
-  // 아파트 자동완성 관련 상태
-  const [allApartments, setAllApartments] = useState<string[]>([]);
-  const [filteredSuggestions, setFilteredSuggestions] = useState<string[]>([]);
+  // 글로벌 단지 검색 자동완성
+  const [filteredSuggestions, setFilteredSuggestions] = useState<Array<{ name: string; lawdCode: string; regionName: string }>>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const complexInputRef = useRef<HTMLInputElement>(null);
 
-  // lawdCode가 변경되면 아파트 목록을 다시 불러온다
+  // 단지 검색 디바운스
   useEffect(() => {
-    const loadApts = async () => {
-      if (!filter.lawdCode) {
-        setAllApartments([]);
-        return;
-      }
-      try {
-        const list = await getApartments(filter.lawdCode);
-        setAllApartments(list);
-      } catch (err) {
-        console.error("Failed to load apartments", err);
-      }
-    };
-    loadApts();
-  }, [filter.lawdCode]);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
 
-  // complexName이 타이핑될 때 실시간 필터링
-  useEffect(() => {
-    const query = complexName.trim().toLowerCase();
+    const query = complexName.trim();
     if (!query) {
       setFilteredSuggestions([]);
       setShowSuggestions(false);
       return;
     }
-    const filtered = allApartments.filter((apt) =>
-      apt.toLowerCase().includes(query)
-    );
-    setFilteredSuggestions(filtered);
-    setShowSuggestions(filtered.length > 0);
-    setActiveIndex(-1);
-  }, [complexName, allApartments]);
+
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const results = await searchComplexNamesApi(query, filter.lawdCode);
+        setFilteredSuggestions(results);
+        const isCurrentFocused = document.activeElement === complexInputRef.current;
+        setShowSuggestions(results.length > 0 && isCurrentFocused);
+        setActiveIndex(-1);
+      } catch (err) {
+        console.error("Failed to search complex names", err);
+      }
+    }, 300);
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [complexName, filter.lawdCode]);
 
   useEffect(() => {
     setRegionText(regionName || "");
   }, [regionName]);
-  
+
   // 평형 <-> ㎡ 단위 토글을 위한 상태
   const [usePyung, setUsePyung] = useState(false);
 
@@ -78,6 +77,9 @@ export default function FilterPanel({
   const [newPresetName, setNewPresetName] = useState("");
   const [showPresetModal, setShowPresetModal] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+
+  // 모바일 접기/펼치기
+  const [expanded, setExpanded] = useState(!isMobile);
 
   // 프리셋 로드
   const fetchPresets = async () => {
@@ -106,40 +108,10 @@ export default function FilterPanel({
       if (activeIndex >= 0 && activeIndex < filteredSuggestions.length) {
         e.preventDefault();
         const selected = filteredSuggestions[activeIndex];
-        setComplexName(selected);
-        setShowSuggestions(false);
-        // 부모 컴포넌트에 즉시 필터 변경 알리고 분석 실행
-        onFilterChange(
-          {
-            lawdCode: filter.lawdCode,
-            regionName,
-            complexName: selected,
-            startDate: startDate || undefined,
-            endDate: endDate || undefined,
-            minArea: minArea ? Number(minArea) : undefined,
-            maxArea: maxArea ? Number(maxArea) : undefined,
-          },
-          regionName
-        );
-        setTimeout(() => onApply(), 50);
+        selectSuggestion(selected);
       } else if (filteredSuggestions.length === 1) {
         e.preventDefault();
-        const selected = filteredSuggestions[0];
-        setComplexName(selected);
-        setShowSuggestions(false);
-        onFilterChange(
-          {
-            lawdCode: filter.lawdCode,
-            regionName,
-            complexName: selected,
-            startDate: startDate || undefined,
-            endDate: endDate || undefined,
-            minArea: minArea ? Number(minArea) : undefined,
-            maxArea: maxArea ? Number(maxArea) : undefined,
-          },
-          regionName
-        );
-        setTimeout(() => onApply(), 50);
+        selectSuggestion(filteredSuggestions[0]);
       }
     } else if (e.key === "Escape") {
       setShowSuggestions(false);
@@ -147,20 +119,21 @@ export default function FilterPanel({
     }
   };
 
-  const selectSuggestion = (name: string) => {
-    setComplexName(name);
+  const selectSuggestion = (item: { name: string; lawdCode: string; regionName: string }) => {
+    setComplexName(item.name);
     setShowSuggestions(false);
+    setRegionText(item.regionName);
     onFilterChange(
       {
-        lawdCode: filter.lawdCode,
-        regionName,
-        complexName: name,
+        lawdCode: item.lawdCode,
+        regionName: item.regionName,
+        complexName: item.name,
         startDate: startDate || undefined,
         endDate: endDate || undefined,
         minArea: minArea ? Number(minArea) : undefined,
         maxArea: maxArea ? Number(maxArea) : undefined,
       },
-      regionName
+      item.regionName
     );
     setTimeout(() => onApply(), 50);
   };
@@ -267,188 +240,211 @@ export default function FilterPanel({
   };
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 mb-6 shadow-xl text-slate-100">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 border-b border-slate-800 pb-4">
-        <div>
-          <h2 className="text-lg font-bold text-white">📊 실거래 분석 필터</h2>
-          <p className="text-xs text-slate-400 mt-1">기간, 지역, 단지명, 평형 조건을 설정해 데이터를 탐색합니다.</p>
-        </div>
-
-        {/* 프리셋 영역 */}
-        <div className="flex items-center gap-2">
-          <div className="relative">
-            <select
-              value={selectedPresetId}
-              onChange={(e) => handleLoadPreset(e.target.value)}
-              className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 pr-10 appearance-none cursor-pointer"
+    <div className="bg-elevated border border-normal rounded-xl p-6 mb-6 shadow-sm text-strong">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 border-b border-normal pb-4">
+        <div className="flex items-center justify-between w-full md:w-auto">
+          <div>
+            <h2 className="text-lg font-bold text-strong">📊 실거래 분석 필터</h2>
+            <p className="text-xs text-neutral mt-1">기간, 지역, 단지명, 평형 조건을 설정해 데이터를 탐색합니다.</p>
+          </div>
+          {isMobile && (
+            <button
+              onClick={() => setExpanded(!expanded)}
+              className="p-2 text-neutral hover:text-strong transition"
             >
-              <option value="">📁 프리셋 불러오기</option>
+              {expanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* 프리셋 칩 영역 */}
+      {(expanded || !isMobile) && (
+        <>
+          {presets.length > 0 && (
+            <div className="flex items-center gap-2 flex-wrap mb-4">
               {presets.map((p) => (
-                <option key={p.id} value={p.id}>
+                <button
+                  key={p.id}
+                  onClick={() => handleLoadPreset(p.id)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition ${
+                    selectedPresetId === p.id
+                      ? "bg-primary text-white border-primary"
+                      : "bg-normal text-neutral border-normal hover:border-primary/50 hover:text-strong"
+                  }`}
+                >
                   {p.name}
-                </option>
+                  <button
+                    onClick={(e) => handleDeletePreset(p.id, e)}
+                    className="ml-0.5 hover:text-warn transition"
+                  >
+                    <X size={12} />
+                  </button>
+                </button>
               ))}
-            </select>
-            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400">
-              <FolderOpen size={16} />
+              <button
+                onClick={() => setShowPresetModal(true)}
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium border border-dashed border-normal text-neutral hover:border-primary/50 hover:text-strong transition"
+              >
+                <Save size={12} />
+                저장
+              </button>
+            </div>
+          )}
+
+          {presets.length === 0 && (
+            <div className="flex items-center gap-2 flex-wrap mb-4">
+              <button
+                onClick={() => setShowPresetModal(true)}
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium border border-dashed border-normal text-neutral hover:border-primary/50 hover:text-strong transition"
+              >
+                <Save size={12} />
+                프리셋 저장
+              </button>
+            </div>
+          )}
+
+          <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-2 md:grid-cols-4'} gap-4 mb-6`}>
+            {/* 지역 검색 */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-neutral">지역</label>
+              <RegionSearchInput
+                value={regionText}
+                onChange={setRegionText}
+                onSelect={(candidate: RegionSearchResult) => {
+                  setRegionText(candidate.displayName);
+                  onFilterChange({ ...filter, lawdCode: candidate.lawdCode, regionName: candidate.displayName }, candidate.displayName);
+                }}
+                placeholder={regionName || "지역명 검색 (예: 서초구)"}
+              />
+            </div>
+
+            {/* 아파트명 */}
+            <div className="flex flex-col gap-1.5 relative">
+              <label className="text-xs font-semibold text-neutral">아파트 단지명</label>
+              <input
+                ref={complexInputRef}
+                type="text"
+                value={complexName}
+                onChange={(e) => setComplexName(e.target.value)}
+                onKeyDown={handleKeyDown}
+                onFocus={() => filteredSuggestions.length > 0 && setShowSuggestions(true)}
+                onBlur={() => setTimeout(() => { setShowSuggestions(false); setActiveIndex(-1); }, 150)}
+                placeholder="단지명 키워드 (예: 자이)"
+                className="w-full bg-normal border border-normal rounded-lg px-3.5 py-2 text-sm text-strong placeholder-assistive focus:outline-none focus:ring-2 focus:ring-primary"
+                autoComplete="off"
+              />
+
+              {showSuggestions && filteredSuggestions.length > 0 && (
+                <ul className="absolute z-30 left-0 right-0 top-full mt-1 max-h-60 overflow-auto rounded-lg border border-normal bg-elevated py-1 shadow-lg">
+                  {filteredSuggestions.map((item, index) => (
+                    <li key={`${item.name}-${item.lawdCode}`}>
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => selectSuggestion(item)}
+                        className={`w-full text-left px-4 py-2 text-sm text-strong transition-colors ${
+                          index === activeIndex ? "bg-primary text-white font-semibold" : "hover:bg-alternative"
+                        }`}
+                      >
+                        <span>{item.name}</span>
+                        {item.regionName && (
+                          <span className="ml-2 text-xs text-assistive">{item.regionName}</span>
+                        )}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {/* 기간 선택 */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-neutral">기간</label>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="month"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-full bg-normal border border-normal rounded-lg px-2 py-1.5 text-sm text-strong focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+                <span className="text-assistive">~</span>
+                <input
+                  type="month"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="w-full bg-normal border border-normal rounded-lg px-2 py-1.5 text-sm text-strong focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+            </div>
+
+            {/* 면적(평수) */}
+            <div className="flex flex-col gap-1.5">
+              <div className="flex justify-between items-center">
+                <label className="text-xs font-semibold text-neutral">전용 면적</label>
+                <button
+                  onClick={() => setUsePyung(!usePyung)}
+                  className="text-[10px] text-primary hover:underline"
+                >
+                  {usePyung ? "㎡ 단위로 보기" : "평 단위로 보기"}
+                </button>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  placeholder={usePyung ? "최소 평" : "최소 ㎡"}
+                  value={usePyung ? toPyung(minArea) : minArea}
+                  onChange={(e) => handleAreaChange(e.target.value, "min")}
+                  className="w-full bg-normal border border-normal rounded-lg px-3 py-1.5 text-sm text-strong focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+                <span className="text-assistive">~</span>
+                <input
+                  type="number"
+                  placeholder={usePyung ? "최대 평" : "최대 ㎡"}
+                  value={usePyung ? toPyung(maxArea) : maxArea}
+                  onChange={(e) => handleAreaChange(e.target.value, "max")}
+                  className="w-full bg-normal border border-normal rounded-lg px-3 py-1.5 text-sm text-strong focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
             </div>
           </div>
 
-          {selectedPresetId && (
+          <div className="flex justify-end gap-3 border-t border-normal pt-4">
             <button
-              onClick={(e) => handleDeletePreset(selectedPresetId, e)}
-              className="p-2 bg-rose-950/40 border border-rose-900/50 hover:bg-rose-900 text-rose-400 rounded-lg transition"
-              title="현재 프리셋 삭제"
+              onClick={handleReset}
+              className="flex items-center gap-1 px-4 py-2 bg-alternative hover:bg-alternative text-neutral text-sm rounded-lg transition"
             >
-              <Trash2 size={16} />
+              <RotateCcw size={14} />
+              <span>초기화</span>
             </button>
-          )}
-
-          <button
-            onClick={() => setShowPresetModal(true)}
-            className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-200 text-sm rounded-lg transition"
-          >
-            <Save size={16} />
-            <span>프리셋 저장</span>
-          </button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        {/* 지역 검색 */}
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs font-semibold text-slate-400">지역</label>
-          <RegionSearchInput
-            value={regionText}
-            onChange={setRegionText}
-            onSelect={(candidate: RegionSearchResult) => {
-              setRegionText(candidate.displayName);
-              onFilterChange({ ...filter, lawdCode: candidate.lawdCode, regionName: candidate.displayName }, candidate.displayName);
-            }}
-            placeholder={regionName || "지역명 검색 (예: 서초구)"}
-          />
-        </div>
-
-        {/* 아파트명 */}
-        <div className="flex flex-col gap-1.5 relative">
-          <label className="text-xs font-semibold text-slate-400">아파트 단지명</label>
-          <input
-            type="text"
-            value={complexName}
-            onChange={(e) => setComplexName(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onFocus={() => filteredSuggestions.length > 0 && setShowSuggestions(true)}
-            onBlur={() => setTimeout(() => { setShowSuggestions(false); setActiveIndex(-1); }, 150)}
-            placeholder="단지명 키워드 (예: 자이)"
-            className="w-full bg-slate-850 border border-slate-700 rounded-lg px-3.5 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            autoComplete="off"
-          />
-
-          {showSuggestions && filteredSuggestions.length > 0 && (
-            <ul className="absolute z-30 left-0 right-0 top-full mt-1 max-h-60 overflow-auto rounded-lg border border-slate-750 bg-slate-900 py-1 shadow-2xl">
-              {filteredSuggestions.map((item, index) => (
-                <li key={item}>
-                  <button
-                    type="button"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => selectSuggestion(item)}
-                    className={`w-full text-left px-4 py-2 text-sm text-slate-200 transition-colors ${
-                      index === activeIndex ? "bg-emerald-600 text-white font-semibold" : "hover:bg-slate-800"
-                    }`}
-                  >
-                    {item}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        {/* 기간 선택 */}
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs font-semibold text-slate-400">기간</label>
-          <div className="flex items-center gap-1.5">
-            <input
-              type="month"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="w-full bg-slate-850 border border-slate-700 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            />
-            <span className="text-slate-500">~</span>
-            <input
-              type="month"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="w-full bg-slate-850 border border-slate-700 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            />
-          </div>
-        </div>
-
-        {/* 면적(평수) */}
-        <div className="flex flex-col gap-1.5">
-          <div className="flex justify-between items-center">
-            <label className="text-xs font-semibold text-slate-400">전용 면적</label>
             <button
-              onClick={() => setUsePyung(!usePyung)}
-              className="text-[10px] text-emerald-400 hover:underline"
+              onClick={handleApply}
+              className="flex items-center gap-1 px-5 py-2 bg-primary hover:bg-primary/80 text-white text-sm font-semibold rounded-lg shadow-lg shadow-primary/20 transition"
             >
-              {usePyung ? "㎡ 단위로 보기" : "평 단위로 보기"}
+              <Play size={14} />
+              <span>분석 실행</span>
             </button>
           </div>
-          <div className="flex items-center gap-1.5">
-            <input
-              type="number"
-              placeholder={usePyung ? "최소 평" : "최소 ㎡"}
-              value={usePyung ? toPyung(minArea) : minArea}
-              onChange={(e) => handleAreaChange(e.target.value, "min")}
-              className="w-full bg-slate-850 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            />
-            <span className="text-slate-500">~</span>
-            <input
-              type="number"
-              placeholder={usePyung ? "최대 평" : "최대 ㎡"}
-              value={usePyung ? toPyung(maxArea) : maxArea}
-              onChange={(e) => handleAreaChange(e.target.value, "max")}
-              className="w-full bg-slate-850 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            />
-          </div>
-        </div>
-      </div>
-
-      <div className="flex justify-end gap-3 border-t border-slate-800 pt-4">
-        <button
-          onClick={handleReset}
-          className="flex items-center gap-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm rounded-lg transition"
-        >
-          <RotateCcw size={14} />
-          <span>초기화</span>
-        </button>
-        <button
-          onClick={handleApply}
-          className="flex items-center gap-1 px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold rounded-lg shadow-lg shadow-emerald-950/20 transition"
-        >
-          <Play size={14} />
-          <span>분석 실행</span>
-        </button>
-      </div>
+        </>
+      )}
 
       {/* 프리셋 이름 입력 모달 */}
       {showPresetModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-slate-900 border border-slate-800 w-full max-w-md p-6 rounded-xl shadow-2xl">
-            <h3 className="text-lg font-bold text-white mb-2">💾 조회 조건 프리셋 저장</h3>
-            <p className="text-xs text-slate-400 mb-4">현재 설정된 필터 조건에 이름을 붙여 저장합니다.</p>
+          <div className="bg-elevated border border-normal w-full max-w-md p-6 rounded-xl shadow-lg">
+            <h3 className="text-lg font-bold text-strong mb-2">💾 조회 조건 프리셋 저장</h3>
+            <p className="text-xs text-neutral mb-4">현재 설정된 필터 조건에 이름을 붙여 저장합니다.</p>
 
             <div className="flex flex-col gap-1.5 mb-4">
-              <label className="text-xs text-slate-400 font-semibold">프리셋 이름</label>
+              <label className="text-xs text-neutral font-semibold">프리셋 이름</label>
               <input
                 type="text"
                 value={newPresetName}
                 onChange={(e) => setNewPresetName(e.target.value)}
                 placeholder="예: 강남구 84타입 최근 거래"
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                className="w-full bg-alternative border border-normal rounded-lg px-3 py-2 text-sm text-strong focus:outline-none focus:ring-2 focus:ring-primary"
               />
-              {errorMsg && <p className="text-xs text-rose-500 mt-1">{errorMsg}</p>}
+              {errorMsg && <p className="text-xs text-warn mt-1">{errorMsg}</p>}
             </div>
 
             <div className="flex justify-end gap-3">
@@ -458,13 +454,13 @@ export default function FilterPanel({
                   setNewPresetName("");
                   setErrorMsg("");
                 }}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm rounded-lg transition"
+                className="px-4 py-2 bg-alternative hover:bg-alternative text-neutral text-sm rounded-lg transition"
               >
                 취소
               </button>
               <button
                 onClick={handleSavePreset}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold rounded-lg transition"
+                className="px-4 py-2 bg-primary hover:bg-primary/80 text-white text-sm font-semibold rounded-lg transition"
               >
                 저장하기
               </button>

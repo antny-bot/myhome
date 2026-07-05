@@ -68,3 +68,9 @@ export type Insight = {
   source: 'manual' | 'api';
   createdAt: string;
 };
+
+export interface ComplexSearchResult {
+  name: string;
+  lawdCode: string;
+  regionName: string;
+}

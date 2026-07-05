@@ -2,11 +2,11 @@ import express from "express";
 import { z } from "zod";
 import { isTelegramConfigured, sendNotifications } from "./notifications.js";
 import { getSourceLimitNotice, runRuleCheck } from "./ruleEngine.js";
-import { deleteCheckRun, deleteRule, readState, updateRulePatch, upsertRule } from "./storage.js";
+import { deleteCheckRun, deleteRule, readState, updateRulePatch, upsertRule, getSystemConfig, saveSystemConfig } from "./storage.js";
 import { getApartmentList, getApartmentPrices, searchRegionCandidates } from "./mcpClient.js";
 import { isKakaoConfigured, searchAddresses } from "./addressSearch.js";
 import { getMonthsInRange, normalizeTransaction } from "./transactions.js";
-import type { ComparisonCriteria, RuleInput } from "./types.js";
+import type { ComparisonCriteria, RuleInput, SystemConfig } from "./types.js";
 import { upsertTransaction, makeGraphDedupeKey } from "@myhome/shared";
 
 const comparisonValues: ComparisonCriteria[] = ["none", "parking", "large_complex", "transit", "newer", "livability"];
@@ -23,6 +23,23 @@ const ruleSchema = z.object({
   enabled: z.boolean()
 });
 
+function cleanRegionDisplayName(displayName: string): string {
+  const match = displayName.match(/\(([^)]+)\)/);
+  let address = match ? match[1].trim() : displayName.trim();
+
+  const parts = address.split(/\s+/);
+  if (parts.length >= 2) {
+    if (parts[0].startsWith("세종")) {
+      return "세종특별자치시";
+    }
+    if (parts.length >= 3 && (parts[2].endsWith("구") || parts[2].endsWith("군"))) {
+      return `${parts[0]} ${parts[1]} ${parts[2]}`;
+    }
+    return `${parts[0]} ${parts[1]}`;
+  }
+  return address;
+}
+
 export function createRouter() {
   const router = express.Router();
 
@@ -35,8 +52,64 @@ export function createRouter() {
       telegramConfigured: isTelegramConfigured(),
       kakaoStatus: "phase-2",
       kakaoSearchConfigured: isKakaoConfigured(),
+      kakaoConfigured: Boolean(process.env.KAKAO_REST_API_KEY),
+      jusoConfigured: Boolean(process.env.JUSO_CONFM_KEY),
+      dataGoKrConfigured: Boolean(process.env.DATA_GO_KR_API_KEY),
+      kakaoJavascriptConfigured: Boolean(process.env.KAKAO_JAVASCRIPT_KEY),
+      kakaoNativeAppConfigured: Boolean(process.env.KAKAO_NATIVE_APP_KEY),
       dataSourceNotice: getSourceLimitNotice()
     });
+  });
+
+  router.get("/system-config", async (_req, res, next) => {
+    try {
+      const config = await getSystemConfig();
+      res.json({
+        telegramBotToken: config.telegramBotToken ? "●●●●●●●●" : (process.env.TELEGRAM_BOT_TOKEN ? "●●●●●●●●" : ""),
+        telegramChatId: config.telegramChatId ? "●●●●●●●●" : (process.env.TELEGRAM_CHAT_ID ? "●●●●●●●●" : ""),
+        kakaoRestApiKey: config.kakaoRestApiKey ? "●●●●●●●●" : (process.env.KAKAO_REST_API_KEY ? "●●●●●●●●" : ""),
+        jusoConfmKey: config.jusoConfmKey ? "●●●●●●●●" : (process.env.JUSO_CONFM_KEY ? "●●●●●●●●" : ""),
+        dataGoKrApiKey: config.dataGoKrApiKey ? "●●●●●●●●" : (process.env.DATA_GO_KR_API_KEY ? "●●●●●●●●" : ""),
+        kakaoJavascriptKey: config.kakaoJavascriptKey ? "●●●●●●●●" : (process.env.KAKAO_JAVASCRIPT_KEY ? "●●●●●●●●" : ""),
+        kakaoNativeAppKey: config.kakaoNativeAppKey ? "●●●●●●●●" : (process.env.KAKAO_NATIVE_APP_KEY ? "●●●●●●●●" : "")
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.post("/system-config", async (req, res, next) => {
+    try {
+      const body = req.body;
+      const update: SystemConfig = {};
+
+      if (body.telegramBotToken !== undefined && body.telegramBotToken !== "●●●●●●●●") {
+        update.telegramBotToken = body.telegramBotToken;
+      }
+      if (body.telegramChatId !== undefined && body.telegramChatId !== "●●●●●●●●") {
+        update.telegramChatId = body.telegramChatId;
+      }
+      if (body.kakaoRestApiKey !== undefined && body.kakaoRestApiKey !== "●●●●●●●●") {
+        update.kakaoRestApiKey = body.kakaoRestApiKey;
+      }
+      if (body.jusoConfmKey !== undefined && body.jusoConfmKey !== "●●●●●●●●") {
+        update.jusoConfmKey = body.jusoConfmKey;
+      }
+      if (body.dataGoKrApiKey !== undefined && body.dataGoKrApiKey !== "●●●●●●●●") {
+        update.dataGoKrApiKey = body.dataGoKrApiKey;
+      }
+      if (body.kakaoJavascriptKey !== undefined && body.kakaoJavascriptKey !== "●●●●●●●●") {
+        update.kakaoJavascriptKey = body.kakaoJavascriptKey;
+      }
+      if (body.kakaoNativeAppKey !== undefined && body.kakaoNativeAppKey !== "●●●●●●●●") {
+        update.kakaoNativeAppKey = body.kakaoNativeAppKey;
+      }
+
+      await saveSystemConfig(update);
+      res.json({ ok: true });
+    } catch (err) {
+      next(err);
+    }
   });
 
   router.get("/regions/search", async (req, res, next) => {
@@ -80,7 +153,20 @@ export function createRouter() {
       const dealMonth = String(req.query.deal_ymd || "");
       const startMonth = String(req.query.start_ymd || "");
       const endMonth = String(req.query.end_ymd || "");
-      const regionDisplayName = String(req.query.region_name || lawdCode);
+      let regionDisplayName = String(req.query.region_name || "").trim();
+      if (!regionDisplayName || /^\d{5}$/.test(regionDisplayName)) {
+        try {
+          const resolved = await searchRegionCandidates(lawdCode);
+          if (resolved.length > 0) {
+            regionDisplayName = resolved[0].displayName;
+          } else {
+            regionDisplayName = lawdCode;
+          }
+        } catch {
+          regionDisplayName = lawdCode;
+        }
+      }
+      regionDisplayName = cleanRegionDisplayName(regionDisplayName);
       if (!lawdCode) {
         res.status(400).json({ error: "lawd_cd is required" });
         return;

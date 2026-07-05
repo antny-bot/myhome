@@ -62,8 +62,8 @@ export function runRule(id: string) {
   return request(`/api/rules/${id}/run`, { method: "POST" });
 }
 
-export function searchTransactions(lawdCode: string, period: { dealMonth: string } | { startMonth: string; endMonth: string }) {
-  const params = new URLSearchParams({ lawd_cd: lawdCode });
+export function searchTransactions(lawdCode: string, regionName: string, period: { dealMonth: string } | { startMonth: string; endMonth: string }) {
+  const params = new URLSearchParams({ lawd_cd: lawdCode, region_name: regionName });
   if ("dealMonth" in period) {
     params.set("deal_ymd", period.dealMonth);
   } else {
@@ -73,7 +73,7 @@ export function searchTransactions(lawdCode: string, period: { dealMonth: string
   return request<TransactionRecord[]>(`/api/transactions?${params.toString()}`);
 }
 
-// 📊 Neo4j 그래프 DB 연동 분석 API
+// 📊 SQLite 실거래 DB 분석 API
 
 import type {
   GraphStats,
@@ -81,11 +81,18 @@ import type {
   GraphTopologyData,
   GraphPreset,
   Insight,
-  TrendPoint
+  TrendPoint,
+  ComplexSearchResult
 } from "@myhome/shared";
 
 export function loadGraphStats() {
   return request<GraphStats>("/api/graph/stats");
+}
+
+export function searchComplexNames(query: string, lawdCode?: string) {
+  const params = new URLSearchParams({ q: query });
+  if (lawdCode) params.set("lawdCode", lawdCode);
+  return request<ComplexSearchResult[]>(`/api/graph/complexes/search?${params.toString()}`);
 }
 
 export function loadGraphComplexTrend(complexName: string, lawdCode?: string) {
@@ -111,12 +118,16 @@ export function searchGraphTransactions(filter: GraphFilter) {
   return request<any[]>(`/api/graph/search?${params.toString()}`);
 }
 
-export function loadDrilldownRegions() {
-  return request<any[]>("/api/graph/drilldown/regions");
+export function loadDrilldownRegions(complexName?: string) {
+  const params = new URLSearchParams();
+  if (complexName) params.set("complexName", complexName);
+  return request<any[]>(`/api/graph/drilldown/regions?${params.toString()}`);
 }
 
-export function loadDrilldownComplexes(lawdCode: string) {
-  return request<any[]>(`/api/graph/drilldown/complexes?lawdCode=${lawdCode}`);
+export function loadDrilldownComplexes(lawdCode: string, complexName?: string) {
+  const params = new URLSearchParams({ lawdCode });
+  if (complexName) params.set("complexName", complexName);
+  return request<any[]>(`/api/graph/drilldown/complexes?${params.toString()}`);
 }
 
 export function loadDrilldownAreas(complex: string, lawdCode?: string) {
@@ -135,8 +146,11 @@ export function loadGraphTopology(filter: GraphFilter) {
   return request<GraphTopologyData>(`/api/graph/topology?${params.toString()}`);
 }
 
-export function loadComplexDetail(complexName: string, lawdCode?: string) {
-  const query = lawdCode ? `?lawdCode=${lawdCode}` : "";
+export function loadComplexDetail(complexName: string, lawdCode?: string, area?: number) {
+  const params = new URLSearchParams();
+  if (lawdCode) params.set("lawdCode", lawdCode);
+  if (area !== undefined && area !== null) params.set("area", String(area));
+  const query = params.toString() ? `?${params.toString()}` : "";
   return request<any>(`/api/graph/complex/${encodeURIComponent(complexName)}/detail${query}`);
 }
 
@@ -188,5 +202,43 @@ export function saveInsight(insight: Omit<Insight, "id" | "createdAt">) {
 
 export function deleteInsight(id: string) {
   return request<void>(`/api/graph/insights/${id}`, { method: "DELETE" });
+}
+
+export function loadAdminDbTables() {
+  return request<{ tables: string[]; schemas: Record<string, any[]> }>("/api/admin/db/tables");
+}
+
+export function executeAdminDbQuery(sql: string) {
+  return request<{ type: "select" | "write"; rows?: any[]; changes?: number; lastInsertRowid?: number | string }>("/api/admin/db/query", {
+    method: "POST",
+    body: JSON.stringify({ sql })
+  });
+}
+
+export function loadSystemConfig() {
+  return request<{
+    telegramBotToken: string;
+    telegramChatId: string;
+    kakaoRestApiKey: string;
+    jusoConfmKey: string;
+    dataGoKrApiKey: string;
+    kakaoJavascriptKey: string;
+    kakaoNativeAppKey: string;
+  }>("/api/system-config");
+}
+
+export function saveSystemConfig(config: {
+  telegramBotToken?: string;
+  telegramChatId?: string;
+  kakaoRestApiKey?: string;
+  jusoConfmKey?: string;
+  dataGoKrApiKey?: string;
+  kakaoJavascriptKey?: string;
+  kakaoNativeAppKey?: string;
+}) {
+  return request<{ ok: boolean }>("/api/system-config", {
+    method: "POST",
+    body: JSON.stringify(config)
+  });
 }
 

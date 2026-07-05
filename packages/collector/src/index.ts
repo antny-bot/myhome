@@ -92,11 +92,11 @@ async function fetchRulesFromDashboard(dashboardUrl: string): Promise<CollectTar
   }
 }
 
-async function main() {
-  console.log(`[Collector] 데이터 수집 및 Neo4j 적재 작업 시작 (${new Date().toLocaleString()})`);
+export async function runCollector(): Promise<{ totalCollected: number; totalUpserted: number }> {
+  console.log(`[Collector] 데이터 수집 및 SQLite 적재 작업 시작 (${new Date().toLocaleString()})`);
   
   if (process.env.GRAPH_DB_ENABLED !== "true") {
-    console.warn("[Collector] GRAPH_DB_ENABLED가 true가 아닙니다. Neo4j 적재를 위해 환경 설정을 확인하세요.");
+    console.warn("[Collector] GRAPH_DB_ENABLED가 true가 아닙니다. 환경 설정을 확인하세요.");
   }
 
   const config = await loadConfig();
@@ -119,7 +119,7 @@ async function main() {
 
   if (finalTargets.length === 0) {
     console.log("[Collector] 수집할 대상 지역이 존재하지 않습니다. 종료.");
-    return;
+    return { totalCollected: 0, totalUpserted: 0 };
   }
 
   // 최근 2달
@@ -133,38 +133,54 @@ async function main() {
   for (const target of finalTargets) {
     for (const month of months) {
       console.log(`[Collector] MCP 서버에 직접 요청 중... (${target.displayName} / ${month})`);
-      const transactions = await fetchApartmentPricesDirect(target.lawdCode, month);
-      console.log(`[Collector] 조회 완료: ${transactions.length}건`);
-      totalCollected += transactions.length;
+      try {
+        const transactions = await fetchApartmentPricesDirect(target.lawdCode, month);
+        console.log(`[Collector] 조회 완료: ${transactions.length}건`);
+        totalCollected += transactions.length;
 
-      if (transactions.length > 0 && process.env.GRAPH_DB_ENABLED === "true") {
-        const regionInfo = { lawdCode: target.lawdCode, displayName: target.displayName };
-        for (const tx of transactions) {
-          try {
-            const graphKey = makeGraphDedupeKey(target.lawdCode, tx.apartmentName, tx.dealDate, tx.areaM2, tx.floor);
-            await upsertTransaction(regionInfo, tx.apartmentName, {
-              dedupeKey: graphKey,
-              dealDate: tx.dealDate,
-              priceEok: tx.priceEok,
-              areaM2: tx.areaM2,
-              floor: tx.floor,
-            });
-            totalUpserted++;
-          } catch (err: any) {
-            console.error(`[Collector] Neo4j 적재 오류 (${tx.apartmentName}): ${err.message}`);
+        if (transactions.length > 0 && process.env.GRAPH_DB_ENABLED === "true") {
+          const regionInfo = { lawdCode: target.lawdCode, displayName: target.displayName };
+          for (const tx of transactions) {
+            try {
+              const graphKey = makeGraphDedupeKey(target.lawdCode, tx.apartmentName, tx.dealDate, tx.areaM2, tx.floor);
+              await upsertTransaction(regionInfo, tx.apartmentName, {
+                dedupeKey: graphKey,
+                dealDate: tx.dealDate,
+                priceEok: tx.priceEok,
+                areaM2: tx.areaM2,
+                floor: tx.floor,
+              });
+              totalUpserted++;
+            } catch (err: any) {
+              console.error(`[Collector] SQLite 적재 오류 (${tx.apartmentName}): ${err.message}`);
+            }
           }
         }
+      } catch (err: any) {
+        console.error(`[Collector] 수집 중 오류 발생 (${target.displayName} / ${month}):`, err.message);
       }
     }
   }
 
   console.log(`[Collector] 수집 완료 요약:`);
   console.log(`- 수집한 전체 실거래 내역: ${totalCollected}건`);
-  console.log(`- Neo4j Aura 적재(MERGE) 성공 건수: ${totalUpserted}건`);
+  console.log(`- SQLite 적재(INSERT/UPDATE) 성공 건수: ${totalUpserted}건`);
   console.log(`[Collector] 모든 작업 성공적으로 종료.`);
+  
+  return { totalCollected, totalUpserted };
 }
 
-main().catch((err) => {
-  console.error("[Collector] 실행 중 치명적 오류 발생:", err);
-  process.exit(1);
-});
+// 직접 실행 여부 판별
+const isMain = process.argv[1] && (
+  process.argv[1].endsWith("collector/dist/index.js") || 
+  process.argv[1].endsWith("collector/src/index.ts") ||
+  process.argv[1].endsWith("index.ts")
+);
+
+if (isMain) {
+  runCollector().catch((err) => {
+    console.error("[Collector] 실행 중 치명적 오류 발생:", err);
+    process.exit(1);
+  });
+}
+

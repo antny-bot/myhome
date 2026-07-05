@@ -1,18 +1,18 @@
-import { Bell, History, LayoutDashboard, Menu, RefreshCw, Settings, Sparkles, X, LucideIcon, BarChart3 } from "lucide-react";
+import { Bell, History, LayoutDashboard, Menu, RefreshCw, Settings, Sparkles, X, LucideIcon, BarChart3, Database } from "lucide-react";
 import { useState } from "react";
 import { classNames } from "../lib/format";
 import { useBreakpoint } from "../useBreakpoint";
 import packageJson from "../../package.json";
 
-export type View = "dashboard" | "rules" | "explore" | "exploreV2" | "settings" | "graphAnalytics";
+export type View = "dashboard" | "rules" | "explore" | "settings" | "analytics" | "dbAdmin";
 
 const copy = {
   ko: {
     dashboard: "대시보드",
     rules: "알림 규칙",
     explore: "실거래 탐색",
-    exploreV2: "실거래 탐색 V2",
-    graphAnalytics: "그래프 분석",
+    analytics: "실거래 분석",
+    dbAdmin: "데이터베이스",
     settings: "환경 설정",
     dataConstraint: "데이터 제약",
     dataConstraintDesc: "실거래가/단지정보 기준이며 호가 정보는 포함되지 않습니다.",
@@ -23,8 +23,8 @@ const copy = {
     dashboard: "Dashboard",
     rules: "Alert Rules",
     explore: "Explore Deals",
-    exploreV2: "Explore Deals V2",
-    graphAnalytics: "Graph Analysis",
+    analytics: "Real Estate Analytics",
+    dbAdmin: "Database",
     settings: "Settings",
     dataConstraint: "Data Constraints",
     dataConstraintDesc: "Based on real transaction prices and complex details. Asking prices not included.",
@@ -40,8 +40,8 @@ const navItems: Array<{ view: View; icon: LucideIcon; labelKey: keyof typeof cop
   { view: "dashboard", icon: LayoutDashboard, labelKey: "dashboard" },
   { view: "rules", icon: Bell, labelKey: "rules" },
   { view: "explore", icon: History, labelKey: "explore" },
-  { view: "exploreV2", icon: Sparkles, labelKey: "exploreV2" },
-  { view: "graphAnalytics", icon: BarChart3, labelKey: "graphAnalytics" },
+  { view: "analytics", icon: BarChart3, labelKey: "analytics" },
+  { view: "dbAdmin", icon: Database, labelKey: "dbAdmin" },
   { view: "settings", icon: Settings, labelKey: "settings" }
 ];
 

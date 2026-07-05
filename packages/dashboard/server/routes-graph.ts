@@ -10,6 +10,7 @@ import {
   getGraphTopology,
   getComplexDetail,
   getDataContext,
+  searchComplexNames,
   GraphFilter
 } from "@myhome/shared";
 import { readPresets, savePreset, deletePreset } from "./graphPresets.js";
@@ -23,6 +24,22 @@ export function createGraphRouter(): Router {
     try {
       const stats = await getGraphStats();
       res.json(stats);
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message ?? "내부 오류" });
+    }
+  });
+
+  /** GET /api/graph/complexes/search — 단지명 글로벌 검색 */
+  router.get("/complexes/search", async (req, res) => {
+    try {
+      const query = (req.query.q as string || "").trim();
+      const lawdCode = req.query.lawdCode as string | undefined;
+      if (!query || query.length < 1) {
+        res.json([]);
+        return;
+      }
+      const results = await searchComplexNames(query, lawdCode);
+      res.json(results);
     } catch (err: any) {
       res.status(500).json({ error: err?.message ?? "내부 오류" });
     }
@@ -70,9 +87,10 @@ export function createGraphRouter(): Router {
   });
 
   /** GET /api/graph/drilldown/regions — 드릴다운: 시/도 레벨 */
-  router.get("/drilldown/regions", async (_req, res) => {
+  router.get("/drilldown/regions", async (req, res) => {
     try {
-      const data = await getDrilldownRegions();
+      const complexName = req.query.complexName as string | undefined;
+      const data = await getDrilldownRegions(complexName);
       res.json(data);
     } catch (err: any) {
       res.status(500).json({ error: err?.message ?? "내부 오류" });
@@ -83,11 +101,12 @@ export function createGraphRouter(): Router {
   router.get("/drilldown/complexes", async (req, res) => {
     try {
       const lawdCode = req.query.lawdCode as string;
+      const complexName = req.query.complexName as string | undefined;
       if (!lawdCode) {
         res.status(400).json({ error: "lawdCode 파라미터가 누락되었습니다." });
         return;
       }
-      const data = await getDrilldownComplexes(lawdCode);
+      const data = await getDrilldownComplexes(lawdCode, complexName);
       res.json(data);
     } catch (err: any) {
       res.status(500).json({ error: err?.message ?? "내부 오류" });
@@ -131,7 +150,8 @@ export function createGraphRouter(): Router {
     try {
       const complexName = decodeURIComponent(req.params.name);
       const lawdCode = req.query.lawdCode as string | undefined;
-      const data = await getComplexDetail(complexName, lawdCode);
+      const area = req.query.area ? Number(req.query.area) : undefined;
+      const data = await getComplexDetail(complexName, lawdCode, area);
       res.json(data);
     } catch (err: any) {
       res.status(500).json({ error: err?.message ?? "내부 오류" });
