@@ -34,5 +34,17 @@
     },
     "id": "preset_1783265057070_2ol6tkmxr",
     "createdAt": "2026-07-05T15:24:17.071Z"
+  },
+  {
+    "name": "광교e편한세상",
+    "filter": {
+      "lawdCode": "41117",
+      "regionName": "영통구",
+      "complexName": "광교e편한세상",
+      "startDate": "2025-07",
+      "endDate": "2026-07"
+    },
+    "id": "preset_1783737226120_1gdf9rd7p",
+    "createdAt": "2026-07-11T02:33:46.120Z"
   }
 ]

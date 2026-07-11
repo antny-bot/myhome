@@ -74,3 +74,14 @@ export interface ComplexSearchResult {
   lawdCode: string;
   regionName: string;
 }
+
+export interface DailyCollectStat {
+  collectDate: string;
+  count: number;
+}
+
+export interface RegionCollectStat {
+  lawdCode: string;
+  regionName: string;
+  count: number;
+}

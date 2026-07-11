@@ -1,35 +1,35 @@
 # Apartment Alert Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans. Track steps via checkbox (`- [ ]`).
 
-**Goal:** Build a local React/Tailwind/TypeScript dashboard with a TypeScript API server that checks PlayMCP apartment transaction and complex data and sends Telegram alerts.
+**Goal:** Build local React/Tailwind/TypeScript dashboard with TypeScript API server. Check PlayMCP apartment transaction/complex data, send Telegram alerts.
 
-**Architecture:** The app is a Vite React frontend served separately from an Express API during development. The backend stores MVP state in `data/app-state.json`, wraps `mcporter call mcp-gateway.*`, evaluates watch rules, runs a timer scheduler, and sends notifications through pluggable adapters.
+**Architecture:** Vite React frontend, Express API server. Store MVP state in `data/app-state.json`. Wrap `mcporter call mcp-gateway.*`, evaluate watch rules, run timer scheduler, send notifications via pluggable adapters.
 
-**Tech Stack:** React, Vite, Tailwind CSS, TypeScript, Express, Zod, Node timers, JSON file storage, mcporter CLI, Telegram Bot API.
+**Tech Stack:** React, Vite, Tailwind CSS, TypeScript, Express, Zod, Node timers, JSON, mcporter CLI, Telegram Bot API.
 
 ---
 
 ## File Structure
 
-- `package.json`: root scripts for frontend, backend, build, and typecheck.
-- `vite.config.ts`: Vite config with `/api` proxy to backend.
-- `tailwind.config.js`, `postcss.config.js`: Tailwind pipeline.
-- `src/main.tsx`: React entry.
-- `src/App.tsx`: dashboard shell and screen composition.
-- `src/api.ts`: typed frontend API client.
-- `src/types.ts`: shared frontend/backend DTOs.
-- `src/styles.css`: Tailwind layers and app-level styling.
-- `server/index.ts`: Express server bootstrap and scheduler startup.
-- `server/routes.ts`: REST endpoints for rules, checks, history, and config.
-- `server/storage.ts`: JSON file store.
-- `server/mcpClient.ts`: mcporter command wrapper.
-- `server/ruleEngine.ts`: match and duplicate-alert evaluation.
-- `server/notifications.ts`: Telegram adapter and Kakao placeholder adapter.
-- `server/scheduler.ts`: interval-based rule runner.
-- `server/types.ts`: backend domain types.
-- `data/app-state.json`: seeded local state.
-- `.env.example`: Telegram and scheduler environment documentation.
+- `package.json`: scripts for dev, build, typecheck.
+- `vite.config.ts`: Vite proxy configurations.
+- `tailwind.config.js`, `postcss.config.js`: Tailwind config.
+- `src/main.tsx`: React entry point.
+- `src/App.tsx`: dashboard frontend UI.
+- `src/api.ts`: API client.
+- `src/types.ts`: shared DTOs.
+- `src/styles.css`: CSS styles.
+- `server/index.ts`: backend entry, scheduler startup.
+- `server/routes.ts`: Express routes.
+- `server/storage.ts`: JSON storage reader/writer.
+- `server/mcpClient.ts`: mcporter wrapper.
+- `server/ruleEngine.ts`: rule matcher, deduplicator.
+- `server/notifications.ts`: Telegram/Kakao adapters.
+- `server/scheduler.ts`: interval rule runner.
+- `server/types.ts`: backend types.
+- `data/app-state.json`: local DB state.
+- `.env.example`: env variables description.
 
 ## Tasks
 
@@ -63,7 +63,7 @@
 
 - [ ] **Step 2: Add Vite, TypeScript, Tailwind, and Express config**
 
-Use Vite proxy `/api -> http://127.0.0.1:4174`. Use Tailwind content globs `./index.html` and `./src/**/*.{ts,tsx}`.
+Use Vite proxy `/api -> http://127.0.0.1:4174`. Tailwind content: `./index.html`, `./src/**/*.{ts,tsx}`.
 
 - [ ] **Step 3: Add environment example**
 
@@ -84,15 +84,15 @@ TELEGRAM_CHAT_ID=
 
 - [ ] **Step 1: Define watch-rule DTOs**
 
-Rules include `regionName`, `regionCode`, `apartmentKeyword`, `dealMonth`, `minPriceEok`, `maxPriceEok`, `comparisonCriteria`, `intervalMinutes`, `channels`, `enabled`, and timestamps.
+Define rules: `regionName`, `regionCode`, `apartmentKeyword`, `dealMonth`, `minPriceEok`, `maxPriceEok`, `comparisonCriteria`, `intervalMinutes`, `channels`, `enabled`, timestamps.
 
 - [ ] **Step 2: Define check-result DTOs**
 
-Check results include `ruleId`, `matched`, `summary`, `matches`, `sourceLimitNotice`, `createdAt`, and notification status.
+Define check-runs: `ruleId`, `matched`, `summary`, `matches`, `sourceLimitNotice`, `createdAt`, notification status.
 
 - [ ] **Step 3: Implement JSON storage**
 
-Expose `readState()`, `writeState()`, `upsertRule()`, `appendCheckRun()`, and `appendNotification()`. Ensure `data/app-state.json` is created if missing.
+Implement JSON storage: `readState()`, `writeState()`, `upsertRule()`, `appendCheckRun()`, `appendNotification()`. Create `data/app-state.json` if missing.
 
 ### Task 3: MCP Wrapper And Rule Engine
 
@@ -102,15 +102,15 @@ Expose `readState()`, `writeState()`, `upsertRule()`, `appendCheckRun()`, and `a
 
 - [ ] **Step 1: Wrap mcporter calls**
 
-Use `spawn` to run `mcporter call mcp-gateway.AptInfo-get_region_code(region_name: "...")` and `mcporter call mcp-gateway.AptInfo-get_apt_price(lawd_cd: "...", deal_ymd: "...")`.
+Wrap `mcporter` via `spawn`: call `mcp-gateway.AptInfo-get_region_code(region_name: "...")` and `mcp-gateway.AptInfo-get_apt_price(lawd_cd: "...", deal_ymd: "...")`.
 
 - [ ] **Step 2: Normalize region codes**
 
-Convert region lookup results to a five-digit lawd code using `sidoCode + sggCode`.
+Convert region query result to 5-digit lawd code: `sidoCode + sggCode`.
 
 - [ ] **Step 3: Evaluate transaction matches**
 
-Match by optional apartment keyword and min/max price in eok. Generate a stable `dedupeKey` from rule id, apartment name, deal date, area, floor, and price.
+Match by optional keyword, min/max price (eok). Generate stable `dedupeKey`: rule id, apartment name, deal date, area, floor, price.
 
 ### Task 4: Notifications And Scheduler
 
@@ -120,15 +120,15 @@ Match by optional apartment keyword and min/max price in eok. Generate a stable 
 
 - [ ] **Step 1: Implement Telegram adapter**
 
-Send to `https://api.telegram.org/bot${token}/sendMessage` when both Telegram env vars exist. If not configured, return skipped status.
+Send Telegram POST to `https://api.telegram.org/bot${token}/sendMessage`. Return skipped status if env vars missing.
 
 - [ ] **Step 2: Add Kakao placeholder adapter**
 
-Expose the same interface but return skipped status with message `Kakao send-to-me is reserved for phase 2`.
+Kakao adapter placeholder: same interface, return skipped status (`Kakao send-to-me is reserved for phase 2`).
 
 - [ ] **Step 3: Implement scheduler**
 
-Every `CHECK_INTERVAL_SECONDS`, run enabled rules whose `lastCheckedAt` is older than `intervalMinutes`.
+Every `CHECK_INTERVAL_SECONDS`, run enabled rules where `lastCheckedAt` exceeds `intervalMinutes`.
 
 ### Task 5: API Routes
 
@@ -150,7 +150,7 @@ Implement:
 
 - [ ] **Step 2: Start scheduler**
 
-Start scheduler after Express listens. Keep manual rule checks usable even if Telegram is not configured.
+Start scheduler after Express listen. Keep manual checks functional without Telegram config.
 
 ### Task 6: Frontend Dashboard
 
@@ -162,15 +162,15 @@ Start scheduler after Express listens. Keep manual rule checks usable even if Te
 
 - [ ] **Step 1: Build dashboard shell**
 
-Use a utilitarian dashboard layout with summary cards, rule list, form, recent matches, and notification history.
+Build layout: summary cards, rule list, creation form, matches list, notification log.
 
 - [ ] **Step 2: Display constraints**
 
-Show the data-source constraint at dashboard top, in the rule form, next to price/comparison controls, and inside alert previews.
+Show constraints at dashboard top, rule form, price inputs, alert previews.
 
 - [ ] **Step 3: Implement rule actions**
 
-Support create, enable/disable, and manual run. Surface check status and errors.
+Support rule create, toggle, manual run. Show status and errors.
 
 ### Task 7: Verification
 
@@ -183,18 +183,18 @@ Run `npm install`.
 
 - [ ] **Step 2: Build**
 
-Run `npm run build`. Expected: TypeScript and Vite build pass.
+Run `npm run build`. Must compile successfully.
 
 - [ ] **Step 3: Start dev server**
 
-Run `npm run dev`. Expected: frontend available at `http://127.0.0.1:5173`, API at `http://127.0.0.1:4174`.
+Run `npm run dev`. Verify web at `http://127.0.0.1:5173`, API at `http://127.0.0.1:4174`.
 
 - [ ] **Step 4: Smoke test**
 
-Open the dashboard, create a rule, and confirm the UI shows the data constraints before saving.
+Open dashboard, create rule, check data constraints display before save.
 
 ## Self-Review
 
-- Spec coverage: MVP dashboard, backend, scheduler, MCP wrapper, Telegram first, Kakao phase-2 placeholder, and visible constraints are covered.
-- Placeholder scan: Kakao is intentionally a phase-2 placeholder adapter, explicitly defined as skipped status.
-- Type consistency: Rule, check-run, and notification names are consistent across frontend and backend tasks.
+- Coverage: MVP dashboard, server, scheduler, mcporter wrapper, Telegram alerts, Kakao phase-2 placeholder, UI constraints.
+- Placeholders: Kakao is stubbed as phase-2 skipped status.
+- Consistency: Rule, check-run, notification entity names aligned.

@@ -49,9 +49,10 @@
 │             💾 SQLite (data/myhome.db)        │
 └──────────────────────┬────────────────────────┘
                        │
-                       ├─▶ 국토부 OpenAPI (실거래 데이터 획득)
-                       ├─▶ PlayMCP mcp-gateway (지역/단지 보조 조회)
-                       └─▶ Telegram Bot (알림 발송)
+                        ├─▶ 국토부 OpenAPI (실거래·지역코드·단지목록 단일 소스)
+                        ├─▶ 행안부 JUSO / 카카오 API (도로명→LAWD_CD 변환)
+                        ├─▶ PlayMCP mcp-gateway (자연어 NL 질의 전용 — Phase 9+)
+                        └─▶ Telegram Bot (알림 발송)
 ```
 
 ---
@@ -59,24 +60,24 @@
 ## Phase 7A — 모노레포 전환 + Shared 패키지 추출 (완료)
 
 ### 목표
-기능별로 패키지를 분리하여 공유 패키지(`@myhome/shared`), 데이터 수집기(`@myhome/collector`), 대시보드 백엔드 및 웹 웹앱(`@myhome/dashboard`) 구조로 모노레포를 구축했습니다.
+기능 분리 모노레포 구축: 공유 패키지(`@myhome/shared`), 데이터 수집기(`@myhome/collector`), 대시보드 백엔드/웹앱(`@myhome/dashboard`).
 
 ---
 
 ## Phase 7B — SQLite DB 분석 대시보드 (완료)
 
 ### 목표
-파일 기반의 로컬 SQLite DB를 구축하여 국토부 실거래 이력을 영구 보존하고, 이를 Recharts 차트로 집계 분석하는 리포트 대시보드를 추가했습니다.
-* **사용 기술**: Node.js v24 내장 `node:sqlite` (`DatabaseSync`) 적용 (네이티브 컴파일 에러 해결 및 무의존성 달성).
-* **데이터 보존 위치**: `data/myhome.db` 파일에 축적됩니다.
-* **4개 탭 리포트**: 종합 현황, 단지별 분석, 드릴다운, 💡 AI 인사이트로 구성됩니다. (Vite 웹 최적화를 위해 복잡한 노드-링크 시각화 탭은 제거되었습니다.)
+로컬 SQLite DB 구축, 실거래 이력 영구 보존. Recharts 차트 집계 분석 리포트 대시보드 추가.
+* **사용 기술**: Node.js v24 내장 `node:sqlite` (`DatabaseSync`) 적용 (의존성 최소화).
+* **데이터 보존 위치**: `data/myhome.db` 파일 적재.
+* **4개 탭 리포트**: 종합 현황, 단지별 분석, 드릴다운, 💡 AI 인사이트. (Vite 최적화 위해 복잡한 노드-링크 탭 제거).
 
 ---
 
 ## Phase 7C — 데이터 수집 봇 (Collector) 단일 서버 스케줄러 통합 (완료)
 
 ### 목표
-대시보드 백엔드 서버의 기동 스케줄러(`scheduler.ts`) 내부에 매일 새벽 6시 자동 수집 로직을 내장하고, **국토부 아파트매매 실거래가 오픈 API**를 직접 HTTP GET 방식으로 호출(`numOfRows=9999`)하도록 설계하여 **10건 수집 제한을 완벽하게 우회**했습니다.
+대시보드 서버 스케줄러(`scheduler.ts`) 내 매일 새벽 6시 자동 수집 로직 내장. **국토부 아파트매매 실거래가 오픈 API** HTTP GET 호출(`numOfRows=9999`), **10건 수집 제한 우회**.
 
 #### 환경 설정 (`.env`)
 ```env
@@ -91,28 +92,28 @@ GRAPH_DB_ENABLED=true
 ## Phase 7D — Docker 컨테이너화 및 GitHub Actions CI/CD 구축 (완료)
 
 ### 목표
-Synology Container Manager(Docker Compose) 환경 배포를 원활히 지원할 수 있도록 모노레포 프로젝트를 Docker 이미지화하였으며, GitHub 리포지토리 이벤트를 기반으로 자동 빌드 및 이미지 정리를 수행하는 CI/CD를 구축했습니다.
+Synology Container Manager 배포 지원용 모노레포 Docker 이미지화, GitHub 이벤트 기반 자동 빌드 및 정리 CI/CD 구축.
 
-* **Express 백엔드 정적 서빙 및 호스트 바인딩**: Docker 단일 컨테이너 기동 시 대시보드 웹앱이 함께 배포될 수 있도록 Express 서버 내에 `packages/dashboard/dist` 정적 서빙 및 SPA 폴백 라우트를 추가했습니다. 호스트 바인딩 기본값을 `0.0.0.0`으로 하여 외부 통신이 가능하도록 설계했습니다.
-* **Dockerfile & Compose 파일 추가**: 24-alpine 기반의 멀티 스테이지 빌드 방식 Dockerfile과 Synology 프로젝트 생성용 docker-compose.yml 템플릿을 개발했습니다.
+* **Express 백엔드 정적 서빙 및 호스트 바인딩**: Docker 기동 시 대시보드 웹앱 동시 배포 위해 Express 서버 내 `packages/dashboard/dist` 정적 서빙/SPA 폴백 라우트 추가. 호스트 바인딩 `0.0.0.0` 외부 통신 가능 설계.
+* **Dockerfile & Compose 파일 추가**: 24-alpine 기반 멀티 스테이지 빌드 Dockerfile, docker-compose.yml 템플릿 개발.
 * **GitHub Actions 파이프라인**:
-  - Releases 발행 시 Docker 이미지를 자동 빌드해 `ghcr.io`에 푸시하는 배포 워크플로우를 추가했습니다.
-  - 매주 월요일 KST 새벽 3시에 최신 10개 버전 및 `latest` 이미지를 제외하고 가장 오래된 패키지 버전을 주기적으로 청소하는 삭제 워크플로우를 내장했습니다.
+  - Releases 발행 시 Docker 이미지 빌드 및 `ghcr.io` 푸시.
+  - 매주 월요일 KST 새벽 3시 최신 10개 버전 및 `latest` 제외한 오래된 이미지 자동 삭제.
 
 ---
 
 ## Phase 8 — LLM API 직접 연동
 
 ### 목표
-인사이트 탭에 OpenAI/Gemini API를 연동하여, 로컬 SQLite에서 요약한 월별 추이와 시계열 가격 데이터 컨텍스트를 활용해 자동으로 실거래 트렌드 진단 및 투자 적정성 리포트를 생성하도록 지능화합니다.
+인사이트 탭 OpenAI/Gemini API 연동. SQLite 월별 추이, 시계열 가격 데이터 컨텍스트 기반 실거래 트렌드 진단 및 투자 적정성 리포트 자동 생성 지능화.
 
-* **Text-to-SQL**: LLM이 자연어 질문을 입력받아 적합한 SQLite SQL 쿼리를 생성하고 실행 결과를 분석하도록 구현할 예정입니다.
-* **주간 분석 리포트**: 텔레그램을 통해 주기적으로 자동 분석 보고서를 발송하는 크론 스케줄을 추가할 계획입니다.
+* **Text-to-SQL**: 자연어 질문 기반 SQLite SQL 쿼리 생성/실행 및 결과 분석 구현 예정.
+* **주간 분석 리포트**: 텔레그램 주기적 자동 분석 보고서 발송 크론 스케줄 추가 계획.
 
 ---
 
 ## Phase 9 — MCP 서버 (SQLite 데이터 외부 노출)
 
 ### 목표
-수집된 로컬 SQLite DB의 부동산 실거래 데이터를 MCP(Model Context Protocol) 도구로 노출하여, 에이전트(Gemini, Cursor 등)가 사용자의 데이터베이스를 직접 읽어 들여 질의에 답변할 수 있도록 생태계를 구축합니다.
+로컬 SQLite DB 실거래 데이터 MCP(Model Context Protocol) 도구 노출, 에이전트(Gemini, Cursor 등) DB 직접 읽기 및 답변 생태계 구축.
 * **노출 툴 예정**: `get_local_stats`, `query_local_db`, `get_complex_trend_direct`

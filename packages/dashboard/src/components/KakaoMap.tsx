@@ -35,6 +35,7 @@ export function KakaoMap({
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const overlaysRef = useRef<any[]>([]);
+  const coordsByNameRef = useRef<Map<string, any>>(new Map());
   const [mapInitialized, setMapInitialized] = useState(false);
 
   // 1. 레코드 데이터를 아파트 단지별로 그룹화 및 요약
@@ -54,7 +55,9 @@ export function KakaoMap({
       const avgPrice = prices.reduce((sum, v) => sum + v, 0) / prices.length;
       const maxPrice = Math.max(...prices);
       // 검색된 지역명(searchedRegion)과 아파트명을 결합하여 검색 주소 생성
-      const address = `${searchedRegion} ${aptName}`;
+      // 괄호 및 괄호 안의 브랜드명 등은 카카오 Geocoder 매칭률을 높이기 위해 정제합니다. (예: "봇들마을7단지(금호어울림)" -> "봇들마을7단지")
+      const cleanAptName = aptName.replace(/\(.*?\)/g, "").trim();
+      const address = `${searchedRegion} ${cleanAptName}`;
 
       summaries.push({
         apartmentName: aptName,
@@ -139,6 +142,7 @@ export function KakaoMap({
     const loadMarkers = async () => {
       const bounds = new window.kakao.maps.LatLngBounds();
       const validPoints: { coords: any; summary: ComplexSummary }[] = [];
+      coordsByNameRef.current.clear();
 
       for (const summary of complexSummaries) {
         if (isCancelled) return;
@@ -147,6 +151,7 @@ export function KakaoMap({
           const kakaoCoords = new window.kakao.maps.LatLng(pos.lat, pos.lng);
           validPoints.push({ coords: kakaoCoords, summary });
           bounds.extend(kakaoCoords);
+          coordsByNameRef.current.set(summary.apartmentName, kakaoCoords);
         }
       }
 
@@ -230,9 +235,22 @@ export function KakaoMap({
 
   // 5. 상위에서 특정 아파트가 선택(포커스)되었을 때 중심 이동 및 줌
   useEffect(() => {
-    if (!mapInitialized || !mapRef.current || !loaded || !selectedApartment || complexSummaries.length === 0) return;
+    if (!mapInitialized || !mapRef.current || !loaded || !selectedApartment) return;
 
     const map = mapRef.current;
+    
+    // 1. 메모리 캐시에서 단지 좌표 조회
+    const cachedCoords = coordsByNameRef.current.get(selectedApartment);
+    if (cachedCoords) {
+      map.panTo(cachedCoords);
+      if (map.getLevel() > 4) {
+        map.setLevel(4);
+      }
+      return;
+    }
+
+    // 2. 캐시가 없는 경우 fallback으로 지오코딩 수행
+    if (complexSummaries.length === 0) return;
     const target = complexSummaries.find((s) => s.apartmentName === selectedApartment);
     if (!target) return;
 

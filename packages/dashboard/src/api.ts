@@ -1,4 +1,4 @@
-import type { AppConfig, CheckRun, NotificationRecord, RegionSearchResult, RuleInput, TransactionRecord, WatchRule } from "./types";
+import type { AppConfig, CheckRun, NotificationRecord, RegionSearchResult, RuleInput, TransactionRecord, WatchRule, ApartmentListResponse } from "./types";
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
@@ -54,8 +54,8 @@ export function searchRegions(query: string) {
   return request<RegionSearchResult[]>(`/api/regions/search?query=${encodeURIComponent(query)}`);
 }
 
-export function getApartments(lawdCode: string) {
-  return request<string[]>(`/api/apartments/list?lawd_cd=${lawdCode}`);
+export function getApartments(lawdCode: string, forceRefresh = false) {
+  return request<ApartmentListResponse>(`/api/apartments/list?lawd_cd=${lawdCode}${forceRefresh ? "&refresh=true" : ""}`);
 }
 
 export function runRule(id: string) {
@@ -82,7 +82,9 @@ import type {
   GraphPreset,
   Insight,
   TrendPoint,
-  ComplexSearchResult
+  ComplexSearchResult,
+  DailyCollectStat,
+  RegionCollectStat
 } from "@myhome/shared";
 
 export function loadGraphStats() {
@@ -154,6 +156,17 @@ export function loadComplexDetail(complexName: string, lawdCode?: string, area?:
   return request<any>(`/api/graph/complex/${encodeURIComponent(complexName)}/detail${query}`);
 }
 
+export function fetchDbRegions() {
+  return request<{ lawdCode: string; displayName: string }[]>("/api/graph/db-regions");
+}
+
+export function fetchComplexesByRegion(lawdCode?: string) {
+  const params = new URLSearchParams();
+  if (lawdCode) params.set("lawdCode", lawdCode);
+  const query = params.toString() ? `?${params.toString()}` : "";
+  return request<string[]>(`/api/graph/region-complexes${query}`);
+}
+
 export async function loadGraphContext(filter: GraphFilter): Promise<string> {
   const params = new URLSearchParams();
   if (filter.lawdCode) params.set("lawdCode", filter.lawdCode);
@@ -215,6 +228,26 @@ export function executeAdminDbQuery(sql: string) {
   });
 }
 
+export function clearDatabase() {
+  return request<{ success: boolean }>("/api/admin/db/clear", {
+    method: "POST"
+  });
+}
+
+export function deleteDbRegion(lawdCode: string) {
+  return request<{ success: boolean }>("/api/admin/db/delete-region", {
+    method: "POST",
+    body: JSON.stringify({ lawdCode })
+  });
+}
+
+export function deleteDbComplex(complexName: string) {
+  return request<{ success: boolean }>("/api/admin/db/delete-complex", {
+    method: "POST",
+    body: JSON.stringify({ complexName })
+  });
+}
+
 export function loadSystemConfig() {
   return request<{
     telegramBotToken: string;
@@ -241,4 +274,15 @@ export function saveSystemConfig(config: {
     body: JSON.stringify(config)
   });
 }
+
+// 📊 수집 현황 통계 API 추가
+
+export function loadDailyCollectionStats() {
+  return request<DailyCollectStat[]>("/api/graph/collect-stats/daily");
+}
+
+export function loadRegionCollectionStats(date: string) {
+  return request<RegionCollectStat[]>(`/api/graph/collect-stats/region?date=${encodeURIComponent(date)}`);
+}
+
 

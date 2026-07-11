@@ -246,30 +246,28 @@ export default function ComplexTab({ initialComplexName = "", lawdCode }: Comple
           <SectionCard title={t("monthlyTrendTitle")}>
             {/* 커스텀 범례 (클릭 시 토글 가능) */}
             <div className="flex flex-wrap items-center gap-4 mb-4">
-              <button
-                type="button"
-                onClick={() => toggleKey("overall")}
-                className={`flex items-center gap-1.5 transition-opacity duration-200 ${
-                  hiddenKeys["overall"] ? "opacity-30 line-through" : "opacity-100 hover:opacity-80"
-                }`}
-              >
-                <span className="inline-block w-3.5 h-2 rounded bg-neutral/15" />
-                <span className="text-xs text-neutral select-none">{t("overallAvg")}</span>
-              </button>
-              {trendSizes.map((size, idx) => {
-                const color = lineColors[idx % lineColors.length];
-                const isHidden = hiddenKeys[size];
+              {[
+                { key: "최대가", label: "최대가", color: "#ef4444", type: "line" },
+                { key: "평균가", label: "평균가", color: "#3b82f6", type: "area" },
+                { key: "중위값", label: "중위값", color: "#8b5cf6", type: "line" },
+                { key: "최소가", label: "최소가", color: "#10b981", type: "line" },
+                { key: "거래량", label: "거래량", color: "#3b82f6", type: "bar" }
+              ].map((item) => {
+                const isHidden = hiddenKeys[item.key];
                 return (
                   <button
-                    key={size}
+                    key={item.key}
                     type="button"
-                    onClick={() => toggleKey(size)}
+                    onClick={() => toggleKey(item.key)}
                     className={`flex items-center gap-1.5 transition-opacity duration-200 ${
                       isHidden ? "opacity-30 line-through" : "opacity-100 hover:opacity-80"
                     }`}
                   >
-                    <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
-                    <span className="text-xs text-neutral select-none">{size}</span>
+                    <span
+                      className={`inline-block w-3 h-3 ${item.type === "line" ? "rounded-full" : "rounded-sm"}`}
+                      style={{ backgroundColor: item.color, opacity: item.type === "line" ? 1.0 : 0.6 }}
+                    />
+                    <span className="text-xs text-neutral select-none">{item.label}</span>
                   </button>
                 );
               })}
@@ -279,38 +277,41 @@ export default function ComplexTab({ initialComplexName = "", lawdCode }: Comple
                 <ComposedChart data={detailData.trend} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
                   <XAxis dataKey="month" stroke="#64748b" fontSize={11} tickLine={false} interval="preserveStartEnd" />
-                  <YAxis width={52} stroke="#64748b" fontSize={11} tickLine={false} />
+                  {/* 좌측 Y축: 가격 */}
+                  <YAxis yAxisId="left" width={52} stroke="#64748b" fontSize={11} tickLine={false} domain={[(dataMin) => Math.max(0, Math.floor(dataMin * 0.9)), "auto"]} />
+                  {/* 우측 Y축: 거래량 */}
+                  <YAxis yAxisId="right" orientation="right" width={35} stroke="#64748b" fontSize={11} tickLine={false} domain={[(dataMin) => Math.max(0, Math.floor(dataMin * 0.9)), "auto"]} />
                   <Tooltip contentStyle={tooltipContentStyle} />
-                  {/* 전체 평균을 배경 반투명 area (ghost) 스타일로 표시 */}
-                  {!hiddenKeys["overall"] && (
+                  
+                  {/* 우측 Y축 기준의 거래량 Bar (뒷배경) */}
+                  {!hiddenKeys["거래량"] && (
+                    <Bar yAxisId="right" dataKey="거래량" name="거래량" fill="#3b82f6" fillOpacity={0.15} radius={[4, 4, 0, 0]} barSize={24} />
+                  )}
+
+                  {/* 평균가를 배경 반투명 Area 스타일로 뒷배경에 깔아줌 */}
+                  {!hiddenKeys["평균가"] && (
                     <Area
+                      yAxisId="left"
                       type="monotone"
-                      dataKey="overall"
-                      name={t("complexOverallAvg")}
+                      dataKey="평균가"
+                      name="평균가 (배경)"
                       stroke="none"
-                      fill="#64748b"
-                      fillOpacity={0.12}
+                      fill="#3b82f6"
+                      fillOpacity={0.08}
                       connectNulls={true}
                     />
                   )}
-                  {/* 각 평수별 다중 라인 그래프 드로잉 */}
-                  {trendSizes.map((size, idx) => {
-                    const color = lineColors[idx % lineColors.length];
-                    if (hiddenKeys[size]) return null;
-                    return (
-                      <Line
-                        key={size}
-                        type="monotone"
-                        dataKey={size}
-                        name={size}
-                        stroke={color}
-                        strokeWidth={2.5}
-                        dot={{ r: 3 }}
-                        activeDot={{ r: 5 }}
-                        connectNulls={true}
-                      />
-                    );
-                  })}
+                  
+                  {/* 최대가, 중위값, 최소가 선 그래프 드로잉 (평균가 Line 제거) */}
+                  {!hiddenKeys["최대가"] && (
+                    <Line yAxisId="left" type="monotone" dataKey="최대가" name="최대가" stroke="#ef4444" strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 4 }} connectNulls={true} />
+                  )}
+                  {!hiddenKeys["중위값"] && (
+                    <Line yAxisId="left" type="monotone" dataKey="중위값" name="중위값" stroke="#8b5cf6" strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 4 }} connectNulls={true} />
+                  )}
+                  {!hiddenKeys["최소가"] && (
+                    <Line yAxisId="left" type="monotone" dataKey="최소가" name="최소가" stroke="#10b981" strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 4 }} connectNulls={true} />
+                  )}
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
@@ -336,9 +337,9 @@ export default function ComplexTab({ initialComplexName = "", lawdCode }: Comple
                     <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
                     <XAxis dataKey="area" stroke="#64748b" fontSize={11} tickLine={false} interval="preserveStartEnd" />
                     {/* Y축 1: 평균 거래가 (억 원) */}
-                    <YAxis yAxisId="left" width={52} stroke="#64748b" fontSize={11} tickLine={false} />
+                    <YAxis yAxisId="left" width={52} stroke="#64748b" fontSize={11} tickLine={false} domain={[(dataMin) => Math.max(0, Math.floor(dataMin * 0.9)), "auto"]} />
                     {/* Y축 2: 거래 건수 (건) */}
-                    <YAxis yAxisId="right" orientation="right" width={35} stroke="#64748b" fontSize={11} tickLine={false} />
+                    <YAxis yAxisId="right" orientation="right" width={35} stroke="#64748b" fontSize={11} tickLine={false} domain={[(dataMin) => Math.max(0, Math.floor(dataMin * 0.9)), "auto"]} />
                     <Tooltip contentStyle={tooltipContentStyle} />
                     <Bar yAxisId="left" dataKey="avgPriceEok" name={`${t("avgPrice")} (${t("eokUnit")})`} fill="#3b82f6" radius={[4, 4, 0, 0]} />
                     <Line yAxisId="right" type="monotone" dataKey="count" name={`${t("txCount")} (${t("countUnit")})`} stroke="#10b981" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
@@ -366,9 +367,9 @@ export default function ComplexTab({ initialComplexName = "", lawdCode }: Comple
                     <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
                     <XAxis dataKey="floor" stroke="#64748b" fontSize={11} tickLine={false} interval="preserveStartEnd" tickFormatter={(v) => `${v}${t("floorUnit")}`} />
                     {/* Y축 1: 거래 건수 (건) */}
-                    <YAxis yAxisId="left" width={52} stroke="#64748b" fontSize={11} tickLine={false} />
+                    <YAxis yAxisId="left" width={52} stroke="#64748b" fontSize={11} tickLine={false} domain={[(dataMin) => Math.max(0, Math.floor(dataMin * 0.9)), "auto"]} />
                     {/* Y축 2: 평균 거래가 (억 원) */}
-                    <YAxis yAxisId="right" orientation="right" width={35} stroke="#64748b" fontSize={11} tickLine={false} />
+                    <YAxis yAxisId="right" orientation="right" width={35} stroke="#64748b" fontSize={11} tickLine={false} domain={[(dataMin) => Math.max(0, Math.floor(dataMin * 0.9)), "auto"]} />
                     <Tooltip contentStyle={tooltipContentStyle} />
                     <Bar yAxisId="left" dataKey="count" name={`${t("txCount")} (${t("countUnit")})`} fill="#f59e0b" radius={[4, 4, 0, 0]} />
                     <Line yAxisId="right" type="monotone" dataKey="avgPriceEok" name={`${t("avgPrice")} (${t("eokUnit")})`} stroke="#ec4899" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />

@@ -11,13 +11,38 @@ import {
   getComplexDetail,
   getDataContext,
   searchComplexNames,
-  GraphFilter
+  GraphFilter,
+  getAllDbRegions,
+  getComplexesByRegion,
+  getDailyCollectionStats,
+  getRegionCollectionStatsByDate
 } from "@myhome/shared";
 import { readPresets, savePreset, deletePreset } from "./graphPresets.js";
 import { readInsights, saveInsight, deleteInsight } from "./graphInsights.js";
 
 export function createGraphRouter(): Router {
   const router = Router();
+
+  /** GET /api/graph/db-regions — DB에 등록된 모든 지역 목록 */
+  router.get("/db-regions", async (_req, res) => {
+    try {
+      const regions = await getAllDbRegions();
+      res.json(regions);
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message ?? "내부 오류" });
+    }
+  });
+
+  /** GET /api/graph/region-complexes — 특정 지역에 등록된 아파트 단지 목록 */
+  router.get("/region-complexes", async (req, res) => {
+    try {
+      const lawdCode = req.query.lawdCode as string | undefined;
+      const complexes = await getComplexesByRegion(lawdCode);
+      res.json(complexes);
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message ?? "내부 오류" });
+    }
+  });
 
   /** GET /api/graph/stats — 전체 노드 수 통계 */
   router.get("/stats", async (_req, res) => {
@@ -34,7 +59,7 @@ export function createGraphRouter(): Router {
     try {
       const query = (req.query.q as string || "").trim();
       const lawdCode = req.query.lawdCode as string | undefined;
-      if (!query || query.length < 1) {
+      if (!query && !lawdCode) {
         res.json([]);
         return;
       }
@@ -172,6 +197,31 @@ export function createGraphRouter(): Router {
       const contextText = await getDataContext(filter);
       res.setHeader("Content-Type", "text/plain; charset=utf-8");
       res.send(contextText);
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message ?? "내부 오류" });
+    }
+  });
+
+  /** GET /api/graph/collect-stats/daily — 일단위 수집 집계 */
+  router.get("/collect-stats/daily", async (_req, res) => {
+    try {
+      const stats = await getDailyCollectionStats();
+      res.json(stats);
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message ?? "내부 오류" });
+    }
+  });
+
+  /** GET /api/graph/collect-stats/region — 특정 날짜의 지역별 수집 집계 */
+  router.get("/collect-stats/region", async (req, res) => {
+    try {
+      const date = req.query.date as string;
+      if (!date) {
+        res.status(400).json({ error: "date 파라미터가 누락되었습니다." });
+        return;
+      }
+      const stats = await getRegionCollectionStatsByDate(date);
+      res.json(stats);
     } catch (err: any) {
       res.status(500).json({ error: err?.message ?? "내부 오류" });
     }

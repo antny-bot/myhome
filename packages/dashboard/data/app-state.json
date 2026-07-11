@@ -1,11 +1,248 @@
 {
-  "rules": [],
-  "checkRuns": [],
-  "notifications": [],
-  "alertedDedupeKeys": [],
+  "rules": [
+    {
+      "id": "llJt06WLHl0XBYOTMbIfn",
+      "createdAt": "2026-07-11T02:31:30.278Z",
+      "updatedAt": "2026-07-11T02:32:16.849Z",
+      "regionCode": "41117",
+      "name": "광교 중앙역",
+      "regionName": "영통구",
+      "apartmentKeywords": [
+        "광교e편한세상"
+      ],
+      "maxPriceEok": 20,
+      "comparisonCriteria": "none",
+      "intervalMinutes": 720,
+      "channels": [
+        "telegram"
+      ],
+      "enabled": true,
+      "lastCheckedAt": "2026-07-11T02:32:16.849Z",
+      "minPriceEok": 10
+    },
+    {
+      "id": "U7D7kdslyTCqLPYn78c6m",
+      "createdAt": "2026-07-07T10:54:24.146Z",
+      "updatedAt": "2026-07-11T02:19:23.871Z",
+      "regionCode": "41135",
+      "name": "판교역 인근",
+      "regionName": "분당",
+      "apartmentKeywords": [
+        "백현마을2단지",
+        "봇들마을9단지(금호어울림)",
+        "봇들마을7단지",
+        "백현마을6단지(주공)",
+        "백현마을5단지(주공)"
+      ],
+      "minPriceEok": 15,
+      "maxPriceEok": 25,
+      "comparisonCriteria": "none",
+      "intervalMinutes": 720,
+      "channels": [
+        "telegram",
+        "kakao"
+      ],
+      "enabled": true,
+      "lastCheckedAt": "2026-07-11T02:19:23.871Z"
+    }
+  ],
+  "checkRuns": [
+    {
+      "id": "DYtwFKols8W9sLjb9YF2F",
+      "ruleId": "llJt06WLHl0XBYOTMbIfn",
+      "ruleName": "광교 중앙역",
+      "matched": true,
+      "summary": "광교 중앙역: 6건 매칭, 최저 광교e편한세상 18.50억",
+      "matches": [
+        {
+          "dedupeKey": "llJt06WLHl0XBYOTMbIfn|광교e편한세상|2026-06-24|100.9289|6|19.5000",
+          "apartmentName": "광교e편한세상",
+          "dealDate": "2026-06-24",
+          "priceEok": 19.5,
+          "areaM2": 100.9289,
+          "floor": 6,
+          "raw": {
+            "apartmentName": "광교e편한세상",
+            "dealDate": "2026-06-24",
+            "priceEok": 19.5,
+            "areaM2": 100.9289,
+            "floor": 6
+          }
+        },
+        {
+          "dedupeKey": "llJt06WLHl0XBYOTMbIfn|광교e편한세상|2026-06-17|101.933|17|20.0000",
+          "apartmentName": "광교e편한세상",
+          "dealDate": "2026-06-17",
+          "priceEok": 20,
+          "areaM2": 101.933,
+          "floor": 17,
+          "raw": {
+            "apartmentName": "광교e편한세상",
+            "dealDate": "2026-06-17",
+            "priceEok": 20,
+            "areaM2": 101.933,
+            "floor": 17
+          }
+        },
+        {
+          "dedupeKey": "llJt06WLHl0XBYOTMbIfn|광교e편한세상|2026-06-16|101.933|10|19.4000",
+          "apartmentName": "광교e편한세상",
+          "dealDate": "2026-06-16",
+          "priceEok": 19.4,
+          "areaM2": 101.933,
+          "floor": 10,
+          "raw": {
+            "apartmentName": "광교e편한세상",
+            "dealDate": "2026-06-16",
+            "priceEok": 19.4,
+            "areaM2": 101.933,
+            "floor": 10
+          }
+        },
+        {
+          "dedupeKey": "llJt06WLHl0XBYOTMbIfn|광교e편한세상|2026-06-15|100.9052|11|18.5000",
+          "apartmentName": "광교e편한세상",
+          "dealDate": "2026-06-15",
+          "priceEok": 18.5,
+          "areaM2": 100.9052,
+          "floor": 11,
+          "raw": {
+            "apartmentName": "광교e편한세상",
+            "dealDate": "2026-06-15",
+            "priceEok": 18.5,
+            "areaM2": 100.9052,
+            "floor": 11
+          }
+        },
+        {
+          "dedupeKey": "llJt06WLHl0XBYOTMbIfn|광교e편한세상|2026-06-02|119.7187|14|19.4000",
+          "apartmentName": "광교e편한세상",
+          "dealDate": "2026-06-02",
+          "priceEok": 19.4,
+          "areaM2": 119.7187,
+          "floor": 14,
+          "raw": {
+            "apartmentName": "광교e편한세상",
+            "dealDate": "2026-06-02",
+            "priceEok": 19.4,
+            "areaM2": 119.7187,
+            "floor": 14
+          }
+        },
+        {
+          "dedupeKey": "llJt06WLHl0XBYOTMbIfn|광교e편한세상|2026-07-04|100.9052|8|19.5000",
+          "apartmentName": "광교e편한세상",
+          "dealDate": "2026-07-04",
+          "priceEok": 19.5,
+          "areaM2": 100.9052,
+          "floor": 8,
+          "raw": {
+            "apartmentName": "광교e편한세상",
+            "dealDate": "2026-07-04",
+            "priceEok": 19.5,
+            "areaM2": 100.9052,
+            "floor": 8
+          }
+        }
+      ],
+      "sourceLimitNotice": "",
+      "createdAt": "2026-07-11T02:32:16.849Z"
+    },
+    {
+      "id": "gyR1peMdtoS3nHczUsiaQ",
+      "ruleId": "llJt06WLHl0XBYOTMbIfn",
+      "ruleName": "광교 중앙역",
+      "matched": false,
+      "summary": "광교 중앙역: 조건에 맞는 신규 실거래가 없습니다.",
+      "matches": [],
+      "sourceLimitNotice": "",
+      "createdAt": "2026-07-11T02:31:38.962Z"
+    },
+    {
+      "id": "AE4M-kw0WmqC2bBRRsaKr",
+      "ruleId": "U7D7kdslyTCqLPYn78c6m",
+      "ruleName": "판교역 인근",
+      "matched": false,
+      "summary": "판교역 인근: 조건에 맞는 신규 실거래가 없습니다.",
+      "matches": [],
+      "sourceLimitNotice": "",
+      "createdAt": "2026-07-11T02:19:23.871Z"
+    },
+    {
+      "id": "YHNYaJejl4-2DGaULNnS9",
+      "ruleId": "U7D7kdslyTCqLPYn78c6m",
+      "ruleName": "판교역 인근",
+      "matched": false,
+      "summary": "판교역 인근: 조건에 맞는 신규 실거래가 없습니다.",
+      "matches": [],
+      "sourceLimitNotice": "",
+      "createdAt": "2026-07-08T13:39:44.426Z"
+    }
+  ],
+  "notifications": [
+    {
+      "id": "MunpZY4zI8Pni7uQKpEZz",
+      "ruleId": "llJt06WLHl0XBYOTMbIfn",
+      "channel": "telegram",
+      "status": "sent",
+      "message": "Telegram alert sent.",
+      "dedupeKeys": [
+        "llJt06WLHl0XBYOTMbIfn|광교e편한세상|2026-06-24|100.9289|6|19.5000",
+        "llJt06WLHl0XBYOTMbIfn|광교e편한세상|2026-06-17|101.933|17|20.0000",
+        "llJt06WLHl0XBYOTMbIfn|광교e편한세상|2026-06-16|101.933|10|19.4000",
+        "llJt06WLHl0XBYOTMbIfn|광교e편한세상|2026-06-15|100.9052|11|18.5000",
+        "llJt06WLHl0XBYOTMbIfn|광교e편한세상|2026-06-02|119.7187|14|19.4000",
+        "llJt06WLHl0XBYOTMbIfn|광교e편한세상|2026-07-04|100.9052|8|19.5000"
+      ],
+      "createdAt": "2026-07-11T02:32:21.506Z"
+    },
+    {
+      "id": "hUJylQ-M29-bGiQ6IMfN6",
+      "ruleId": "U7D7kdslyTCqLPYn78c6m",
+      "channel": "kakao",
+      "status": "skipped",
+      "message": "Kakao send-to-me is reserved for phase 2.",
+      "dedupeKeys": [
+        "U7D7kdslyTCqLPYn78c6m|백현마을5단지(주공)|2026-06-20|84.91|1|24.0000"
+      ],
+      "createdAt": "2026-07-07T10:57:38.503Z"
+    },
+    {
+      "id": "rW4PsKpvNUGxQgJXWUFJr",
+      "ruleId": "U7D7kdslyTCqLPYn78c6m",
+      "channel": "telegram",
+      "status": "skipped",
+      "message": "Telegram env vars are not configured.",
+      "dedupeKeys": [
+        "U7D7kdslyTCqLPYn78c6m|백현마을5단지(주공)|2026-06-20|84.91|1|24.0000"
+      ],
+      "createdAt": "2026-07-07T10:57:38.499Z"
+    },
+    {
+      "id": "jR2W6Cn33PPOBNez4XQAM",
+      "ruleId": "-YafHQ1zjvH3SBhbcDH1A",
+      "channel": "telegram",
+      "status": "skipped",
+      "message": "Telegram env vars are not configured.",
+      "dedupeKeys": [
+        "-YafHQ1zjvH3SBhbcDH1A|백현마을5단지(주공)|2026-06-20|84.91|1|24.0000"
+      ],
+      "createdAt": "2026-07-06T12:23:06.814Z"
+    }
+  ],
+  "alertedDedupeKeys": [
+    "-YafHQ1zjvH3SBhbcDH1A|백현마을5단지(주공)|2026-06-20|84.91|1|24.0000",
+    "U7D7kdslyTCqLPYn78c6m|백현마을5단지(주공)|2026-06-20|84.91|1|24.0000",
+    "llJt06WLHl0XBYOTMbIfn|광교e편한세상|2026-06-24|100.9289|6|19.5000",
+    "llJt06WLHl0XBYOTMbIfn|광교e편한세상|2026-06-17|101.933|17|20.0000",
+    "llJt06WLHl0XBYOTMbIfn|광교e편한세상|2026-06-16|101.933|10|19.4000",
+    "llJt06WLHl0XBYOTMbIfn|광교e편한세상|2026-06-15|100.9052|11|18.5000",
+    "llJt06WLHl0XBYOTMbIfn|광교e편한세상|2026-06-02|119.7187|14|19.4000",
+    "llJt06WLHl0XBYOTMbIfn|광교e편한세상|2026-07-04|100.9052|8|19.5000"
+  ],
   "systemConfig": {
-    "telegramBotToken": "",
-    "telegramChatId": "",
+    "telegramBotToken": "8990630190:AAFvffiacZswATUc9JRFuvIhMVt5c5KRgp0",
+    "telegramChatId": "5438389996",
     "jusoConfmKey": ""
   }
 }

@@ -1,8 +1,11 @@
-import React, { useEffect, useState } from "react";
-import { loadAdminDbTables, executeAdminDbQuery } from "../api";
+import React, { useEffect, useMemo, useState } from "react";
+import { loadAdminDbTables, executeAdminDbQuery, searchComplexNames, clearDatabase, deleteDbRegion, deleteDbComplex } from "../api";
 import { SectionCard } from "../components/SectionCard";
 import { Play, Database, RefreshCw, AlertCircle, CheckCircle2, ChevronRight, FileText } from "lucide-react";
 import { copy } from "../locales/ko";
+import { RegionSearchInput } from "../components/RegionSearchInput";
+import { classNames } from "../lib/format";
+import type { RegionSearchResult } from "../types";
 
 const locale = "ko";
 const t = copy[locale];
@@ -28,6 +31,90 @@ export function DatabaseAdminPage() {
   const [schemas, setSchemas] = useState<Record<string, SchemaInfo[]>>({});
   const [selectedTable, setSelectedTable] = useState<string>("");
   const [loadingSchema, setLoadingSchema] = useState(false);
+
+  // DB 관리 도구 상태
+  const [deleteRegion, setDeleteRegion] = useState<RegionSearchResult | null>(null);
+  const [deleteRegionName, setDeleteRegionName] = useState("");
+
+  const [complexQuery, setComplexQuery] = useState("");
+  const [showComplexDropdown, setShowComplexDropdown] = useState(false);
+  const [activeAptIndex, setActiveAptIndex] = useState(-1);
+  const [apartments, setApartments] = useState<string[]>([]);
+  const [searchingComplexes, setSearchingComplexes] = useState(false);
+
+  const filteredApartments = useMemo(() => {
+    const q = complexQuery.trim().toLowerCase();
+    if (!q) return apartments;
+    return apartments.filter((apt) => apt.toLowerCase().includes(q));
+  }, [apartments, complexQuery]);
+
+  // 단지명 디바운스 실시간 검색
+  useEffect(() => {
+    const q = complexQuery.trim();
+    if (q.length === 1) {
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setSearchingComplexes(true);
+      try {
+        const found = await searchComplexNames(q);
+        setApartments(found.map((item) => item.name));
+      } catch (err) {
+        console.error("Failed to search complexes:", err);
+        setApartments([]);
+      } finally {
+        setSearchingComplexes(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [complexQuery]);
+
+  async function handleDeleteRegion() {
+    if (!deleteRegion) return;
+    if (!confirm(`정말로 '${deleteRegion.displayName}' 지역의 모든 실거래 및 단지 데이터를 지우시겠습니까?`)) return;
+
+    try {
+      await deleteDbRegion(deleteRegion.lawdCode);
+      alert("해당 지역의 실거래 및 단지 정보가 성공적으로 삭제되었습니다.");
+      setDeleteRegion(null);
+      setDeleteRegionName("");
+      void loadSchemaData();
+    } catch (err: any) {
+      alert(`삭제 실패: ${err.message || "오류가 발생했습니다."}`);
+    }
+  }
+
+  async function handleDeleteComplex() {
+    const name = complexQuery.trim();
+    if (!name) return;
+    if (!confirm(`정말로 '${name}' 아파트 단지의 모든 실거래 데이터를 지우시겠습니까?`)) return;
+
+    try {
+      await deleteDbComplex(name);
+      alert("해당 아파트 단지의 실거래 정보가 성공적으로 삭제되었습니다.");
+      setComplexQuery("");
+      void loadSchemaData();
+    } catch (err: any) {
+      alert(`삭제 실패: ${err.message || "오류가 발생했습니다."}`);
+    }
+  }
+
+  async function handleClearDb() {
+    if (!confirm("⚠️ 정말로 데이터베이스의 모든 실거래, 단지, 지역 데이터를 지우고 전체 초기화하시겠습니까? 이 작업은 절대 되돌릴 수 없습니다.")) return;
+
+    try {
+      await clearDatabase();
+      alert("데이터베이스 전체 초기화가 완료되었습니다.");
+      setDeleteRegion(null);
+      setDeleteRegionName("");
+      setComplexQuery("");
+      void loadSchemaData();
+    } catch (err: any) {
+      alert(`초기화 실패: ${err.message || "오류가 발생했습니다."}`);
+    }
+  }
 
   const [sql, setSql] = useState<string>("SELECT * FROM transactions LIMIT 20;");
   const [executing, setExecuting] = useState(false);
@@ -210,8 +297,146 @@ export function DatabaseAdminPage() {
           </SectionCard>
         </div>
 
-        {/* 우측: SQL 에디터 및 결과 화면 */}
+        {/* 우측: 데이터 관리 도구 및 SQL 에디터 */}
         <div className="space-y-6">
+          <SectionCard title="데이터 관리 도구">
+            <div className="space-y-4">
+              <p className="text-xs text-neutral">
+                수집된 실거래 데이터베이스의 특정 지역이나 아파트 단지를 골라 지우거나, 전체 데이터를 안전하게 초기화할 수 있습니다.
+              </p>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                {/* 1. 지역별 삭제 */}
+                <div className="space-y-1.5 p-3 rounded-lg border border-normal bg-alternative/30">
+                  <span className="text-xs font-bold text-strong">📍 지역별 실거래 삭제</span>
+                  <div className="flex gap-2 items-center mt-1">
+                    <div className="flex-1">
+                      <RegionSearchInput
+                        value={deleteRegionName}
+                        onChange={setDeleteRegionName}
+                        onSelect={(item) => {
+                          setDeleteRegion(item);
+                          setDeleteRegionName(item.displayName);
+                        }}
+                        placeholder="지우고 싶은 지역 검색..."
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      disabled={!deleteRegion}
+                      onClick={handleDeleteRegion}
+                      className="rounded-lg bg-red-500 px-3.5 py-2 text-xs font-bold text-white hover:bg-red-600 disabled:opacity-50 transition-all shrink-0"
+                    >
+                      삭제
+                    </button>
+                  </div>
+                  {deleteRegion && (
+                    <p className="text-[10px] text-neutral mt-1">
+                      선택된 코드: <b className="font-semibold text-strong">{deleteRegion.lawdCode}</b>
+                    </p>
+                  )}
+                </div>
+
+                {/* 2. 아파트 단지별 삭제 */}
+                <div className="space-y-1.5 p-3 rounded-lg border border-normal bg-alternative/30">
+                  <span className="text-xs font-bold text-strong">🏢 아파트 단지별 실거래 삭제</span>
+                  <div className="relative flex gap-2 items-center mt-1">
+                    <div className="flex-1 relative">
+                      <input
+                        type="text"
+                        className="w-full h-[38px] rounded-lg border border-normal bg-normal pl-3 pr-8 text-xs font-semibold text-strong outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                        value={complexQuery}
+                        onChange={(e) => {
+                          setComplexQuery(e.target.value);
+                          setShowComplexDropdown(true);
+                        }}
+                        onFocus={() => setShowComplexDropdown(true)}
+                        onBlur={() => {
+                          setTimeout(() => {
+                            setShowComplexDropdown(false);
+                            setActiveAptIndex(-1);
+                          }, 200);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            if (showComplexDropdown && activeAptIndex >= 0 && activeAptIndex < filteredApartments.length) {
+                              const selected = filteredApartments[activeAptIndex];
+                              setComplexQuery(selected);
+                              setShowComplexDropdown(false);
+                            }
+                          } else if (showComplexDropdown && filteredApartments.length > 0) {
+                            if (e.key === "ArrowDown") {
+                              e.preventDefault();
+                              setActiveAptIndex((prev) => (prev < filteredApartments.length - 1 ? prev + 1 : prev));
+                            } else if (e.key === "ArrowUp") {
+                              e.preventDefault();
+                              setActiveAptIndex((prev) => (prev > 0 ? prev - 1 : -1));
+                            } else if (e.key === "Escape") {
+                              setShowComplexDropdown(false);
+                              setActiveAptIndex(-1);
+                            }
+                          }
+                        }}
+                        placeholder="단지명을 입력해 검색..."
+                        autoComplete="off"
+                      />
+                      {searchingComplexes && <RefreshCw className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 animate-spin text-neutral" />}
+
+                      {showComplexDropdown && filteredApartments.length > 0 && (
+                        <ul className="absolute z-30 left-0 right-0 top-full mt-1 max-h-40 overflow-auto rounded-lg border border-normal bg-elevated py-1 shadow-lg">
+                          {filteredApartments.map((apt, index) => (
+                            <li key={`${apt}-${index}`}>
+                              <button
+                                type="button"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => {
+                                  setComplexQuery(apt);
+                                  setShowComplexDropdown(false);
+                                }}
+                                className={classNames(
+                                  "w-full text-left px-3 py-1.5 text-xs transition-colors",
+                                  index === activeAptIndex ? "bg-primary/10 text-primary font-semibold" : "hover:bg-alternative text-strong"
+                                )}
+                              >
+                                {apt}
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      disabled={!complexQuery.trim()}
+                      onClick={handleDeleteComplex}
+                      className="rounded-lg bg-red-500 px-3.5 py-2 text-xs font-bold text-white hover:bg-red-600 disabled:opacity-50 transition-all shrink-0"
+                    >
+                      삭제
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. 전체 초기화 */}
+              <div className="flex items-center justify-between border-t border-normal/50 pt-3">
+                <div className="space-y-0.5">
+                  <span className="text-xs font-bold text-red-500 flex items-center gap-1">
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0" /> 데이터베이스 전체 초기화
+                  </span>
+                  <p className="text-[10px] text-neutral">수집된 실거래 거래 목록 및 법정동 정보를 전부 삭제하고 디스크 용량을 최적화합니다.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleClearDb}
+                  className="rounded-lg bg-red-600 px-4 py-2 text-xs font-bold text-white hover:bg-red-700 transition-all shadow-sm shadow-red-500/10 flex items-center gap-1.5 shrink-0"
+                >
+                  전체 초기화
+                </button>
+              </div>
+            </div>
+          </SectionCard>
+
           <SectionCard title="SQL 콘솔">
             <div className="space-y-4">
               <div className="relative rounded-xl border border-normal bg-alternative/40 focus-within:border-primary overflow-hidden">

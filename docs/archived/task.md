@@ -1,8 +1,8 @@
 # 작업 목록 (task.md)
 
 ## [x] Phase 7A: 모노레포 전환 + Shared 패키지 추출
-- [x] 루토 `package.json` 수정 및 `tsconfig.base.json` 생성
-- [x] `packages/shared/` 생성 및 `@myhome/shared` 구현
+- [x] 루트 `package.json` 수정 및 `tsconfig.base.json` 생성
+- [x] `packages/shared/` 생성, `@myhome/shared` 구현
   - [x] `packages/shared/package.json`
   - [x] `packages/shared/tsconfig.json`
   - [x] `packages/shared/src/types.ts`
@@ -19,7 +19,7 @@
 - [x] 패키지 설치 (`recharts`, `react-force-graph-2d` @ `packages/dashboard`)
 - [x] `packages/shared/src/graphDb.ts` 쿼리 확장
 - [x] `packages/dashboard/server/routes-graph.ts` 및 프리셋/인사이트 라우트 구현
-- [x] 프론트엔드 API 클라이언트 및 타입 업데이트
+- [x] 프론트엔드 API 클라이언트, 타입 업데이트
 - [x] 프론트엔드 분석 페이지 구현 (5개 탭 + 필터 패널)
   - [x] `GraphDashboard.tsx` (메인)
   - [x] `FilterPanel.tsx` (필터/프리셋)

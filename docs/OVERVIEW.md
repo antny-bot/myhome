@@ -13,7 +13,7 @@
 | 런타임 | `tsx` (Server), `Vite` (Web) |
 | 빌드 | `npm run build` (workspaces 순차 빌드) |
 | 실행 | `npm run dev` (Dashboard Backend/Frontend 동시 실행 + 수집 스케줄러 내장) |
-| 외부 연동 | 국토교통부 아파트매매 실거래 상세 자료 API, Telegram Bot API, PlayMCP `mcp-gateway` (지역코드 및 단지 보조) |
+| 외부 연동 | 국토부 아파트매매 실거래 상세 자료 API (실거래·지역코드·단지목록 단일 소스), Telegram Bot API, PlayMCP `mcp-gateway` (**자연어 NL 질의 전용** — Phase 8 이후 활성화 예정) |
 | 배포 | Synology Container Manager (Docker Compose), Docker |
 | CI/CD | GitHub Actions (Release 트리거 GHCR 이미지 생성 / 주간 10개 버전 자동 관리) |
 | 패키지 관리 | npm workspaces (모노레포) |
@@ -59,7 +59,7 @@ myhome/                            ← 모노레포 루트
 │       │   ├── index.ts           ← 서버 엔트리 + SQLite 초기화 연동
 │       │   ├── routes.ts          ← 기본 REST API 라우팅 (rules, check-runs 등)
 │       │   ├── routes-graph.ts    ← SQLite 실거래 분석 및 통계 API
-│       │   ├── mcpClient.ts       ← 카카오/PlayMCP 연동 및 국토부 fetch 통합
+│       │   ├── mcpClient.ts       ← 국토부 API 단일화 래퍼 (getApartmentPrices/getApartmentList), MCP는 자연어 NL 전용 예약
 │       │   ├── scheduler.ts       ← 주기적 매물 룰 감시 + 매일 새벽 수집 스케줄러 통합
 │       │   ├── ruleEngine.ts      ← 매물 매칭 + SQLite upsert
 │       │   ├── storage.ts         ← JSON 파일 기반 상태 저장소 (Rules)
@@ -78,17 +78,18 @@ myhome/                            ← 모노레포 루트
 ## 핵심 구현 패턴
 
 **모노레포 (npm workspaces)**:
-- `@myhome/shared`: SQLite 커넥션, XML 파서, 국토부 API 직접 fetch 및 공통 타입을 공유하여 collector와 dashboard가 코드 중복 없이 깔끔하게 재사용합니다.
-- `@myhome/collector`: 경량 데이터 수집 코드로써, 대시보드 서버 내에 라이브러리 형태로 탑재되어 작동합니다.
-- `@myhome/dashboard`: Express 백엔드와 React 프론트엔드가 포함되어 있으며, 백엔드 기동 시 수집 스케줄러가 함께 루프를 돕니다.
+- `@myhome/shared`: SQLite 커넥션, XML 파서, 국토부 API fetch, 공통 타입 공유. collector 및 dashboard 중복 코드 없이 재사용.
+- `@myhome/collector`: 경량 수집 모듈. 대시보드 서버 내 라이브러리로 탑재 및 작동.
+- `@myhome/dashboard`: Express 백엔드, React 프론트엔드 포함. 백엔드 가동 시 수집 스케줄러 연동 작동.
 
 **백엔드 (Express)**:
-- `scheduler.ts`가 매 300초 간격으로 `ruleEngine`을 구동하여 텔레그램 알림을 발송하며, 매일 새벽 6시 이후에 1회 자동으로 `@myhome/collector`의 `runCollector`를 호출하여 로컬 SQLite DB에 실거래 적재 파이프라인을 기동합니다.
-- `routes-graph.ts`는 로컬 SQLite DB 파일(`data/myhome.db`)에 대해 SQL 집계 함수(`AVG`, `COUNT`, `Window Function` 등)를 수행하여 대시보드 분석 데이터를 고속으로 제공합니다.
+- `scheduler.ts` 300초 간격 `ruleEngine` 구동, 텔레그램 알림 발송. 매일 새벽 6시 이후 1회 자동 `@myhome/collector` `runCollector` 호출, 로컬 SQLite DB 실거래 적재 파이프라인 가동.
+- `routes-graph.ts` 로컬 SQLite DB 파일(`data/myhome.db`) SQL 집계 함수(`AVG`, `COUNT`, `Window Function` 등) 수행, 대시보드 분석 데이터 고속 제공.
+- **국토부 API 및 DB 적재 특징**: 국토부 API 한계로 단지별 조회 시 백엔드에서 **해당 법정동/지역구(5자리 LAWD_CD) 전체 실거래 데이터 수집**. 수집 데이터 전체 DB 적재(Upsert), 동일 지역 타 단지 조회 성능 향상 및 통계 정확도 보장 최적화.
 
 **프론트엔드 (React)**:
-- Recharts를 활용하여 시계열 차트와 층수 분포, 면적대별 분석을 직관적인 그래프로 제공합니다.
-- **분석 대시보드 4탭**: 종합 현황, 단지별 분석, 드릴다운, 💡 AI 인사이트로 구성됩니다.
+- Recharts 활용 시계열 차트, 층수 분포, 면적대별 분석 그래프 제공.
+- **분석 대시보드 4탭**: 종합 현황, 단지별 분석, 드릴다운, 💡 AI 인사이트 구성.
 
 ---
 
@@ -97,6 +98,7 @@ myhome/                            ← 모노레포 루트
 | 작업 유형 | 필독 파일 |
 |-----------|-----------|
 | 전체 로드맵·Phase 파악 | `docs/ROADMAP.md` |
+| 국토부 API 캐싱 및 수집 정책 | `docs/CACHE_POLICY.md` |
 | SQLite 클라이언트 / DDL / 집계 SQL | `packages/shared/src/db.ts` |
 | 국토부 오픈 API 직접 호출 / 정규화 | `packages/shared/src/apiClient.ts` |
 | XML 응답 파싱 유틸 | `packages/shared/src/xmlParser.ts` |
@@ -112,5 +114,7 @@ myhome/                            ← 모노레포 루트
 - **Phase 7A** (모노레포 전환 및 shared 추출) 완료 ✓
 - **Phase 7B** (분석 대시보드 4탭 및 SQLite 집계 쿼리 연동) 완료 ✓
 - **Phase 7C** (통합 수집 스케줄러 및 data/myhome.db 구축) 완료 ✓
+- **Phase 7D** (Docker 컨테이너화 및 GitHub Actions CI/CD) 완료 ✓
+- **Phase 7E** (국토부 API 단일화 + MCP 자연어 전용 분리 + UX 개선) 완료 ✓
 - **Phase 8** (직접 LLM API 연동 및 인사이트 자동화) 계획 📋
-- **Phase 9** (MCP 서버 - SQLite 데이터 노출) 계획 📋
+- **Phase 9** (MCP 서버 - SQLite 데이터 노출 + 자연어 NL 질의 처리) 계획 📋

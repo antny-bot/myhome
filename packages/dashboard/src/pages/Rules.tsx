@@ -1,15 +1,17 @@
 import { Check, ChevronLeft, ChevronRight, History, Pencil, Play, RefreshCw, Search, Send, Trash2, X } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { createRule, deleteRule, getApartments, patchRule, runRule, searchRegions } from "../api";
+import { createRule, deleteRule, getApartments, patchRule, runRule, searchRegions, searchComplexNames } from "../api";
 
 import { RegionSearchInput } from "../components/RegionSearchInput";
 import { SectionCard } from "../components/SectionCard";
 import { classNames, formatDate } from "../lib/format";
-import type { ComparisonCriteria, DashboardState, RegionSearchResult, RuleInput, WatchRule } from "../types";
+import type { ComparisonCriteria, DashboardState, RegionSearchResult, RuleInput, WatchRule, ComplexSearchResult } from "../types";
+import { MapPin } from "lucide-react";
 
 const initialForm: RuleInput = {
   name: "관심 지역 실거래가 체크",
   regionName: "",
+  regionCode: undefined,
   apartmentKeywords: [],
   minPriceEok: undefined,
   maxPriceEok: 15,
@@ -41,23 +43,28 @@ function RuleForm({
   const [form, setForm] = useState<RuleInput>(initialForm);
   const [saving, setSaving] = useState(false);
   const [searching, setSearching] = useState(false);
-  const [loadingApts, setLoadingApts] = useState(false);
-  const [aptList, setAptList] = useState<string[]>([]);
   const [lawdCode, setLawdCode] = useState("");
+  const [resolvedRegionName, setResolvedRegionName] = useState("");
   const [error, setError] = useState("");
-  const [aptSearchQuery, setAptSearchQuery] = useState("");
+  const [complexQuery, setComplexQuery] = useState("");
+  const [showComplexDropdown, setShowComplexDropdown] = useState(false);
+  const [activeAptIndex, setActiveAptIndex] = useState(-1);
+  const [complexSearchResults, setComplexSearchResults] = useState<ComplexSearchResult[]>([]);
+  const [searchingComplexes, setSearchingComplexes] = useState(false);
 
   const filteredApts = useMemo(() => {
-    const q = aptSearchQuery.trim().toLowerCase();
-    if (!q) return aptList;
-    return aptList.filter(name => name.toLowerCase().includes(q));
-  }, [aptList, aptSearchQuery]);
+    const names = complexSearchResults.map(item => item.name);
+    const q = complexQuery.trim().toLowerCase();
+    if (!q) return names;
+    return names.filter(name => name.toLowerCase().includes(q));
+  }, [complexSearchResults, complexQuery]);
 
   useEffect(() => {
     if (editingRule) {
       setForm({
         name: editingRule.name,
         regionName: editingRule.regionName,
+        regionCode: editingRule.regionCode,
         apartmentKeywords: editingRule.apartmentKeywords ?? [],
         minPriceEok: editingRule.minPriceEok,
         maxPriceEok: editingRule.maxPriceEok,
@@ -67,38 +74,60 @@ function RuleForm({
         enabled: editingRule.enabled
       });
       setLawdCode(editingRule.regionCode ?? "");
+      setResolvedRegionName(editingRule.regionName);
       setStep(1);
     } else {
       setForm(initialForm);
       setLawdCode("");
+      setResolvedRegionName("");
       setStep(1);
     }
   }, [editingRule]);
 
+  /**
+   * lawdCode 확정 시 단지 목록 자동 로드:
+   *   1단계) DB searchComplexNames (빠름)
+   *   2단계) DB 없으면 /api/apartments/list (국토부 API)
+   */
   useEffect(() => {
     if (!lawdCode) {
-      setAptList([]);
+      setComplexSearchResults([]);
       return;
     }
-    void fetchApts(lawdCode);
-  }, [lawdCode]);
+    let cancelled = false;
+    setSearchingComplexes(true);
+    setComplexSearchResults([]);
 
-  const fetchApts = async (code: string) => {
-    setLoadingApts(true);
-    try {
-      const list = await getApartments(code);
-      setAptList(list);
-    } catch (err) {
-      console.error("Failed to fetch apartments:", err);
-      setAptList([]);
-    } finally {
-      setLoadingApts(false);
-    }
-  };
+    (async () => {
+      try {
+        const dbFound = await searchComplexNames("", lawdCode);
+        if (cancelled) return;
+        if (dbFound.length > 0) {
+          setComplexSearchResults(dbFound);
+          setSearchingComplexes(false);
+          return;
+        }
+        const apiResult = await getApartments(lawdCode);
+        if (!cancelled) {
+          setComplexSearchResults(apiResult.apartments.map(name => ({ name, lawdCode, regionName: resolvedRegionName })));
+        }
+      } catch (err) {
+        console.error("[Rules] 단지 목록 로드 실패:", err);
+        if (!cancelled) setComplexSearchResults([]);
+      } finally {
+        if (!cancelled) setSearchingComplexes(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [lawdCode, resolvedRegionName]);
 
   function selectRegion(item: RegionSearchResult) {
-    setForm(prev => ({ ...prev, regionName: item.displayName }));
+    // 사용자가 입력한 regionName을 덮어쓰지 않음
+    // lawdCode만 저장하고, 표시용 이름은 연동 배지로 표시
     setLawdCode(item.lawdCode);
+    setResolvedRegionName(item.displayName);
+    setForm(prev => ({ ...prev, regionCode: item.lawdCode }));
     setError("");
     setStep(2);
   }
@@ -111,8 +140,9 @@ function RuleForm({
       const results = await searchRegions(form.regionName);
       if (results.length > 0) {
         const bestMatch = results[0];
-        setForm(prev => ({ ...prev, regionName: bestMatch.displayName }));
         setLawdCode(bestMatch.lawdCode);
+        setResolvedRegionName(bestMatch.displayName);
+        setForm(prev => ({ ...prev, regionCode: bestMatch.lawdCode }));
         setStep(2);
       } else {
         setError("검색된 지역이 없습니다. 정확한 구/군 이름을 입력해 주세요.");
@@ -133,6 +163,21 @@ function RuleForm({
     } else {
       setForm({ ...form, apartmentKeywords: [...current, name] });
     }
+  };
+
+  const handleAddCustomApt = () => {
+    const customName = complexQuery.trim();
+    if (!customName) return;
+
+    const current = form.apartmentKeywords ?? [];
+    if (!current.includes(customName)) {
+      setForm(prev => ({
+        ...prev,
+        apartmentKeywords: [...current, customName]
+      }));
+    }
+    setComplexQuery("");
+    setShowComplexDropdown(false);
   };
 
   async function submit(event: FormEvent) {
@@ -156,7 +201,6 @@ function RuleForm({
   return (
     <SectionCard
       title={editingRule ? "관심 조건 수정" : "관심 조건 만들기"}
-      subtitle={`Step ${step} / 3`}
       right={
         editingRule && (
           <button onClick={onCancel} className="text-neutral hover:text-strong transition-colors">
@@ -166,6 +210,37 @@ function RuleForm({
       }
     >
       <div className="space-y-6">
+        {/* Step Wizard Stepper */}
+        <div className="mb-6 flex items-center justify-between px-2 sm:px-6">
+          {[1, 2, 3].map((s) => (
+            <div key={s} className="flex items-center flex-1 last:flex-initial">
+              <div className="flex flex-col items-center gap-1.5 z-10">
+                <div className={classNames(
+                  "w-7 h-7 rounded-full flex items-center justify-center text-xs font-black transition-all duration-300",
+                  step === s
+                    ? "bg-primary text-white ring-4 ring-primary/20 scale-105"
+                    : step > s
+                      ? "bg-emerald-500 text-white"
+                      : "bg-alternative border border-normal text-neutral"
+                )}>
+                  {step > s ? <Check className="w-3.5 h-3.5" /> : s}
+                </div>
+                <span className={classNames(
+                  "text-[10px] font-bold tracking-tight mt-1",
+                  step === s ? "text-primary" : "text-neutral"
+                )}>
+                  {s === 1 ? "지역 선택" : s === 2 ? "단지 설정" : "조건 완성"}
+                </span>
+              </div>
+              {s < 3 && (
+                <div className={classNames(
+                  "h-[2px] flex-1 -mt-6 mx-2 transition-all duration-300",
+                  step > s ? "bg-emerald-500" : "bg-normal"
+                )} />
+              )}
+            </div>
+          ))}
+        </div>
         {step === 1 && (
           <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
             <div className="grid gap-4 sm:grid-cols-2">
@@ -187,6 +262,13 @@ function RuleForm({
                       onChange={(value) => setForm({ ...form, regionName: value })}
                       onSelect={selectRegion}
                     />
+                    {resolvedRegionName && lawdCode && (
+                      <p className="flex items-center gap-1 text-[10px] text-primary font-semibold mt-0.5">
+                        <MapPin className="h-2.5 w-2.5" />
+                        {resolvedRegionName}
+                        <span className="text-assistive font-normal">({lawdCode})</span>
+                      </p>
+                    )}
                   </div>
                   <button
                     type="button"
@@ -206,49 +288,124 @@ function RuleForm({
 
         {step === 2 && (
           <div className="space-y-4 animate-in fade-in slide-in-from-right-2 duration-300">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-4">
               <div>
                 <h3 className="text-sm font-bold text-strong">{form.regionName} 아파트 단지 선택</h3>
-                <p className="text-xs text-neutral mt-0.5">원하는 단지를 모두 선택해 주세요 (미선택 시 전체 조회)</p>
+                <p className="text-xs text-neutral mt-0.5">알림을 받고 싶은 단지들을 선택해 주세요 (미선택 시 전체 알림)</p>
               </div>
-              <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">
-                {aptList.length}개 발견
-              </span>
             </div>
 
+            {/* 선택된 단지 칩 목록 */}
+            {form.apartmentKeywords && form.apartmentKeywords.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 p-2 rounded-lg bg-alternative/30 border border-normal/20">
+                {form.apartmentKeywords.map((name) => (
+                  <span
+                    key={name}
+                    className="inline-flex items-center gap-1 pl-2.5 pr-1.5 py-1 rounded-full text-xs font-bold bg-primary/10 text-primary border border-primary/20 animate-in fade-in zoom-in-95 duration-150"
+                  >
+                    {name}
+                    <button
+                      type="button"
+                      onClick={() => toggleApt(name)}
+                      className="p-0.5 rounded-full hover:bg-primary/20 transition-colors"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Autocomplete 단지 검색창 */}
             <div className="relative">
               <input
-                className="w-full rounded-lg border border-normal bg-normal px-10 py-2.5 text-sm text-strong focus:border-primary outline-none"
-                value={aptSearchQuery}
-                onChange={(e) => setAptSearchQuery(e.target.value)}
-                placeholder="단지명으로 필터링..."
+                type="text"
+                className="w-full h-[42px] rounded-lg border border-normal bg-normal pl-10 pr-10 text-sm font-semibold text-strong outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                value={complexQuery}
+                onChange={(e) => {
+                  setComplexQuery(e.target.value);
+                  setShowComplexDropdown(true);
+                }}
+                onFocus={() => setShowComplexDropdown(true)}
+                onBlur={() => {
+                  setTimeout(() => {
+                    setShowComplexDropdown(false);
+                    setActiveAptIndex(-1);
+                  }, 200);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    if (showComplexDropdown && activeAptIndex >= 0 && activeAptIndex < filteredApts.length) {
+                      const selected = filteredApts[activeAptIndex];
+                      if (!form.apartmentKeywords?.includes(selected)) {
+                        toggleApt(selected);
+                      }
+                      setComplexQuery("");
+                      setShowComplexDropdown(false);
+                      setActiveAptIndex(-1);
+                    } else if (showComplexDropdown && filteredApts.length === 1) {
+                      const selected = filteredApts[0];
+                      if (!form.apartmentKeywords?.includes(selected)) {
+                        toggleApt(selected);
+                      }
+                      setComplexQuery("");
+                      setShowComplexDropdown(false);
+                      setActiveAptIndex(-1);
+                    } else {
+                      handleAddCustomApt();
+                    }
+                  } else if (showComplexDropdown && filteredApts.length > 0) {
+                    if (e.key === "ArrowDown") {
+                      e.preventDefault();
+                      setActiveAptIndex((prev) => (prev < filteredApts.length - 1 ? prev + 1 : prev));
+                    } else if (e.key === "ArrowUp") {
+                      e.preventDefault();
+                      setActiveAptIndex((prev) => (prev > 0 ? prev - 1 : -1));
+                    } else if (e.key === "Escape") {
+                      setShowComplexDropdown(false);
+                      setActiveAptIndex(-1);
+                    }
+                  }
+                }}
+                placeholder="단지명을 입력해 검색 및 추가하세요..."
+                autoComplete="off"
               />
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral" />
-              {loadingApts && <RefreshCw className="absolute right-3.5 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-neutral" />}
-            </div>
+              {searchingComplexes && <RefreshCw className="absolute right-3.5 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-neutral" />}
 
-            <div className="max-h-60 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-2 p-1 border border-normal/30 rounded-lg">
-              {filteredApts.length > 0 ? (
-                filteredApts.map(name => (
-                  <button
-                    key={name}
-                    type="button"
-                    onClick={() => toggleApt(name)}
-                    className={classNames(
-                      "flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all text-left border",
-                      form.apartmentKeywords?.includes(name)
-                        ? "bg-primary/5 border-primary text-primary shadow-sm"
-                        : "bg-normal border-normal text-neutral hover:bg-alternative"
-                    )}
-                  >
-                    <span className="truncate">{name}</span>
-                    {form.apartmentKeywords?.includes(name) && <Check className="h-3.5 w-3.5 shrink-0" />}
-                  </button>
-                ))
-              ) : (
-                <div className="col-span-full py-10 text-center">
-                  <p className="text-sm text-neutral">{loadingApts ? "불러오는 중..." : "결과가 없습니다."}</p>
-                </div>
+              {showComplexDropdown && filteredApts.length > 0 && (
+                <ul className="absolute z-30 left-0 right-0 top-full mt-1 max-h-48 overflow-auto rounded-lg border border-normal bg-elevated py-1 shadow-lg">
+                  {filteredApts.map((apt, index) => {
+                    const isAlreadySelected = form.apartmentKeywords?.includes(apt);
+                    return (
+                      <li key={`${apt}-${index}`}>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            if (!isAlreadySelected) {
+                              toggleApt(apt);
+                            }
+                            setComplexQuery("");
+                            setShowComplexDropdown(false);
+                          }}
+                          className={classNames(
+                            "w-full text-left px-4 py-2 text-xs transition-colors flex items-center justify-between",
+                            index === activeAptIndex ? "bg-primary/10 text-primary font-semibold" : "hover:bg-alternative text-strong"
+                          )}
+                        >
+                          <span>{apt}</span>
+                          {isAlreadySelected && (
+                            <span className="text-[10px] text-primary font-semibold bg-primary/10 px-1.5 py-0.5 rounded">
+                              선택됨
+                            </span>
+                          )}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
               )}
             </div>
 

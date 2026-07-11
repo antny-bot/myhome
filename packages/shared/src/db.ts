@@ -1,6 +1,6 @@
 import { DatabaseSync } from "node:sqlite";
 import { join } from "node:path";
-import { TransactionNode, RegionInfo, TrendPoint, GraphStats, GraphFilter, GraphTopologyData, ComplexSearchResult } from "./types.js";
+import { TransactionNode, RegionInfo, TrendPoint, GraphStats, GraphFilter, GraphTopologyData, ComplexSearchResult, DailyCollectStat, RegionCollectStat } from "./types.js";
 
 let _db: DatabaseSync | null = null;
 
@@ -45,9 +45,21 @@ export function initDb(): void {
       FOREIGN KEY (complex_id) REFERENCES complexes(id)
     );
 
+    CREATE TABLE IF NOT EXISTS region_apartment_cache (
+      lawd_code TEXT NOT NULL,
+      apartment_name TEXT NOT NULL,
+      PRIMARY KEY (lawd_code, apartment_name)
+    );
+
+    CREATE TABLE IF NOT EXISTS region_apartment_cache_meta (
+      lawd_code TEXT PRIMARY KEY,
+      cached_at TEXT NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_transactions_deal_date ON transactions(deal_date);
     CREATE INDEX IF NOT EXISTS idx_transactions_complex_id ON transactions(complex_id);
     CREATE INDEX IF NOT EXISTS idx_complexes_lawd_code ON complexes(lawd_code);
+    CREATE INDEX IF NOT EXISTS idx_region_apartment_cache_lawd_code ON region_apartment_cache(lawd_code);
   `);
 }
 
@@ -176,64 +188,88 @@ export async function getComplexTrend(
   const db = getDb();
   const resolvedName = resolveComplexName(db, complexName, lawdCode);
 
-  // 1. 전체 평균 트렌드 (선택된 평형 필터에 무관하게 단지 전체의 배경 ghost area에 노출할 용도)
-  let overallSql = `
+  // 1. 해당 단지의 전체 월별 실거래 가격 및 평형 목록 가져오기
+  let sql = `
     SELECT substr(t.deal_date, 1, 7) AS month,
-           AVG(t.price_eok)          AS avgPriceEok
+           t.price_eok               AS priceEok,
+           CAST(ROUND(t.area_m2) AS TEXT) || '㎡' AS area
     FROM transactions t
     JOIN complexes c ON t.complex_id = c.id
     WHERE c.name = ?
   `;
-  const overallParams: any[] = [resolvedName];
+  const params: any[] = [resolvedName];
   if (lawdCode) {
-    overallSql += " AND c.lawd_code = ?";
-    overallParams.push(lawdCode);
-  }
-  overallSql += " GROUP BY month ORDER BY month";
-  const overallRows = db.prepare(overallSql).all(...overallParams);
-
-  // 2. 평형별 트렌드 라인 데이터
-  let sizeSql = `
-    SELECT substr(t.deal_date, 1, 7) AS month,
-           CAST(ROUND(t.area_m2) AS TEXT) || '㎡' AS area,
-           AVG(t.price_eok)          AS avgPriceEok
-    FROM transactions t
-    JOIN complexes c ON t.complex_id = c.id
-    WHERE c.name = ?
-  `;
-  const sizeParams: any[] = [resolvedName];
-  if (lawdCode) {
-    sizeSql += " AND c.lawd_code = ?";
-    sizeParams.push(lawdCode);
+    sql += " AND c.lawd_code = ?";
+    params.push(lawdCode);
   }
   if (area !== undefined && area !== null) {
-    sizeSql += " AND CAST(ROUND(t.area_m2) AS INTEGER) = ?";
-    sizeParams.push(area);
+    sql += " AND CAST(ROUND(t.area_m2) AS INTEGER) = ?";
+    params.push(area);
   }
-  sizeSql += " GROUP BY month, area ORDER BY month, area";
-  const sizeRows = db.prepare(sizeSql).all(...sizeParams);
+  sql += " ORDER BY month ASC";
 
-  // 3. 월별 병합
-  const trendMap: Record<string, any> = {};
-  for (const r of overallRows as any[]) {
-    const m = String(r.month);
-    const avg = Number(r.avgPriceEok ?? 0);
-    trendMap[m] = {
-      month: m,
-      overall: Number(avg.toFixed(2))
-    };
-  }
-  for (const r of sizeRows as any[]) {
-    const m = String(r.month);
-    const a = String(r.area);
-    const avg = Number(r.avgPriceEok ?? 0);
-    if (!trendMap[m]) {
-      trendMap[m] = { month: m };
+  const rows = db.prepare(sql).all(...params) as { month: string; priceEok: number; area: string }[];
+
+  // 월별 가격 그룹화
+  const monthlyGroups = new Map<string, { prices: number[]; sizePrices: Map<string, number[]> }>();
+  for (const row of rows) {
+    let group = monthlyGroups.get(row.month);
+    if (!group) {
+      group = { prices: [], sizePrices: new Map() };
+      monthlyGroups.set(row.month, group);
     }
-    trendMap[m][a] = Number(avg.toFixed(2));
+    group.prices.push(row.priceEok);
+
+    let sPrices = group.sizePrices.get(row.area);
+    if (!sPrices) {
+      sPrices = [];
+      group.sizePrices.set(row.area, sPrices);
+    }
+    sPrices.push(row.priceEok);
   }
 
-  return Object.values(trendMap).sort((a: any, b: any) => a.month.localeCompare(b.month));
+  // 중위값 계산 헬퍼 함수
+  function getMedian(arr: number[]): number {
+    if (arr.length === 0) return 0;
+    const sorted = [...arr].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    if (sorted.length % 2 !== 0) {
+      return sorted[mid];
+    }
+    return (sorted[mid - 1] + sorted[mid]) / 2;
+  }
+
+  // 데이터 생성
+  const trend: any[] = [];
+  for (const [month, data] of monthlyGroups.entries()) {
+    const prices = data.prices;
+    const count = prices.length;
+    const maxVal = Math.max(...prices);
+    const minVal = Math.min(...prices);
+    const sumVal = prices.reduce((sum, p) => sum + p, 0);
+    const avgVal = sumVal / count;
+    const medVal = getMedian(prices);
+
+    const point: Record<string, any> = {
+      month,
+      거래량: count,
+      최대가: Number(maxVal.toFixed(2)),
+      최소가: Number(minVal.toFixed(2)),
+      평균가: Number(avgVal.toFixed(2)),
+      중위값: Number(medVal.toFixed(2)),
+      overall: Number(avgVal.toFixed(2)) // 하위 호환용 전체 평균
+    };
+
+    // 평수별 평균가 (하위 호환용)
+    for (const [areaName, aPrices] of data.sizePrices.entries()) {
+      const aSum = aPrices.reduce((sum, p) => sum + p, 0);
+      point[areaName] = Number((aSum / aPrices.length).toFixed(2));
+    }
+
+    trend.push(point);
+  }
+
+  return trend.sort((a, b) => a.month.localeCompare(b.month));
 }
 
 /**
@@ -314,7 +350,7 @@ export async function searchTransactions(filter: GraphFilter): Promise<any[]> {
     params.push(filter.maxArea);
   }
 
-  queryStr += " ORDER BY t.deal_date DESC LIMIT 10000";
+  queryStr += " ORDER BY t.deal_date DESC";
 
   const rows = db.prepare(queryStr).all(...params);
   return rows.map((r: any) => ({
@@ -618,3 +654,180 @@ ${monthlySummary}
 ${topRecent}
 `;
 }
+
+/**
+ * 캐시된 법정동 아파트 목록 조회
+ */
+export function getCachedApartments(lawdCode: string): { apartments: string[]; cachedAt: string | null } {
+  const db = getDb();
+  
+  const meta = db.prepare(`
+    SELECT cached_at FROM region_apartment_cache_meta WHERE lawd_code = ?
+  `).get(lawdCode) as { cached_at: string } | undefined;
+
+  if (!meta) {
+    return { apartments: [], cachedAt: null };
+  }
+
+  const rows = db.prepare(`
+    SELECT apartment_name FROM region_apartment_cache WHERE lawd_code = ? ORDER BY apartment_name ASC
+  `).all(lawdCode) as { apartment_name: string }[];
+
+  return {
+    apartments: rows.map(r => r.apartment_name),
+    cachedAt: meta.cached_at
+  };
+}
+
+/**
+ * 법정동 아파트 목록 캐시 갱신
+ */
+export function saveCachedApartments(lawdCode: string, apartments: string[]): void {
+  const db = getDb();
+  const now = new Date().toISOString();
+
+  db.exec("BEGIN TRANSACTION");
+  try {
+    // 1. 기존 캐시 삭제
+    db.prepare("DELETE FROM region_apartment_cache WHERE lawd_code = ?").run(lawdCode);
+    
+    // 2. 신규 캐시 삽입
+    const insertStmt = db.prepare("INSERT INTO region_apartment_cache (lawd_code, apartment_name) VALUES (?, ?)");
+    for (const name of apartments) {
+      insertStmt.run(lawdCode, name);
+    }
+
+    // 3. 메타 정보 갱신
+    db.prepare(`
+      INSERT INTO region_apartment_cache_meta (lawd_code, cached_at)
+      VALUES (?, ?)
+      ON CONFLICT(lawd_code) DO UPDATE SET cached_at = excluded.cached_at
+    `).run(lawdCode, now);
+
+    db.exec("COMMIT");
+  } catch (err) {
+    db.exec("ROLLBACK");
+    throw err;
+  }
+}
+
+/**
+ * DB regions 테이블에서 지역명 검색 (외부 주소 API 미설정 시 폴백)
+ */
+export function searchDbRegions(query: string): { lawdCode: string; displayName: string }[] {
+  const db = getDb();
+  const rows = db.prepare(`
+    SELECT lawd_code AS lawdCode, display_name AS displayName
+    FROM regions
+    WHERE display_name LIKE '%' || ? || '%'
+    ORDER BY display_name
+    LIMIT 15
+  `).all(query) as { lawdCode: string; displayName: string }[];
+  return rows;
+}
+
+/**
+ * DB regions 테이블에 있는 모든 지역 목록 조회
+ */
+export function getAllDbRegions(): { lawdCode: string; displayName: string }[] {
+  const db = getDb();
+  const rows = db.prepare(`
+    SELECT lawd_code AS lawdCode, display_name AS displayName
+    FROM regions
+    ORDER BY display_name ASC
+  `).all() as { lawdCode: string; displayName: string }[];
+  return rows;
+}
+
+/**
+ * 특정 지역 코드(lawdCode)에 속한 아파트 단지 목록 조회
+ */
+export function getComplexesByRegion(lawdCode?: string): string[] {
+  const db = getDb();
+  let query = `
+    SELECT DISTINCT name
+    FROM complexes
+  `;
+  const params: any[] = [];
+  if (lawdCode && lawdCode.trim() !== "") {
+    query += ` WHERE lawd_code = ?`;
+    params.push(lawdCode);
+  }
+  query += ` ORDER BY name ASC`;
+  const rows = db.prepare(query).all(...params) as { name: string }[];
+  return rows.map(r => r.name);
+}
+
+/**
+ * 일단위 수집 건수 통계 조회
+ */
+export function getDailyCollectionStats(): DailyCollectStat[] {
+  const db = getDb();
+  const rows = db.prepare(`
+    SELECT substr(collected_at, 1, 10) AS collectDate,
+           COUNT(*) AS count
+    FROM transactions
+    GROUP BY collectDate
+    ORDER BY collectDate ASC
+  `).all() as { collectDate: string; count: number }[];
+  return rows;
+}
+
+/**
+ * 특정 수집일의 지역별 수집 건수 통계 조회
+ */
+export function getRegionCollectionStatsByDate(date: string): RegionCollectStat[] {
+  const db = getDb();
+  const rows = db.prepare(`
+    SELECT r.lawd_code AS lawdCode,
+           r.display_name AS regionName,
+           COUNT(*) AS count
+    FROM transactions t
+    JOIN complexes c ON t.complex_id = c.id
+    JOIN regions r ON c.lawd_code = r.lawd_code
+    WHERE substr(t.collected_at, 1, 10) = ?
+    GROUP BY r.lawd_code, r.display_name
+    ORDER BY count DESC
+  `).all(date) as { lawdCode: string; regionName: string; count: number }[];
+  return rows;
+}
+
+/**
+ * 특정 지역코드(lawdCode) 및 거래월(dealMonth: YYYYMM)에 적재된 로컬 실거래 건수 조회
+ */
+export function getLocalTransactionsCount(lawdCode: string, dealMonth: string): number {
+  const db = getDb();
+  const dealMonthHyphen = `${dealMonth.slice(0, 4)}-${dealMonth.slice(4, 6)}`;
+  const row = db.prepare(`
+    SELECT COUNT(*) AS count
+    FROM transactions t
+    JOIN complexes c ON t.complex_id = c.id
+    WHERE c.lawd_code = ? AND t.deal_date LIKE ?
+  `).get(lawdCode, `${dealMonthHyphen}%`) as { count: number } | undefined;
+  return row?.count ?? 0;
+}
+
+/**
+ * 특정 지역코드(lawdCode) 및 거래월(dealMonth: YYYYMM)의 실거래 목록을 로컬 DB로부터 직접 조회
+ */
+export function getLocalApartmentPrices(
+  lawdCode: string,
+  dealMonth: string
+): { apartmentName: string; dealDate: string; priceEok: number; areaM2: number; floor: number }[] {
+  const db = getDb();
+  const dealMonthHyphen = `${dealMonth.slice(0, 4)}-${dealMonth.slice(4, 6)}`;
+  const rows = db.prepare(`
+    SELECT c.name AS apartmentName,
+           t.deal_date AS dealDate,
+           t.price_eok AS priceEok,
+           t.area_m2 AS areaM2,
+           t.floor AS floor
+    FROM transactions t
+    JOIN complexes c ON t.complex_id = c.id
+    WHERE c.lawd_code = ? AND t.deal_date LIKE ?
+    ORDER BY t.deal_date ASC
+  `).all(lawdCode, `${dealMonthHyphen}%`) as any[];
+  return rows;
+}
+
+

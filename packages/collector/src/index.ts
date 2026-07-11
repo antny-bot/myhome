@@ -132,7 +132,7 @@ export async function runCollector(): Promise<{ totalCollected: number; totalUps
 
   for (const target of finalTargets) {
     for (const month of months) {
-      console.log(`[Collector] MCP 서버에 직접 요청 중... (${target.displayName} / ${month})`);
+      console.log(`[Collector] 국토부 API에 직접 요청 중... (${target.displayName} / ${month})`);
       try {
         const transactions = await fetchApartmentPricesDirect(target.lawdCode, month);
         console.log(`[Collector] 조회 완료: ${transactions.length}건`);

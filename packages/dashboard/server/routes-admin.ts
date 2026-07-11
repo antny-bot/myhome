@@ -52,5 +52,75 @@ export function createAdminRouter() {
     }
   });
 
+  // 3. 데이터베이스 전체 초기화
+  router.post("/db/clear", (req, res, next) => {
+    try {
+      const db = getDb();
+      db.prepare("PRAGMA foreign_keys = OFF").run();
+      try {
+        db.prepare("DELETE FROM transactions").run();
+        db.prepare("DELETE FROM complexes").run();
+        db.prepare("DELETE FROM regions").run();
+        db.prepare("DELETE FROM region_apartment_cache").run();
+        db.prepare("DELETE FROM region_apartment_cache_meta").run();
+      } finally {
+        db.prepare("PRAGMA foreign_keys = ON").run();
+      }
+      db.prepare("VACUUM").run();
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // 4. 특정 법정동(지역) 데이터 삭제
+  router.post("/db/delete-region", (req, res, next) => {
+    try {
+      const { lawdCode } = req.body;
+      if (!lawdCode || typeof lawdCode !== "string") {
+        res.status(400).json({ error: "lawdCode가 필요합니다." });
+        return;
+      }
+
+      const db = getDb();
+      db.prepare("PRAGMA foreign_keys = OFF").run();
+      try {
+        db.prepare("DELETE FROM transactions WHERE apartmentName IN (SELECT name FROM complexes WHERE lawdCode = ?)").run(lawdCode);
+        db.prepare("DELETE FROM complexes WHERE lawdCode = ?").run(lawdCode);
+        db.prepare("DELETE FROM regions WHERE code = ?").run(lawdCode);
+        db.prepare("DELETE FROM region_apartment_cache WHERE lawdCode = ?").run(lawdCode);
+        db.prepare("DELETE FROM region_apartment_cache_meta WHERE lawdCode = ?").run(lawdCode);
+      } finally {
+        db.prepare("PRAGMA foreign_keys = ON").run();
+      }
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // 5. 특정 아파트 단지 데이터 삭제
+  router.post("/db/delete-complex", (req, res, next) => {
+    try {
+      const { complexName } = req.body;
+      if (!complexName || typeof complexName !== "string") {
+        res.status(400).json({ error: "complexName이 필요합니다." });
+        return;
+      }
+
+      const db = getDb();
+      db.prepare("PRAGMA foreign_keys = OFF").run();
+      try {
+        db.prepare("DELETE FROM transactions WHERE apartmentName = ?").run(complexName);
+        db.prepare("DELETE FROM complexes WHERE name = ?").run(complexName);
+      } finally {
+        db.prepare("PRAGMA foreign_keys = ON").run();
+      }
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   return router;
 }

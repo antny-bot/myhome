@@ -1,6 +1,6 @@
 import { ArrowDownRight, ArrowUpRight, ChevronRight, ChevronDown, LayoutGrid, TableProperties, RefreshCw, Search, MapPin } from "lucide-react";
 import React, { useMemo, useState } from "react";
-import { searchTransactions, getApartments } from "../api";
+import { searchTransactions, searchComplexNames, getApartments } from "../api";
 
 import { RegionSearchInput } from "../components/RegionSearchInput";
 import { SectionCard } from "../components/SectionCard";
@@ -116,6 +116,8 @@ export function ExplorePage() {
   const { isMobile } = useBreakpoint();
   const [regionName, setRegionName] = useState("");
   const [lawdCode, setLawdCode] = useState("");
+  // 선택된 지역의 표시용 이름 (인풋엔 원본 쿼리 유지, 배지에 표시)
+  const [resolvedRegionName, setResolvedRegionName] = useState("");
   const [isRange, setIsRange] = useState(true);
   const [dealMonth, setDealMonth] = useState(defaultMonth);
   const [startMonth, setStartMonth] = useState(defaultMonth);
@@ -138,18 +140,59 @@ export function ExplorePage() {
 
   // 아파트 단지 드롭다운용 상태
   const [apartments, setApartments] = useState<string[]>([]);
-  const [loadingApartments, setLoadingApartments] = useState(false);
+  const [searchingComplexes, setSearchingComplexes] = useState(false);
 
   // Autocomplete 콤보박스용 상태
   const [complexQuery, setComplexQuery] = useState("");
   const [showComplexDropdown, setShowComplexDropdown] = useState(false);
   const [activeAptIndex, setActiveAptIndex] = useState(-1);
 
+  /**
+   * lawdCode 확정 시 단지 목록 자동 로드:
+   *   1단계) DB searchComplexNames (빠름, 기존 조회 이력 기반)
+   *   2단계) DB 결과 없으면 /api/apartments/list (국토부 API 최근 3개월)
+   */
+  React.useEffect(() => {
+    if (!lawdCode) {
+      setApartments([]);
+      return;
+    }
+    let cancelled = false;
+    setSearchingComplexes(true);
+    setApartments([]);
+
+    (async () => {
+      try {
+        // 1단계: DB 검색
+        const dbFound = await searchComplexNames("", lawdCode);
+        if (cancelled) return;
+        if (dbFound.length > 0) {
+          setApartments(dbFound.map((item) => item.name));
+          setSearchingComplexes(false);
+          return;
+        }
+        // 2단계: 국토부 API 조회
+        const apiResult = await getApartments(lawdCode);
+        if (!cancelled) {
+          setApartments(apiResult.apartments);
+        }
+      } catch (err) {
+        console.error("[Explore] 단지 목록 로드 실패:", err);
+        if (!cancelled) setApartments([]);
+      } finally {
+        if (!cancelled) setSearchingComplexes(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [lawdCode]);
+
   const filteredApartments = useMemo(() => {
     const q = complexQuery.trim().toLowerCase();
     if (!q) return apartments;
     return apartments.filter((apt) => apt.toLowerCase().includes(q));
   }, [apartments, complexQuery]);
+
 
   const enriched = useMemo(() => enrichRecords(results), [results]);
 
@@ -187,25 +230,15 @@ export function ExplorePage() {
   const hasActiveFilters = Boolean(nameFilter || areaMin || areaMax || priceMin || priceMax);
 
   async function selectRegion(item: RegionSearchResult) {
-    setRegionName(item.displayName);
+    // 사용자가 입력한 regionName(도로명 등)을 덮어쓰지 않음
+    // lawdCode만 내부적으로 갱신하고, 표시용 이름은 배지로 별도 표시
     setLawdCode(item.lawdCode);
-    setNameFilter("");
-    setComplexQuery("");
+    setResolvedRegionName(item.displayName);
     setError("");
-    setApartments([]);
+    setComplexQuery("");
+    setNameFilter("");
     setSelectedApartment(null);
-
-    if (item.lawdCode) {
-      setLoadingApartments(true);
-      try {
-        const list = await getApartments(item.lawdCode);
-        setApartments(list);
-      } catch (err) {
-        console.error("Failed to load apartments for dropdown", err);
-      } finally {
-        setLoadingApartments(false);
-      }
-    }
+    // 단지 목록은 lawdCode useEffect가 자동 로드
   }
 
   function resetFilters() {
@@ -238,8 +271,8 @@ export function ExplorePage() {
         ? await searchTransactions(lawdCode, regionName, { startMonth, endMonth })
         : await searchTransactions(lawdCode, regionName, { dealMonth });
       setResults(records);
-      setSearchedRegion(regionName);
-      resetFilters();
+      setSearchedRegion(resolvedRegionName || regionName);
+      setNameFilter(complexQuery);
 
       // 검색 성공 시, 모바일 기기라면 바로 지도 탭으로 전환하여 시각적 정보를 먼저 제공
       if (isMobile) {
@@ -290,15 +323,28 @@ export function ExplorePage() {
                 <span className="text-[11px] font-bold tracking-wide text-neutral">{t.region}</span>
                 <RegionSearchInput
                   value={regionName}
-                  onChange={setRegionName}
+                  onChange={(v) => {
+                    setRegionName(v);
+                    // 입력값 변경 시 이전 지역 해제
+                    if (!v) { setLawdCode(""); setResolvedRegionName(""); }
+                  }}
                   onSelect={selectRegion}
                   placeholder={t.regionPlaceholder}
                 />
+                {resolvedRegionName && lawdCode && (
+                  <p className="flex items-center gap-1 text-[10px] text-primary font-semibold mt-0.5">
+                    <MapPin className="h-2.5 w-2.5" />
+                    {resolvedRegionName}
+                    <span className="text-assistive font-normal">({lawdCode})</span>
+                  </p>
+                )}
               </div>
 
-              {lawdCode && (apartments.length > 0 || loadingApartments) && (
+              {lawdCode && (
                 <div className="min-w-[180px] flex-1 space-y-1 relative">
-                  <span className="text-[11px] font-bold tracking-wide text-neutral">아파트 단지</span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold tracking-wide text-neutral">아파트 단지 (선택)</span>
+                  </div>
                   <div className="relative">
                     <input
                       type="text"
@@ -339,18 +385,20 @@ export function ExplorePage() {
                           setActiveAptIndex(-1);
                         }
                       }}
-                      placeholder={loadingApartments ? "단지 로딩 중..." : "전체 단지 (직접 입력)"}
-                      disabled={loadingApartments}
+                      placeholder="단지명 입력 (미입력 시 전체 조회)"
                       autoComplete="off"
                     />
                     <button
                       type="button"
                       tabIndex={-1}
-                      onClick={() => !loadingApartments && setShowComplexDropdown((prev) => !prev)}
+                      onClick={() => setShowComplexDropdown((prev) => !prev)}
                       className="absolute inset-y-0 right-0 flex items-center pr-2 text-neutral hover:text-strong"
-                      disabled={loadingApartments}
                     >
-                      <ChevronDown className="h-3.5 w-3.5" />
+                      {searchingComplexes ? (
+                        <RefreshCw className="h-3 w-3 animate-spin text-neutral" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4" />
+                      )}
                     </button>
 
                     {showComplexDropdown && filteredApartments.length > 0 && (
@@ -441,13 +489,7 @@ export function ExplorePage() {
             </div>
 
             {results.length > 0 && (
-              <div className="mt-3 grid gap-2 border-t border-dashed border-normal pt-3 md:grid-cols-[minmax(140px,1.2fr)_repeat(2,minmax(0,1fr))_auto]">
-                <input
-                  className="rounded-lg h-[36px] border border-normal bg-normal px-2.5 text-xs text-strong outline-none focus:border-primary"
-                  value={nameFilter}
-                  onChange={(event) => setNameFilter(event.target.value)}
-                  placeholder={t.complexFilter}
-                />
+              <div className="mt-3 grid gap-2 border-t border-dashed border-normal pt-3 md:grid-cols-[repeat(2,minmax(0,1fr))_auto]">
                 <div className="flex items-center gap-1.5">
                   <input
                     className="w-full rounded-lg h-[36px] border border-normal bg-normal px-2 text-xs text-strong outline-none focus:border-primary"
@@ -684,9 +726,6 @@ export function ExplorePage() {
         </div>
       )}
 
-      <div className="rounded-xl border border-amber-200/50 bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-900 flex-none">
-        {t.sourceNote}
-      </div>
     </div>
   );
 }

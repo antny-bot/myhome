@@ -274,12 +274,16 @@ export default function FilterPanel({
                   }`}
                 >
                   {p.name}
-                  <button
+                  <span
+                    role="button"
+                    tabIndex={0}
                     onClick={(e) => handleDeletePreset(p.id, e)}
-                    className="ml-0.5 hover:text-warn transition"
+                    onKeyDown={(e) => e.key === "Enter" && handleDeletePreset(p.id, e as any)}
+                    className="ml-0.5 hover:text-warn transition cursor-pointer"
+                    aria-label="프리셋 삭제"
                   >
                     <X size={12} />
-                  </button>
+                  </span>
                 </button>
               ))}
               <button

@@ -7,6 +7,7 @@ import { RulesPage } from "./pages/Rules";
 import { SettingsPage } from "./pages/Settings";
 import GraphDashboard from "./pages/GraphDashboard";
 import { DatabaseAdminPage } from "./pages/DatabaseAdmin";
+import { CollectPage } from "./pages/Collect";
 import type { DashboardState } from "./types";
 
 function App() {
@@ -34,6 +35,7 @@ function App() {
       {view === "rules" && <RulesPage state={state} onChanged={() => void refresh()} />}
       {view === "explore" && <ExplorePage />}
       {view === "analytics" && <GraphDashboard />}
+      {view === "collect" && <CollectPage />}
       {view === "dbAdmin" && <DatabaseAdminPage />}
       {view === "settings" && <SettingsPage state={state} onChanged={() => void refresh()} />}
     </Layout>

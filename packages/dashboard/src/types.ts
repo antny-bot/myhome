@@ -28,6 +28,8 @@ export type WatchRule = {
 export type RuleInput = {
   name: string;
   regionName: string;
+  /** 국토부 실거래 API용 법정동코드 5자리 (LAWD_CD). 지역 선택 시 함께 저장 */
+  regionCode?: string;
   apartmentKeywords?: string[];
   minPriceEok?: number;
   maxPriceEok?: number;
@@ -80,6 +82,7 @@ export type AppConfig = {
   jusoConfigured?: boolean;
   dataGoKrConfigured?: boolean;
   kakaoJavascriptConfigured?: boolean;
+  kakaoJavascriptKey?: string;
   kakaoNativeAppConfigured?: boolean;
   dataSourceNotice: string;
 };
@@ -88,6 +91,7 @@ export type RegionSearchResult = {
   lawdCode: string;
   displayName: string;
   placeName?: string;
+  addressName?: string;
   raw?: unknown;
 };
 
@@ -96,4 +100,15 @@ export type DashboardState = {
   checkRuns: CheckRun[];
   notifications: NotificationRecord[];
   config: AppConfig;
+};
+
+export type ApartmentListResponse = {
+  apartments: string[];
+  cachedAt: string | null;
+};
+
+export type ComplexSearchResult = {
+  name: string;
+  lawdCode: string;
+  regionName: string;
 };

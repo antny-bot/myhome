@@ -3,17 +3,18 @@ import { z } from "zod";
 import { isTelegramConfigured, sendNotifications } from "./notifications.js";
 import { getSourceLimitNotice, runRuleCheck } from "./ruleEngine.js";
 import { deleteCheckRun, deleteRule, readState, updateRulePatch, upsertRule, getSystemConfig, saveSystemConfig } from "./storage.js";
-import { getApartmentList, getApartmentPrices, searchRegionCandidates } from "./mcpClient.js";
+import { getApartmentList, getApartmentPrices } from "./mcpClient.js";
 import { isKakaoConfigured, searchAddresses } from "./addressSearch.js";
 import { getMonthsInRange, normalizeTransaction } from "./transactions.js";
 import type { ComparisonCriteria, RuleInput, SystemConfig } from "./types.js";
-import { upsertTransaction, makeGraphDedupeKey } from "@myhome/shared";
+import { upsertTransaction, makeGraphDedupeKey, getCachedApartments, saveCachedApartments, searchDbRegions, getLocalTransactionsCount, getLocalApartmentPrices } from "@myhome/shared";
 
 const comparisonValues: ComparisonCriteria[] = ["none", "parking", "large_complex", "transit", "newer", "livability"];
 
 const ruleSchema = z.object({
   name: z.string().min(1),
   regionName: z.string().min(1),
+  regionCode: z.string().optional(),
   apartmentKeywords: z.array(z.string()).optional(),
   minPriceEok: z.number().positive().optional(),
   maxPriceEok: z.number().positive().optional(),
@@ -56,6 +57,7 @@ export function createRouter() {
       jusoConfigured: Boolean(process.env.JUSO_CONFM_KEY),
       dataGoKrConfigured: Boolean(process.env.DATA_GO_KR_API_KEY),
       kakaoJavascriptConfigured: Boolean(process.env.KAKAO_JAVASCRIPT_KEY),
+      kakaoJavascriptKey: process.env.KAKAO_JAVASCRIPT_KEY || "",
       kakaoNativeAppConfigured: Boolean(process.env.KAKAO_NATIVE_APP_KEY),
       dataSourceNotice: getSourceLimitNotice()
     });
@@ -124,8 +126,8 @@ export function createRouter() {
         const results = await searchAddresses(query);
         res.json(results);
       } else {
-        // MCP 지역코드 조회의 동 단위 후보를 시/군/구 단위로 묶어 narrowing 후보로 반환한다.
-        const results = await searchRegionCandidates(query);
+        // 외부 주소 API 미설정 시 로컬 DB의 regions 테이블에서 검색
+        const results = searchDbRegions(query);
         res.json(results);
       }
     } catch (error) {
@@ -136,12 +138,30 @@ export function createRouter() {
   router.get("/apartments/list", async (req, res, next) => {
     try {
       const lawdCode = String(req.query.lawd_cd || "");
+      const forceRefresh = req.query.refresh === "true";
       if (!lawdCode) {
-        res.json([]);
+        res.json({ apartments: [], cachedAt: null });
         return;
       }
+
+      // 1. 강제 갱신이 아닌 경우 캐시 조회
+      if (!forceRefresh) {
+        const cached = getCachedApartments(lawdCode);
+        if (cached.cachedAt && cached.apartments.length > 0) {
+          res.json(cached);
+          return;
+        }
+      }
+
+      // 2. 캐시가 없거나 강제 갱신인 경우 국토부 API 호출
       const list = await getApartmentList(lawdCode);
-      res.json(list);
+      
+      // 3. DB 캐시 저장
+      saveCachedApartments(lawdCode, list);
+
+      // 4. 저장한 결과(최신 갱신시각 포함)를 반환
+      const fresh = getCachedApartments(lawdCode);
+      res.json(fresh);
     } catch (error) {
       next(error);
     }
@@ -156,7 +176,7 @@ export function createRouter() {
       let regionDisplayName = String(req.query.region_name || "").trim();
       if (!regionDisplayName || /^\d{5}$/.test(regionDisplayName)) {
         try {
-          const resolved = await searchRegionCandidates(lawdCode);
+          const resolved = searchDbRegions(lawdCode);
           if (resolved.length > 0) {
             regionDisplayName = resolved[0].displayName;
           } else {
@@ -183,17 +203,41 @@ export function createRouter() {
       }
 
       const records = [];
+      const now = new Date();
+      const currentYm = now.getFullYear() * 100 + (now.getMonth() + 1); // YYYYMM
+      let isCacheHitOnly = true;
+
       for (const month of months) {
-        const prices = await getApartmentPrices(lawdCode, month);
-        for (const item of prices.transactions) {
-          const normalized = normalizeTransaction(item, month);
-          if (normalized) records.push(normalized);
+        const targetYm = parseInt(month);
+        const diffMonths = (Math.floor(currentYm / 100) - Math.floor(targetYm / 100)) * 12 
+                         + (currentYm % 100 - targetYm % 100);
+        
+        const localCount = getLocalTransactionsCount(lawdCode, month);
+        
+        // 3개월 초과 과거 데이터이고 로컬 적재 데이터가 있으면 캐시 히트 사용
+        if (diffMonths > 3 && localCount > 0) {
+          const localRecords = getLocalApartmentPrices(lawdCode, month);
+          records.push(...localRecords);
+          console.log(`[Cache Hit] ${lawdCode}/${month} - 로컬 DB 적재 데이터 서빙 (건수: ${localCount})`);
+        } else {
+          // 최근 3개월 데이터이거나 로컬 데이터가 없는 경우 국토부 API 호출
+          isCacheHitOnly = false;
+          const prices = await getApartmentPrices(lawdCode, month);
+          const apiRecords = [];
+          for (const item of prices.transactions) {
+            const normalized = normalizeTransaction(item, month);
+            if (normalized) {
+              records.push(normalized);
+              apiRecords.push(normalized);
+            }
+          }
+          console.log(`[Cache Miss/Refresh] ${lawdCode}/${month} - 국토부 API 호출 (반환: ${apiRecords.length}건)`);
         }
       }
       res.json(records);
 
-      // 그래프 DB 적재 — 응답 후 백그라운드로 처리 (조회 속도에 영향 없음)
-      if (process.env.GRAPH_DB_ENABLED === "true" && records.length > 0) {
+      // 그래프 DB 적재 — 캐시 히트만으로 충족된 경우는 중복 적재 스킵
+      if (process.env.GRAPH_DB_ENABLED === "true" && records.length > 0 && !isCacheHitOnly) {
         const regionInfo = { lawdCode, displayName: regionDisplayName };
         for (const rec of records) {
           const graphKey = makeGraphDedupeKey(lawdCode, rec.apartmentName, rec.dealDate, rec.areaM2, rec.floor);

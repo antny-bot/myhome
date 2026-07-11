@@ -1,5 +1,6 @@
 import { nanoid } from "nanoid";
-import { getApartmentPrices, getRegionCode } from "./mcpClient.js";
+import { getApartmentPrices } from "./mcpClient.js";
+import { searchAddresses } from "./addressSearch.js";
 import { appendCheckRun, readState, updateRulePatch } from "./storage.js";
 import { normalizeTransaction, recentMonths } from "./transactions.js";
 import type { RuleCheckOutcome, TransactionMatch, WatchRule } from "./types.js";
@@ -35,9 +36,16 @@ function summarize(rule: WatchRule, matches: TransactionMatch[]) {
 
 export async function runRuleCheck(rule: WatchRule): Promise<RuleCheckOutcome> {
   const state = await readState();
-  const region = rule.regionCode
-    ? { lawdCode: rule.regionCode, displayName: rule.regionName, raw: null }
-    : await getRegionCode(rule.regionName);
+  let region: { lawdCode: string; displayName: string; raw: null };
+  if (rule.regionCode) {
+    region = { lawdCode: rule.regionCode, displayName: rule.regionName, raw: null };
+  } else {
+    const candidates = await searchAddresses(rule.regionName);
+    if (candidates.length === 0) {
+      throw new Error(`지역코드를 찾지 못했습니다: ${rule.regionName}`);
+    }
+    region = { lawdCode: candidates[0].lawdCode, displayName: candidates[0].displayName, raw: null };
+  }
 
   if (!rule.regionCode || rule.regionCode !== region.lawdCode) {
     await updateRulePatch(rule.id, { regionCode: region.lawdCode });

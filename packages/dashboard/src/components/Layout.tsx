@@ -1,10 +1,10 @@
-import { Bell, History, LayoutDashboard, Menu, RefreshCw, Settings, Sparkles, X, LucideIcon, BarChart3, Database } from "lucide-react";
+import { Bell, History, LayoutDashboard, Menu, RefreshCw, Settings, Sparkles, X, LucideIcon, BarChart3, Database, ClipboardList } from "lucide-react";
 import { useState } from "react";
 import { classNames } from "../lib/format";
 import { useBreakpoint } from "../useBreakpoint";
 import packageJson from "../../package.json";
 
-export type View = "dashboard" | "rules" | "explore" | "settings" | "analytics" | "dbAdmin";
+export type View = "dashboard" | "rules" | "explore" | "settings" | "analytics" | "dbAdmin" | "collect";
 
 const copy = {
   ko: {
@@ -12,6 +12,7 @@ const copy = {
     rules: "알림 규칙",
     explore: "실거래 탐색",
     analytics: "실거래 분석",
+    collect: "수집 현황",
     dbAdmin: "데이터베이스",
     settings: "환경 설정",
     dataConstraint: "데이터 제약",
@@ -24,6 +25,7 @@ const copy = {
     rules: "Alert Rules",
     explore: "Explore Deals",
     analytics: "Real Estate Analytics",
+    collect: "Collection Stats",
     dbAdmin: "Database",
     settings: "Settings",
     dataConstraint: "Data Constraints",
@@ -41,6 +43,7 @@ const navItems: Array<{ view: View; icon: LucideIcon; labelKey: keyof typeof cop
   { view: "rules", icon: Bell, labelKey: "rules" },
   { view: "explore", icon: History, labelKey: "explore" },
   { view: "analytics", icon: BarChart3, labelKey: "analytics" },
+  { view: "collect", icon: ClipboardList, labelKey: "collect" },
   { view: "dbAdmin", icon: Database, labelKey: "dbAdmin" },
   { view: "settings", icon: Settings, labelKey: "settings" }
 ];

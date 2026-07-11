@@ -43,7 +43,7 @@ export async function searchAddresses(query: string): Promise<RegionCodeResult[]
   const jusoKey = process.env.JUSO_CONFM_KEY;
 
   if (kakaoKey) {
-    // 1. 먼저 카카오 주소 검색(address.json) 시도 (도로명, 법정동 검색 시 활용)
+    // 1. 카카오 주소 검색(address.json) 시도
     const addrUrl = `https://dapi.kakao.com/v2/local/search/address.json?query=${encodeURIComponent(query)}`;
     const addrResponse = await fetch(addrUrl, {
       headers: { Authorization: `KakaoAK ${kakaoKey}` },
@@ -71,8 +71,9 @@ export async function searchAddresses(query: string): Promise<RegionCodeResult[]
 
       const region1 = address.region_1depth_name; // 예: 서울
       const region2 = address.region_2depth_name; // 예: 강남구
-      const region3 = address.region_3depth_name; // 예: 역삼동
-      const displayName = region1 && region2 ? `${region1} ${region2} ${region3 || ""}`.trim() : address.address_name;
+      
+      // 시도와 시군구 명칭으로만 구성하여 시군구 단위로 정규화 (동/읍/면인 region_3depth_name 제외)
+      const displayName = region1 && region2 ? `${region1} ${region2}`.trim() : address.address_name;
       if (!displayName) continue;
 
       seen.add(lawdCode);
@@ -83,46 +84,7 @@ export async function searchAddresses(query: string): Promise<RegionCodeResult[]
       });
     }
 
-    // 주소 검색 결과가 있다면 즉시 반환
-    if (results.length > 0) {
-      return results;
-    }
-
-    // 2. 주소 검색 결과가 없다면 카카오 키워드 검색(keyword.json) 시도 (아파트 단지명, 랜드마크 검색 시 활용)
-    const keywordUrl = `https://dapi.kakao.com/v2/local/search/keyword.json?query=${encodeURIComponent(query)}`;
-    const keywordResponse = await fetch(keywordUrl, {
-      headers: { Authorization: `KakaoAK ${kakaoKey}` },
-      signal: AbortSignal.timeout(10000)
-    });
-
-    if (keywordResponse.ok) {
-      const keywordBody = await keywordResponse.json();
-      const keywordDocuments = keywordBody.documents ?? [];
-
-      for (const doc of keywordDocuments) {
-        const addressName = doc.address_name;
-        if (!addressName) continue;
-
-        // 키워드 주소로부터 법정동코드(b_code) 구하기
-        const bCode = await getBCodeForAddress(addressName);
-        if (!bCode || bCode.length < 5) continue;
-
-        const lawdCode = bCode.slice(0, 5);
-        if (seen.has(lawdCode)) continue;
-
-        // "반포자이아파트 (서울 서초구 반포동)" 과 같이 매칭 단지와 동명을 명시적으로 표현
-        const displayName = `${doc.place_name} (${addressName})`;
-        
-        seen.add(lawdCode);
-        results.push({
-          lawdCode,
-          displayName,
-          placeName: doc.place_name,
-          raw: doc
-        } as any); // placeName을 프론트엔드로 전달
-      }
-    }
-
+    // 아파트명/건물명 키워드 검색(keyword.json)은 시군구 범위 조회를 위해 제외 처리합니다.
     return results;
   }
 
