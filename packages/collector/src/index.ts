@@ -149,6 +149,10 @@ export async function runCollector(): Promise<{ totalCollected: number; totalUps
                 priceEok: tx.priceEok,
                 areaM2: tx.areaM2,
                 floor: tx.floor,
+              }, {
+                dongName: tx.dongName,
+                jibun: tx.jibun,
+                roadName: tx.roadName,
               });
               totalUpserted++;
             } catch (err: any) {

@@ -1,46 +1,61 @@
-import { Check, ChevronLeft, ChevronRight, History, Pencil, Play, RefreshCw, Search, Send, Trash2, X } from "lucide-react";
-import { FormEvent, useEffect, useMemo, useState } from "react";
-import { createRule, deleteRule, getApartments, patchRule, runRule, searchRegions, searchComplexNames } from "../api";
+import { Check, ChevronLeft, ChevronRight, History, Pencil, Play, RefreshCw, Search, Send, Trash2, X, Bell } from "lucide-react";
+import { FormEvent, useEffect, useMemo, useState, useRef } from "react";
+import { useBreakpoint } from "../useBreakpoint";
+import { createRule, deleteRule, getApartments, patchRule, runRule, searchRegions } from "../api";
 
 import { RegionSearchInput } from "../components/RegionSearchInput";
 import { SectionCard } from "../components/SectionCard";
 import { classNames, formatDate } from "../lib/format";
 import type { ComparisonCriteria, DashboardState, RegionSearchResult, RuleInput, WatchRule, ComplexSearchResult } from "../types";
 import { MapPin } from "lucide-react";
+import { copy } from "../locales/ko";
+
+const locale = "ko";
+const t = copy[locale];
 
 const initialForm: RuleInput = {
-  name: "관심 지역 실거래가 체크",
+  name: "",
   regionName: "",
   regionCode: undefined,
   apartmentKeywords: [],
   minPriceEok: undefined,
   maxPriceEok: 15,
+  minArea: undefined,
+  maxArea: undefined,
   comparisonCriteria: "none",
   intervalMinutes: 720,
   channels: ["telegram"],
   enabled: true
 };
 
-const comparisonLabels: Record<ComparisonCriteria, string> = {
-  none: "가격 조건만",
-  parking: "주차 우선",
-  large_complex: "대단지 우선",
-  transit: "교통 우선",
-  newer: "신축/연식 우선",
-  livability: "생활편의성 우선"
-};
-
 function RuleForm({
   editingRule,
+  initData,
+  clearInitData,
   onSave,
   onCancel
 }: {
   editingRule?: WatchRule;
+  initData?: { regionName: string; regionCode?: string; apartmentKeywords: string[] } | null;
+  clearInitData?: () => void;
   onSave: () => void;
   onCancel: () => void;
 }) {
   const [step, setStep] = useState(1);
-  const [form, setForm] = useState<RuleInput>(initialForm);
+  const [form, setForm] = useState<RuleInput>(() => ({
+    ...initialForm,
+    name: t.ruleInitialName
+  }));
+
+  const comparisonLabels: Record<ComparisonCriteria, string> = {
+    none: t.comparisonCriteriaNone,
+    parking: t.comparisonCriteriaParking,
+    large_complex: t.comparisonCriteriaLargeComplex,
+    transit: t.comparisonCriteriaTransit,
+    newer: t.comparisonCriteriaNewer,
+    livability: t.comparisonCriteriaLivability
+  };
+
   const [saving, setSaving] = useState(false);
   const [searching, setSearching] = useState(false);
   const [lawdCode, setLawdCode] = useState("");
@@ -68,6 +83,8 @@ function RuleForm({
         apartmentKeywords: editingRule.apartmentKeywords ?? [],
         minPriceEok: editingRule.minPriceEok,
         maxPriceEok: editingRule.maxPriceEok,
+        minArea: editingRule.minArea,
+        maxArea: editingRule.maxArea,
         comparisonCriteria: editingRule.comparisonCriteria,
         intervalMinutes: editingRule.intervalMinutes,
         channels: editingRule.channels,
@@ -76,18 +93,37 @@ function RuleForm({
       setLawdCode(editingRule.regionCode ?? "");
       setResolvedRegionName(editingRule.regionName);
       setStep(1);
+    } else if (initData) {
+      // 1. 외부(역세권 분석 등)에서 넘어온 데이터로 폼 세팅
+      setForm({
+        ...initialForm,
+        name: `${initData.regionName.split(" ").pop() ?? ""} 알림 규칙`,
+        regionName: initData.regionName,
+        regionCode: initData.regionCode,
+        apartmentKeywords: initData.apartmentKeywords
+      });
+      setLawdCode(initData.regionCode ?? "");
+      setResolvedRegionName(initData.regionName);
+      setStep(2); // 2단계(단지선택)로 즉시 진입
+      clearInitData?.(); // 즉시 부모 상태 클리어 (이후 initData가 null로 재유입됨)
     } else {
-      setForm(initialForm);
-      setLawdCode("");
-      setResolvedRegionName("");
-      setStep(1);
+      // 2. editingRule이 해제되었거나 빈 폼 초기 로드 시점
+      // 단, clearInitData로 인해 initData가 null로 변해 재유입된 경우에는 리셋하지 않도록 폼 입력 여부 체크(가드)
+      if (!resolvedRegionName) {
+        setForm({
+          ...initialForm,
+          name: t.ruleInitialName
+        });
+        setLawdCode("");
+        setResolvedRegionName("");
+        setStep(1);
+      }
     }
-  }, [editingRule]);
+  }, [editingRule, initData]);
 
   /**
    * lawdCode 확정 시 단지 목록 자동 로드:
-   *   1단계) DB searchComplexNames (빠름)
-   *   2단계) DB 없으면 /api/apartments/list (국토부 API)
+   *   지역 아파트 목록 캐시(/api/apartments/list) 우선 조회 (캐시 없을 시 국토부 API 자동 호출)
    */
   useEffect(() => {
     if (!lawdCode) {
@@ -100,13 +136,6 @@ function RuleForm({
 
     (async () => {
       try {
-        const dbFound = await searchComplexNames("", lawdCode);
-        if (cancelled) return;
-        if (dbFound.length > 0) {
-          setComplexSearchResults(dbFound);
-          setSearchingComplexes(false);
-          return;
-        }
         const apiResult = await getApartments(lawdCode);
         if (!cancelled) {
           setComplexSearchResults(apiResult.apartments.map(name => ({ name, lawdCode, regionName: resolvedRegionName })));
@@ -200,7 +229,7 @@ function RuleForm({
 
   return (
     <SectionCard
-      title={editingRule ? "관심 조건 수정" : "관심 조건 만들기"}
+      title={editingRule ? t.ruleFormEdit : t.ruleFormCreate}
       right={
         editingRule && (
           <button onClick={onCancel} className="text-neutral hover:text-strong transition-colors">
@@ -229,7 +258,7 @@ function RuleForm({
                   "text-[10px] font-bold tracking-tight mt-1",
                   step === s ? "text-primary" : "text-neutral"
                 )}>
-                  {s === 1 ? "지역 선택" : s === 2 ? "단지 설정" : "조건 완성"}
+                  {s === 1 ? t.regionSearch : s === 2 ? t.aptSelect : t.buttonNext}
                 </span>
               </div>
               {s < 3 && (
@@ -245,16 +274,16 @@ function RuleForm({
           <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="space-y-1.5 sm:col-span-2">
-                <span className="text-sm font-semibold text-strong">조건 이름</span>
+                <span className="text-sm font-semibold text-strong">{t.ruleName}</span>
                 <input
                   className="w-full rounded-lg border border-normal bg-normal px-4 py-2.5 text-sm text-strong focus:border-primary focus:ring-1 focus:ring-primary outline-none"
                   value={form.name}
                   onChange={(event) => setForm({ ...form, name: event.target.value })}
-                  placeholder="예: 우리 집 주변 급매 체크"
+                  placeholder={t.ruleNamePlaceholder}
                 />
               </label>
               <div className="space-y-1.5 sm:col-span-2">
-                <span className="text-sm font-semibold text-strong">지역명 검색</span>
+                <span className="text-sm font-semibold text-strong">{t.regionSearch}</span>
                 <div className="flex gap-2">
                   <div className="flex-1">
                     <RegionSearchInput
@@ -277,7 +306,7 @@ function RuleForm({
                     className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white hover:opacity-90 disabled:opacity-50 transition-all flex items-center gap-2 shadow-sm shadow-blue-500/20"
                   >
                     {searching ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-                    검색
+                    {t.searchButton}
                   </button>
                 </div>
               </div>
@@ -290,8 +319,8 @@ function RuleForm({
           <div className="space-y-4 animate-in fade-in slide-in-from-right-2 duration-300">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <h3 className="text-sm font-bold text-strong">{form.regionName} 아파트 단지 선택</h3>
-                <p className="text-xs text-neutral mt-0.5">알림을 받고 싶은 단지들을 선택해 주세요 (미선택 시 전체 알림)</p>
+                <h3 className="text-sm font-bold text-strong">{form.regionName} {t.aptSelect}</h3>
+                <p className="text-xs text-neutral mt-0.5">{t.aptSelectDesc}</p>
               </div>
             </div>
 
@@ -368,7 +397,7 @@ function RuleForm({
                     }
                   }
                 }}
-                placeholder="단지명을 입력해 검색 및 추가하세요..."
+                placeholder={t.aptSearchPlaceholder}
                 autoComplete="off"
               />
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral" />
@@ -398,7 +427,7 @@ function RuleForm({
                           <span>{apt}</span>
                           {isAlreadySelected && (
                             <span className="text-[10px] text-primary font-semibold bg-primary/10 px-1.5 py-0.5 rounded">
-                              선택됨
+                              {t.allResults}
                             </span>
                           )}
                         </button>
@@ -415,14 +444,14 @@ function RuleForm({
                 onClick={() => setStep(1)}
                 className="flex-1 rounded-lg border border-normal px-4 py-2.5 text-sm font-bold text-strong hover:bg-alternative transition-colors flex items-center justify-center gap-2"
               >
-                <ChevronLeft className="h-4 w-4" /> 이전
+                <ChevronLeft className="h-4 w-4" /> {t.buttonPrev}
               </button>
               <button
                 type="button"
                 onClick={() => setStep(3)}
                 className="flex-[2] rounded-lg bg-strong px-4 py-2.5 text-sm font-bold text-normal hover:opacity-90 transition-all flex items-center justify-center gap-2"
               >
-                다음 단계 <ChevronRight className="h-4 w-4" />
+                {t.buttonNext} <ChevronRight className="h-4 w-4" />
               </button>
             </div>
           </div>
@@ -432,7 +461,7 @@ function RuleForm({
           <div className="space-y-5 animate-in fade-in slide-in-from-right-2 duration-300">
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="space-y-1.5">
-                <span className="text-sm font-semibold text-strong">가격 범위 (억)</span>
+                <span className="text-sm font-semibold text-strong">{t.priceRangeLabel}</span>
                 <div className="flex items-center gap-2">
                   <input
                     className="w-full rounded-lg border border-normal bg-normal px-4 py-2 text-sm text-strong focus:border-primary outline-none"
@@ -442,7 +471,7 @@ function RuleForm({
                     onChange={(event) =>
                       setForm({ ...form, minPriceEok: event.target.value ? Number(event.target.value) : undefined })
                     }
-                    placeholder="최소"
+                    placeholder={t.priceMinPlaceholder}
                   />
                   <span className="text-neutral">~</span>
                   <input
@@ -453,13 +482,45 @@ function RuleForm({
                     onChange={(event) =>
                       setForm({ ...form, maxPriceEok: event.target.value ? Number(event.target.value) : undefined })
                     }
-                    placeholder="최대"
+                    placeholder={t.priceMaxPlaceholder}
                   />
                 </div>
               </label>
 
               <label className="space-y-1.5">
-                <span className="text-sm font-semibold text-strong">비교 기준</span>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold text-strong">{t.areaRangeLabel}</span>
+                  <span className="text-[10px] text-neutral font-medium">
+                    {form.minArea ? `${Math.round(form.minArea / 3.3)}평` : "0평"} ~ {form.maxArea ? `${Math.round(form.maxArea / 3.3)}평` : "무제한"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    className="w-full rounded-lg border border-normal bg-normal px-4 py-2 text-sm text-strong focus:border-primary outline-none"
+                    type="number"
+                    step="1"
+                    value={form.minArea ?? ""}
+                    onChange={(event) =>
+                      setForm({ ...form, minArea: event.target.value ? Number(event.target.value) : undefined })
+                    }
+                    placeholder={t.areaMinPlaceholder}
+                  />
+                  <span className="text-neutral">~</span>
+                  <input
+                    className="w-full rounded-lg border border-normal bg-normal px-4 py-2 text-sm text-strong focus:border-primary outline-none"
+                    type="number"
+                    step="1"
+                    value={form.maxArea ?? ""}
+                    onChange={(event) =>
+                      setForm({ ...form, maxArea: event.target.value ? Number(event.target.value) : undefined })
+                    }
+                    placeholder={t.areaMaxPlaceholder}
+                  />
+                </div>
+              </label>
+
+              <label className="space-y-1.5">
+                <span className="text-sm font-semibold text-strong">{t.comparisonCriteria}</span>
                 <select
                   className="w-full rounded-lg border border-normal bg-normal px-3 py-2 text-sm text-strong focus:border-primary outline-none appearance-none"
                   value={form.comparisonCriteria}
@@ -474,7 +535,7 @@ function RuleForm({
               </label>
 
               <label className="space-y-1.5">
-                <span className="text-sm font-semibold text-strong">체크 주기(분)</span>
+                <span className="text-sm font-semibold text-strong">{t.checkInterval}</span>
                 <input
                   className="w-full rounded-lg border border-normal bg-normal px-4 py-2 text-sm text-strong focus:border-primary outline-none"
                   type="number"
@@ -487,16 +548,16 @@ function RuleForm({
               <div className="space-y-1.5 sm:col-span-2 flex items-end">
                 <p className="text-xs text-neutral leading-relaxed flex items-center gap-1.5">
                   <History className="h-3.5 w-3.5 shrink-0" />
-                  최근 거래(이번 달 + 지난 달)를 자동으로 추적합니다. 별도로 기준 월을 입력할 필요 없습니다.
+                  {t.checkIntervalNote}
                 </p>
               </div>
 
               <div className="space-y-1.5 sm:col-span-2">
-                 <span className="text-sm font-semibold text-strong">알림 채널</span>
+                 <span className="text-sm font-semibold text-strong">{t.alertChannels}</span>
                  <div className="flex gap-4 p-3 rounded-lg border border-normal/30 bg-alternative/50">
                     <label className="flex items-center gap-2 text-sm text-neutral cursor-pointer select-none">
                       <input type="checkbox" checked readOnly disabled className="h-4 w-4 rounded text-primary" />
-                      텔레그램 (기본)
+                      {t.channelTelegram}
                     </label>
                     <label className="flex items-center gap-2 text-sm text-neutral cursor-pointer select-none">
                       <input
@@ -510,7 +571,7 @@ function RuleForm({
                           });
                         }}
                       />
-                      카카오 나에게 보내기 (예약)
+                      {t.channelKakao}
                     </label>
                  </div>
               </div>
@@ -522,7 +583,7 @@ function RuleForm({
                 onClick={() => setStep(2)}
                 className="flex-1 rounded-lg border border-normal px-4 py-2.5 text-sm font-bold text-strong hover:bg-alternative transition-colors flex items-center justify-center gap-2"
               >
-                <ChevronLeft className="h-4 w-4" /> 이전
+                <ChevronLeft className="h-4 w-4" /> {t.buttonPrev}
               </button>
               <form onSubmit={submit} className="flex-[2]">
                 <button
@@ -530,7 +591,7 @@ function RuleForm({
                   disabled={saving}
                 >
                   {saving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  {saving ? "저장 중" : editingRule ? "수정 완료" : "조건 저장 및 활성화"}
+                  {saving ? t.buttonSaveProgress : editingRule ? t.buttonSaveComplete : t.buttonSave}
                 </button>
               </form>
             </div>
@@ -553,6 +614,15 @@ function RuleList({
   const [busyId, setBusyId] = useState("");
   const [error, setError] = useState("");
 
+  const comparisonLabels: Record<ComparisonCriteria, string> = {
+    none: t.comparisonCriteriaNone,
+    parking: t.comparisonCriteriaParking,
+    large_complex: t.comparisonCriteriaLargeComplex,
+    transit: t.comparisonCriteriaTransit,
+    newer: t.comparisonCriteriaNewer,
+    livability: t.comparisonCriteriaLivability
+  };
+
   async function run(id: string) {
     setBusyId(id);
     setError("");
@@ -567,7 +637,7 @@ function RuleList({
   }
 
   async function remove(id: string) {
-    if (!confirm("정말 삭제하시겠습니까?")) return;
+    if (!confirm(t.deleteConfirm)) return;
     try {
       await deleteRule(id);
       onChanged();
@@ -579,7 +649,7 @@ function RuleList({
   if (rules.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-normal bg-elevated p-10 text-center text-sm text-neutral">
-        저장된 관심 조건이 없습니다. 신규 조건을 추가해 보세요.
+        {t.noRules}
       </div>
     );
   }
@@ -587,90 +657,130 @@ function RuleList({
   return (
     <div className="space-y-4">
       {error && <p className="rounded-lg bg-red-50/10 border border-red-500/20 px-4 py-3 text-sm text-red-500 font-medium">{error}</p>}
-      {rules.map((rule) => (
-        <article key={rule.id} className="rounded-xl border border-normal bg-elevated p-5 shadow-sm hover:shadow-md transition-shadow">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <h3 className="font-bold text-strong truncate">{rule.name}</h3>
-                {!rule.enabled && <span className="bg-alternative text-neutral px-1.5 py-0.5 rounded text-[10px] font-bold border border-normal">중단됨</span>}
-              </div>
-              <p className="mt-1 text-sm text-neutral leading-relaxed">
-                <span className="font-medium text-strong">{rule.regionName}</span>
-                {rule.apartmentKeywords && rule.apartmentKeywords.length > 0 ? (
-                  <span className="ml-1 text-[11px] bg-primary/5 text-primary px-1.5 py-0.5 rounded">
-                    {rule.apartmentKeywords.length === 1 ? rule.apartmentKeywords[0] : `${rule.apartmentKeywords[0]} 외 ${rule.apartmentKeywords.length - 1}곳`}
+      {rules.map((rule) => {
+        const keywordLen = rule.apartmentKeywords?.length ?? 0;
+        return (
+          <article key={rule.id} className="rounded-xl border border-normal bg-elevated p-5 shadow-sm hover:shadow-md transition-shadow">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold text-strong truncate">{rule.name}</h3>
+                  {!rule.enabled && <span className="bg-alternative text-neutral px-1.5 py-0.5 rounded text-[10px] font-bold border border-normal">{t.ruleSuspended}</span>}
+                </div>
+                <p className="mt-1 text-sm text-neutral leading-relaxed">
+                  <span className="font-medium text-strong">{rule.regionName}</span>
+                  {rule.apartmentKeywords && keywordLen > 0 ? (
+                    <span className="ml-1 text-[11px] bg-primary/5 text-primary px-1.5 py-0.5 rounded">
+                      {keywordLen === 1
+                        ? rule.apartmentKeywords[0]
+                        : locale === "ko"
+                          ? `${rule.apartmentKeywords[0]} 외 ${keywordLen - 1}곳`
+                          : `${rule.apartmentKeywords[0]} & ${keywordLen - 1} others`}
+                    </span>
+                  ) : <span className="ml-1 text-xs">{t.ruleAllComplexes}</span>}
+                  <span className="mx-1.5 text-slate-300 dark:text-slate-700">|</span>
+                  <span className="text-xs">{t.ruleRecentTrack}</span>
+                  <span className="mx-1.5 text-slate-300 dark:text-slate-700">|</span>
+                  <span className="text-primary font-medium">
+                    {locale === "ko"
+                      ? `${rule.minPriceEok ?? 0}억~${rule.maxPriceEok ? rule.maxPriceEok + "억" : t.ruleUnlimited}`
+                      : `${rule.minPriceEok ?? 0} Eok ~ ${rule.maxPriceEok ? rule.maxPriceEok + " Eok" : t.ruleUnlimited}`}
                   </span>
-                ) : <span className="ml-1 text-xs">전체 단지</span>}
-                <span className="mx-1.5 text-slate-300 dark:text-slate-700">|</span>
-                <span className="text-xs">최근 2개월 자동 추적</span>
-                <span className="mx-1.5 text-slate-300 dark:text-slate-700">|</span>
-                <span className="text-primary font-medium">{rule.minPriceEok ?? 0}억~{rule.maxPriceEok ?? "무제한"}억</span>
-              </p>
-              <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral">
-                <span className="bg-alternative border border-normal px-1.5 py-0.5 rounded leading-none">{comparisonLabels[rule.comparisonCriteria]}</span>
-                <span>{rule.intervalMinutes}분 주기</span>
-                <span className="flex items-center gap-1">
-                   <History className="h-3 w-3" /> {formatDate(rule.lastCheckedAt)} 체크
-                </span>
+                  {(rule.minArea !== undefined || rule.maxArea !== undefined) && (
+                    <>
+                      <span className="mx-1.5 text-slate-300 dark:text-slate-700">|</span>
+                      <span className="text-[11px] bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 border border-emerald-500/10 px-1.5 py-0.5 rounded font-medium">
+                        {rule.minArea ?? 0}㎡ ~ {rule.maxArea ? rule.maxArea + "㎡" : t.ruleUnlimited}
+                        <span className="text-[9px] font-normal ml-1">
+                          ({rule.minArea ? Math.round(rule.minArea / 3.3) : 0}평~{rule.maxArea ? Math.round(rule.maxArea / 3.3) : "무제한"})
+                        </span>
+                      </span>
+                    </>
+                  )}
+                </p>
+                <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral">
+                  <span className="bg-alternative border border-normal px-1.5 py-0.5 rounded leading-none">{comparisonLabels[rule.comparisonCriteria]}</span>
+                  <span>{rule.intervalMinutes}{t.ruleIntervalSuffix}</span>
+                  <span className="flex items-center gap-1">
+                     <History className="h-3 w-3" /> {formatDate(rule.lastCheckedAt)} {t.ruleLastChecked}
+                  </span>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 sm:self-center">
+                <button
+                  className="p-2.5 text-neutral hover:bg-alternative hover:text-strong rounded-lg transition-colors"
+                  title={t.ruleEdit}
+                  onClick={() => onEdit(rule)}
+                >
+                  <Pencil className="h-4.5 w-4.5" />
+                </button>
+                <button
+                  className="p-2.5 text-neutral hover:bg-red-500/10 hover:text-red-500 rounded-lg transition-colors"
+                  title={t.ruleDelete}
+                  onClick={() => remove(rule.id)}
+                >
+                  <Trash2 className="h-4.5 w-4.5" />
+                </button>
+                <div className="h-6 w-px bg-line/20 mx-1 hidden sm:block" />
+                <button
+                  className={classNames(
+                    "px-3.5 py-2 text-xs font-bold rounded-lg transition-all border",
+                    rule.enabled ? "bg-elevated border-normal text-strong hover:bg-alternative" : "bg-primary border-primary text-white hover:opacity-90 active:scale-95"
+                  )}
+                  onClick={async () => {
+                    await patchRule(rule.id, { enabled: !rule.enabled });
+                    onChanged();
+                  }}
+                >
+                  {rule.enabled ? t.rulePause : t.ruleResume}
+                </button>
+                <button
+                  className="inline-flex items-center gap-1.5 bg-strong px-4 py-2 text-xs font-bold text-normal rounded-lg disabled:opacity-60 hover:opacity-90 transition-all active:scale-95"
+                  disabled={busyId === rule.id || !rule.enabled}
+                  onClick={() => void run(rule.id)}
+                >
+                  {busyId === rule.id ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
+                  {busyId === rule.id ? t.ruleRunProgress : t.ruleRunNow}
+                </button>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2 sm:self-center">
-              <button
-                className="p-2.5 text-neutral hover:bg-alternative hover:text-strong rounded-lg transition-colors"
-                title="수정"
-                onClick={() => onEdit(rule)}
-              >
-                <Pencil className="h-4.5 w-4.5" />
-              </button>
-              <button
-                className="p-2.5 text-neutral hover:bg-red-500/10 hover:text-red-500 rounded-lg transition-colors"
-                title="삭제"
-                onClick={() => remove(rule.id)}
-              >
-                <Trash2 className="h-4.5 w-4.5" />
-              </button>
-              <div className="h-6 w-px bg-line/20 mx-1 hidden sm:block" />
-              <button
-                className={classNames(
-                  "px-3.5 py-2 text-xs font-bold rounded-lg transition-all border",
-                  rule.enabled ? "bg-elevated border-normal text-strong hover:bg-alternative" : "bg-primary border-primary text-white hover:opacity-90 active:scale-95"
-                )}
-                onClick={async () => {
-                  await patchRule(rule.id, { enabled: !rule.enabled });
-                  onChanged();
-                }}
-              >
-                {rule.enabled ? "일시정지" : "활성화"}
-              </button>
-              <button
-                className="inline-flex items-center gap-1.5 bg-strong px-4 py-2 text-xs font-bold text-normal rounded-lg disabled:opacity-60 hover:opacity-90 transition-all active:scale-95"
-                disabled={busyId === rule.id || !rule.enabled}
-                onClick={() => void run(rule.id)}
-              >
-                {busyId === rule.id ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
-                {busyId === rule.id ? "진행 중" : "지금 실행"}
-              </button>
-            </div>
-          </div>
-        </article>
-      ))}
+          </article>
+        );
+      })}
     </div>
   );
 }
 
-export function RulesPage({ state, onChanged }: { state: DashboardState | undefined; onChanged: () => void }) {
+export function RulesPage({
+  state,
+  onChanged,
+  initData,
+  clearInitData
+}: {
+  state: DashboardState | undefined;
+  onChanged: () => void;
+  initData?: { regionName: string; regionCode?: string; apartmentKeywords: string[] } | null;
+  clearInitData?: () => void;
+}) {
+  const { isMobile } = useBreakpoint();
   const [editingRule, setEditingRule] = useState<WatchRule | undefined>();
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-col gap-1">
-        <h2 className="text-2xl font-black text-strong tracking-tight">알림 규칙</h2>
-        <p className="text-sm text-neutral">관심 지역의 실거래를 자동으로 추적할 조건을 만들고 관리하세요.</p>
-      </header>
+      {!isMobile && (
+        <header className="flex flex-col gap-1">
+          <h2 className="text-2xl font-black text-strong tracking-tight mt-1 flex items-center gap-2">
+            <Bell className="text-primary h-6 w-6" />
+            {t.rulesTitle}
+          </h2>
+          <p className="text-sm text-neutral">{t.rulesSubtitle}</p>
+        </header>
+      )}
 
       <RuleForm
         editingRule={editingRule}
+        initData={initData}
+        clearInitData={clearInitData}
         onSave={() => {
           setEditingRule(undefined);
           onChanged();
@@ -680,9 +790,9 @@ export function RulesPage({ state, onChanged }: { state: DashboardState | undefi
 
       <div>
         <div className="mb-4 flex items-center justify-between px-1">
-          <h2 className="text-lg font-bold text-strong tracking-tight">관심 조건 목록</h2>
+          <h2 className="text-lg font-bold text-strong tracking-tight">{t.ruleListTitle}</h2>
           <span className="text-xs font-bold text-neutral bg-elevated border border-normal px-2 py-0.5 rounded-full">
-            {state?.rules.length ?? 0}개
+            {state?.rules.length ?? 0}{t.unitCount}
           </span>
         </div>
         <RuleList

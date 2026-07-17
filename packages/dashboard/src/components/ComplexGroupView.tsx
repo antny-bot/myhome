@@ -154,12 +154,14 @@ function ComplexGroupCard({
   group,
   locale = "ko",
   isSelected,
-  onSelect
+  onSelect,
+  areaUnit = "pyeong"
 }: {
   group: ComplexGroup;
   locale?: "ko" | "en";
   isSelected: boolean;
   onSelect: () => void;
+  areaUnit?: "pyeong" | "m2";
 }) {
   const [activeIdx, setActiveIdx] = useState(0);
   const [expanded, setExpanded] = useState(false);
@@ -172,7 +174,16 @@ function ComplexGroupCard({
   const trendTone = activeArea.changeEok > 0 ? "text-emerald-500" : activeArea.changeEok < 0 ? "text-red-500" : "text-neutral";
   const latest = activeArea.items[activeArea.items.length - 1];
 
-  const areaLabelDisp = activeArea.areaM2 !== undefined ? activeArea.areaLabel : t.unknownArea;
+  const formatDispLabel = (areaM2: number | undefined) => {
+    if (areaM2 === undefined) return t.unknownArea;
+    if (areaUnit === "pyeong") {
+      const pyeong = areaM2 / 3.305785;
+      return `${pyeong.toFixed(1)}평`;
+    }
+    return `${areaM2.toFixed(1)}㎡`;
+  };
+
+  const areaLabelDisp = formatDispLabel(activeArea.areaM2);
 
   return (
     // biome-ignore lint/clickEventsHaveKeyEvents: Interactive list card
@@ -212,7 +223,7 @@ function ComplexGroupCard({
                   : "bg-alternative text-neutral hover:text-strong"
               )}
             >
-              {area.areaM2 !== undefined ? area.areaLabel : t.unknownArea} ({area.count}{t.unitCount})
+              {area.areaM2 !== undefined ? formatDispLabel(area.areaM2) : t.unknownArea} ({area.count}{t.unitCount})
             </button>
           ))}
         </div>
@@ -287,12 +298,14 @@ export function ComplexGroupView({
   records,
   locale = "ko",
   selectedApartment = null,
-  onSelectApartment
+  onSelectApartment,
+  areaUnit = "pyeong"
 }: {
   records: TransactionRecord[];
   locale?: "ko" | "en";
   selectedApartment?: string | null;
   onSelectApartment?: (aptName: string) => void;
+  areaUnit?: "pyeong" | "m2";
 }) {
   const groups = useMemo(() => buildGroups(records), [records]);
 
@@ -309,6 +322,7 @@ export function ComplexGroupView({
           locale={locale}
           isSelected={selectedApartment === group.apartmentName}
           onSelect={() => onSelectApartment?.(group.apartmentName)}
+          areaUnit={areaUnit}
         />
       ))}
     </div>

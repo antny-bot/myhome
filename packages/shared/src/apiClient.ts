@@ -6,6 +6,9 @@ export type RawTransaction = {
   priceEok: number;
   areaM2?: number;
   floor?: number;
+  dongName?: string;   // 법정동명 (umdNm)
+  jibun?: string;      // 지번
+  roadName?: string;   // 도로명 (roadNm)
 };
 
 // 헬퍼: 텍스트 또는 숫자로 변환된 필드 읽기
@@ -84,7 +87,12 @@ export function normalizeTransaction(item: unknown, fallbackMonth: string): RawT
   // 층 (floor, 층)
   const floor = readNumber(r, ["floor", "층"]);
 
-  return { apartmentName, dealDate, priceEok, areaM2, floor };
+  // 주소 정보 (Geocoding용)
+  const dongName = readString(r, ["umdNm", "법정동"]);
+  const jibun = readString(r, ["jibun", "지번"]);
+  const roadName = readString(r, ["roadNm", "도로명"]);
+
+  return { apartmentName, dealDate, priceEok, areaM2, floor, dongName, jibun, roadName };
 }
 
 /**

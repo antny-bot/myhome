@@ -18,6 +18,8 @@ const ruleSchema = z.object({
   apartmentKeywords: z.array(z.string()).optional(),
   minPriceEok: z.number().positive().optional(),
   maxPriceEok: z.number().positive().optional(),
+  minArea: z.number().positive().optional(),
+  maxArea: z.number().positive().optional(),
   comparisonCriteria: z.enum(comparisonValues),
   intervalMinutes: z.number().int().min(10),
   channels: z.array(z.enum(["telegram", "kakao"])).min(1),
@@ -241,13 +243,20 @@ export function createRouter() {
         const regionInfo = { lawdCode, displayName: regionDisplayName };
         for (const rec of records) {
           const graphKey = makeGraphDedupeKey(lawdCode, rec.apartmentName, rec.dealDate, rec.areaM2, rec.floor);
+          // 원본 데이터에서 주소 정보 추출 (국토부 API 직접 호출 or apiClient 정규화 결과)
+          const rawObj = ((rec as any).raw && typeof (rec as any).raw === 'object') ? (rec as any).raw as Record<string, unknown> : {};
+          const addrInfo = {
+            dongName: (rawObj.dongName ?? rawObj.umdNm ?? undefined) as string | undefined,
+            jibun: (rawObj.jibun ?? undefined) as string | undefined,
+            roadName: (rawObj.roadName ?? rawObj.roadNm ?? undefined) as string | undefined,
+          };
           upsertTransaction(regionInfo, rec.apartmentName, {
             dedupeKey: graphKey,
             dealDate:  rec.dealDate,
             priceEok:  rec.priceEok,
             areaM2:    rec.areaM2,
             floor:     rec.floor,
-          }).catch((err: any) =>
+          }, addrInfo).catch((err: any) =>
             console.error(`[graphDb] 탐색 upsert 실패 (${rec.apartmentName}):`, err)
           );
         }

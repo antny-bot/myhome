@@ -1,12 +1,18 @@
 import React, { useState, useEffect } from "react";
-import { Database, Settings, ShieldAlert, CheckCircle, Save } from "lucide-react";
+import { Database, Settings, ShieldAlert, CheckCircle, Save, ChevronRight } from "lucide-react";
+import { useBreakpoint } from "../useBreakpoint";
 import { SectionCard } from "../components/SectionCard";
 import { classNames } from "../lib/format";
 import type { DashboardState } from "../types";
 import packageJson from "../../package.json";
 import { loadSystemConfig, saveSystemConfig } from "../api";
+import { copy } from "../locales/ko";
+
+const locale = "ko";
+const t = copy[locale];
 
 export function SettingsPage({ state, onChanged }: { state: DashboardState | undefined; onChanged?: () => void }) {
+  const { isMobile } = useBreakpoint();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
@@ -72,14 +78,19 @@ export function SettingsPage({ state, onChanged }: { state: DashboardState | und
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-col gap-1">
-        <h2 className="text-2xl font-black text-strong tracking-tight">환경 설정</h2>
-        <p className="text-sm text-neutral">데이터 소스, 외부 API 키 및 실시간 알림 채널 연동 상태를 관리하세요.</p>
-      </header>
+      {!isMobile && (
+        <header className="flex flex-col gap-1">
+          <h2 className="text-2xl font-black text-strong tracking-tight mt-1 flex items-center gap-2">
+            <Settings className="text-primary h-6 w-6" />
+            {t.settingsTitle}
+          </h2>
+          <p className="text-sm text-neutral">{t.settingsSubtitle}</p>
+        </header>
+      )}
 
       {/* 1. 연동 상태 요약 카드 */}
       <SectionCard
-        title="시스템 연동 상태"
+        title={t.systemStatusTitle}
         right={<Database className="h-4 w-4 text-primary" />}
       >
         <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-8 gap-y-4 gap-x-4">

@@ -1,10 +1,10 @@
-import { Bell, History, LayoutDashboard, Menu, RefreshCw, Settings, Sparkles, X, LucideIcon, BarChart3, Database, ClipboardList } from "lucide-react";
+import { Bell, History, LayoutDashboard, Menu, RefreshCw, Settings, Sparkles, X, LucideIcon, BarChart3, Database, ClipboardList, Sliders, Compass, Home } from "lucide-react";
 import { useState } from "react";
 import { classNames } from "../lib/format";
 import { useBreakpoint } from "../useBreakpoint";
 import packageJson from "../../package.json";
 
-export type View = "dashboard" | "rules" | "explore" | "settings" | "analytics" | "dbAdmin" | "collect";
+export type View = "dashboard" | "rules" | "explore" | "settings" | "analytics" | "dbAdmin" | "collect" | "nearby";
 
 const copy = {
   ko: {
@@ -12,26 +12,38 @@ const copy = {
     rules: "알림 규칙",
     explore: "실거래 탐색",
     analytics: "실거래 분석",
+    nearby: "역세권 분석",
     collect: "수집 현황",
     dbAdmin: "데이터베이스",
     settings: "환경 설정",
     dataConstraint: "데이터 제약",
     dataConstraintDesc: "실거래가/단지정보 기준이며 호가 정보는 포함되지 않습니다.",
     serviceName: "아파트 실거래 자동 알림 서비스",
-    closeMenu: "메뉴 닫기"
+    closeMenu: "메뉴 닫기",
+    groupHome: "홈",
+    groupExplore: "조회",
+    groupAlert: "알림",
+    groupAdmin: "관리자",
+    groupSettings: "설정"
   },
   en: {
     dashboard: "Dashboard",
     rules: "Alert Rules",
     explore: "Explore Deals",
     analytics: "Real Estate Analytics",
+    nearby: "Station Area",
     collect: "Collection Stats",
     dbAdmin: "Database",
     settings: "Settings",
     dataConstraint: "Data Constraints",
     dataConstraintDesc: "Based on real transaction prices and complex details. Asking prices not included.",
     serviceName: "Apartment Real Transaction Alert Service",
-    closeMenu: "Close Menu"
+    closeMenu: "Close Menu",
+    groupHome: "Home",
+    groupExplore: "Explore",
+    groupAlert: "Alerts",
+    groupAdmin: "Admin",
+    groupSettings: "Settings"
   }
 } as const;
 
@@ -43,9 +55,76 @@ const navItems: Array<{ view: View; icon: LucideIcon; labelKey: keyof typeof cop
   { view: "rules", icon: Bell, labelKey: "rules" },
   { view: "explore", icon: History, labelKey: "explore" },
   { view: "analytics", icon: BarChart3, labelKey: "analytics" },
+  { view: "nearby", icon: Compass, labelKey: "nearby" },
   { view: "collect", icon: ClipboardList, labelKey: "collect" },
   { view: "dbAdmin", icon: Database, labelKey: "dbAdmin" },
   { view: "settings", icon: Settings, labelKey: "settings" }
+];
+
+const mobileNavItems: Array<
+  | { type: "link"; view: View; icon: LucideIcon; label: string }
+  | { type: "menu"; key: "admin"; icon: LucideIcon; label: string; subItems: Array<{ view: View; label: string; icon: LucideIcon }> }
+> = [
+  { type: "link", view: "dashboard", icon: LayoutDashboard, label: "홈" },
+  { type: "link", view: "explore", icon: History, label: "탐색" },
+  { type: "link", view: "analytics", icon: BarChart3, label: "분석" },
+  { type: "link", view: "rules", icon: Bell, label: "알림" },
+  {
+    type: "menu",
+    key: "admin",
+    icon: Sliders,
+    label: "관리자",
+    subItems: [
+      { view: "collect", label: "수집 현황", icon: ClipboardList },
+      { view: "dbAdmin", label: "데이터베이스", icon: Database },
+      { view: "settings", label: "환경 설정", icon: Settings },
+    ]
+  }
+];
+
+interface NavGroup {
+  groupKey: "groupHome" | "groupExplore" | "groupAlert" | "groupAdmin" | "groupSettings";
+  items: Array<{
+    view: View;
+    icon: LucideIcon;
+    labelKey: "dashboard" | "rules" | "explore" | "analytics" | "collect" | "dbAdmin" | "settings" | "nearby";
+  }>;
+}
+
+const navGroups: NavGroup[] = [
+  {
+    groupKey: "groupHome",
+    items: [
+      { view: "dashboard", icon: LayoutDashboard, labelKey: "dashboard" }
+    ]
+  },
+  {
+    groupKey: "groupExplore",
+    items: [
+      { view: "explore", icon: History, labelKey: "explore" },
+      { view: "analytics", icon: BarChart3, labelKey: "analytics" },
+      { view: "nearby", icon: Compass, labelKey: "nearby" }
+    ]
+  },
+  {
+    groupKey: "groupAlert",
+    items: [
+      { view: "rules", icon: Bell, labelKey: "rules" }
+    ]
+  },
+  {
+    groupKey: "groupAdmin",
+    items: [
+      { view: "collect", icon: ClipboardList, labelKey: "collect" },
+      { view: "dbAdmin", icon: Database, labelKey: "dbAdmin" }
+    ]
+  },
+  {
+    groupKey: "groupSettings",
+    items: [
+      { view: "settings", icon: Settings, labelKey: "settings" }
+    ]
+  }
 ];
 
 function NavItem({
@@ -77,19 +156,38 @@ function NavItem({
 export function Layout({ view, onNavigate, children }: { view: View; onNavigate: (view: View) => void; children: React.ReactNode }) {
   const { isMobile } = useBreakpoint();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [adminMenuOpen, setAdminMenuOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-alternative flex text-strong font-body">
       {/* Desktop Sidebar */}
       {!isMobile && (
         <aside className="w-64 border-r border-normal bg-elevated sticky top-0 h-screen flex flex-col p-5">
-          <div className="px-4 py-6">
-            <h1 className="text-xl font-black text-primary tracking-tight">MY HOME</h1>
-            <p className="text-[10px] text-neutral font-bold tracking-widest uppercase mt-1">Apartment Alert</p>
+          <div className="px-4 py-6 flex items-center gap-2.5">
+            <Home className="h-6 w-6 text-primary flex-shrink-0" />
+            <div>
+              <h1 className="text-xl font-black text-primary tracking-tight leading-none">MY HOME</h1>
+              <p className="text-[10px] text-neutral font-bold tracking-widest uppercase mt-1">Apartment Alert</p>
+            </div>
           </div>
-          <nav className="mt-4 space-y-2 flex-1">
-            {navItems.map((item) => (
-              <NavItem key={item.view} icon={item.icon} label={t[item.labelKey]} active={view === item.view} onClick={() => onNavigate(item.view)} />
+          <nav className="mt-4 space-y-5 flex-1 overflow-y-auto">
+            {navGroups.map((group) => (
+              <div key={group.groupKey} className="space-y-1.5">
+                <span className="text-[10px] font-bold tracking-wider text-neutral/50 uppercase px-4 block">
+                  {t[group.groupKey]}
+                </span>
+                <div className="space-y-0.5">
+                  {group.items.map((item) => (
+                    <NavItem
+                      key={item.view}
+                      icon={item.icon}
+                      label={t[item.labelKey]}
+                      active={view === item.view}
+                      onClick={() => onNavigate(item.view)}
+                    />
+                  ))}
+                </div>
+              </div>
             ))}
           </nav>
           <div className="pt-6 border-t border-normal/50">
@@ -112,26 +210,38 @@ export function Layout({ view, onNavigate, children }: { view: View; onNavigate:
             sidebarOpen ? "translate-x-0" : "-translate-x-full"
           )}>
             <div className="px-4 py-6 flex justify-between items-center">
-              <div>
-                <h1 className="text-xl font-black text-primary tracking-tight">MY HOME</h1>
-                <p className="text-[10px] text-neutral font-bold tracking-widest uppercase mt-1">Apartment Alert</p>
+              <div className="flex items-center gap-2.5">
+                <Home className="h-6 w-6 text-primary flex-shrink-0" />
+                <div>
+                  <h1 className="text-xl font-black text-primary tracking-tight leading-none">MY HOME</h1>
+                  <p className="text-[10px] text-neutral font-bold tracking-widest uppercase mt-1">Apartment Alert</p>
+                </div>
               </div>
               <button onClick={() => setSidebarOpen(false)} className="p-1 text-strong" aria-label={t.closeMenu}>
                 <X className="h-6 w-6" />
               </button>
             </div>
-            <nav className="mt-4 space-y-2 flex-1">
-              {navItems.map((item) => (
-                <NavItem
-                  key={item.view}
-                  icon={item.icon}
-                  label={t[item.labelKey]}
-                  active={view === item.view}
-                  onClick={() => {
-                    onNavigate(item.view);
-                    setSidebarOpen(false);
-                  }}
-                />
+            <nav className="mt-4 space-y-5 flex-1 overflow-y-auto">
+              {navGroups.map((group) => (
+                <div key={group.groupKey} className="space-y-1.5">
+                  <span className="text-[10px] font-bold tracking-wider text-neutral/50 uppercase px-4 block">
+                    {t[group.groupKey]}
+                  </span>
+                  <div className="space-y-0.5">
+                    {group.items.map((item) => (
+                      <NavItem
+                        key={item.view}
+                        icon={item.icon}
+                        label={t[item.labelKey]}
+                        active={view === item.view}
+                        onClick={() => {
+                          onNavigate(item.view);
+                          setSidebarOpen(false);
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
               ))}
             </nav>
             <div className="pt-6 border-t border-normal/50">
@@ -145,35 +255,18 @@ export function Layout({ view, onNavigate, children }: { view: View; onNavigate:
       )}
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header
-          className={classNames(
-            "bg-elevated border-b border-normal sticky top-0 z-40 flex items-center justify-between",
-            isMobile ? "h-14 px-4" : "h-16 px-8"
-          )}
-        >
-          {isMobile ? (
-            <>
-              <button onClick={() => setSidebarOpen(true)} className="p-1 text-strong" aria-label="Open menu">
-                <Menu className="h-6 w-6" />
-              </button>
+        {isMobile && (
+          <header className="bg-elevated border-b border-normal sticky top-0 z-40 flex items-center justify-between h-14 px-4">
+            <button onClick={() => setSidebarOpen(true)} className="p-1 text-strong" aria-label="Open menu">
+              <Menu className="h-6 w-6" />
+            </button>
+            <div className="flex items-center gap-1.5">
+              <Home className="h-5 w-5 text-primary flex-shrink-0" />
               <h2 className="text-base font-black tracking-tight text-strong">MY HOME</h2>
-              <div className="w-8" />
-            </>
-          ) : (
-            <>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-bold bg-alternative border border-normal text-strong px-2 py-0.5 rounded">v{packageJson.version}</span>
-                <span className="text-xs text-neutral">{t.serviceName}</span>
-              </div>
-              <div className="flex items-center gap-4">
-                <button className="p-2 text-neutral hover:bg-alternative rounded-lg transition-colors">
-                   <RefreshCw className="h-5 w-5" />
-                </button>
-                <div className="h-8 w-8 rounded-full bg-alternative border border-normal shadow-sm" />
-              </div>
-            </>
-          )}
-        </header>
+            </div>
+            <div className="w-8" />
+          </header>
+        )}
 
         <main className={classNames("flex-1 overflow-auto", isMobile ? "p-4 pb-24" : "p-8 max-w-6xl mx-auto w-full")}>
           {children}
@@ -181,19 +274,89 @@ export function Layout({ view, onNavigate, children }: { view: View; onNavigate:
 
         {isMobile && (
           <nav className="fixed bottom-0 left-0 right-0 bg-elevated border-t border-normal h-14 flex items-center px-2 z-40">
-            {navItems.map((item) => (
-              <button
-                key={item.view}
-                onClick={() => onNavigate(item.view)}
-                className={classNames(
-                  "flex-1 flex flex-col items-center justify-center",
-                  view === item.view ? "text-primary" : "text-neutral"
-                )}
-              >
-                <item.icon className="h-5 w-5" />
-                <span className={classNames("text-[10px] mt-1", view === item.view ? "font-bold" : "font-medium")}>{t[item.labelKey]}</span>
-              </button>
-            ))}
+            {/* Admin Menu Dropup Backdrop */}
+            {adminMenuOpen && (
+              <div 
+                className="fixed inset-0 bg-black/10 z-45" 
+                onClick={() => setAdminMenuOpen(false)} 
+              />
+            )}
+
+            {/* Admin Dropup Menu */}
+            {adminMenuOpen && (
+              <div className="absolute bottom-16 right-2 w-44 bg-elevated border border-normal rounded-2xl p-1.5 shadow-2xl z-50 flex flex-col gap-0.5 animate-in slide-in-from-bottom-2 fade-in duration-200">
+                {mobileNavItems.find(item => item.type === "menu")?.subItems.map((sub) => {
+                  const Icon = sub.icon;
+                  const isActive = view === sub.view;
+                  return (
+                    <button
+                      key={sub.view}
+                      type="button"
+                      onClick={() => {
+                        onNavigate(sub.view);
+                        setAdminMenuOpen(false);
+                      }}
+                      className={classNames(
+                        "w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-left text-xs font-semibold transition-all",
+                        isActive 
+                          ? "bg-primary text-white font-bold" 
+                          : "text-neutral hover:bg-alternative hover:text-strong"
+                      )}
+                    >
+                      <Icon className="h-4 w-4" />
+                      <span>{sub.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Mobile Bottom Tabs */}
+            {mobileNavItems.map((item) => {
+              if (item.type === "link") {
+                const Icon = item.icon;
+                const isActive = view === item.view;
+                return (
+                  <button
+                    key={item.view}
+                    type="button"
+                    onClick={() => {
+                      onNavigate(item.view);
+                      setAdminMenuOpen(false);
+                    }}
+                    className={classNames(
+                      "flex-1 flex flex-col items-center justify-center h-full",
+                      isActive ? "text-primary" : "text-neutral"
+                    )}
+                  >
+                    <Icon className="h-5 w-5" />
+                    <span className={classNames("text-[10px] mt-1", isActive ? "font-bold" : "font-medium")}>
+                      {item.label}
+                    </span>
+                  </button>
+                );
+              } else {
+                const Icon = item.icon;
+                // subItems 중 하나라도 선택되어 있으면 관리자 활성화 상태
+                const isSubActive = item.subItems.some((sub) => view === sub.view);
+                return (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => setAdminMenuOpen(!adminMenuOpen)}
+                    className={classNames(
+                      "flex-1 flex flex-col items-center justify-center h-full relative",
+                      isSubActive || adminMenuOpen ? "text-primary" : "text-neutral"
+                    )}
+                  >
+                    <Icon className="h-5 w-5" />
+                    <span className={classNames("text-[10px] mt-1", isSubActive || adminMenuOpen ? "font-bold" : "font-medium")}>
+                      {item.label}
+                    </span>
+                  </button>
+                );
+              }
+            })}
           </nav>
         )}
       </div>

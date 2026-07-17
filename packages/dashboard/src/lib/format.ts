@@ -11,3 +11,9 @@ export function formatDate(value?: string) {
     minute: "2-digit"
   }).format(new Date(value));
 }
+
+export function formatNumber(value?: number | null) {
+  if (value === undefined || value === null || isNaN(value)) return "0";
+  return value.toLocaleString("ko-KR");
+}
+

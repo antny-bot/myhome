@@ -16,6 +16,8 @@ export type WatchRule = {
   apartmentKeywords?: string[];
   minPriceEok?: number;
   maxPriceEok?: number;
+  minArea?: number;
+  maxArea?: number;
   comparisonCriteria: ComparisonCriteria;
   intervalMinutes: number;
   channels: AlertChannel[];
@@ -33,6 +35,8 @@ export type RuleInput = {
   apartmentKeywords?: string[];
   minPriceEok?: number;
   maxPriceEok?: number;
+  minArea?: number;
+  maxArea?: number;
   comparisonCriteria: ComparisonCriteria;
   intervalMinutes: number;
   channels: AlertChannel[];
@@ -45,6 +49,11 @@ export type TransactionRecord = {
   priceEok: number;
   areaM2?: number;
   floor?: number;
+  dongName?: string | null;
+  jibun?: string | null;
+  roadName?: string | null;
+  lat?: number | null;
+  lng?: number | null;
   raw: unknown;
 };
 

@@ -5,16 +5,26 @@ import ComplexTab from "./graph/ComplexTab";
 import InsightTab from "./graph/InsightTab";
 import { GraphFilter } from "@myhome/shared";
 import { searchGraphTransactions } from "../api";
-import { BarChart3, Home, Sparkles } from "lucide-react";
+import { BarChart3, ChevronRight, Home, Sparkles, Compass } from "lucide-react";
 import { useBreakpoint } from "../useBreakpoint";
+import { copy } from "../locales/ko";
+
+const locale = "ko";
+const t = copy[locale];
 
 const tabs = [
-  { id: "overview" as const, name: "종합 현황", icon: BarChart3 },
-  { id: "complex" as const, name: "단지 분석", icon: Home },
-  { id: "insight" as const, name: "AI 인사이트", icon: Sparkles },
+  { id: "overview" as const, labelKey: "analyticsTabOverview" as const, icon: BarChart3 },
+  { id: "complex" as const, labelKey: "analyticsTabComplex" as const, icon: Home },
+  { id: "insight" as const, labelKey: "analyticsTabInsight" as const, icon: Sparkles },
 ];
 
-export default function GraphDashboard() {
+interface GraphDashboardProps {
+  onNavigateToRules?: (initData: { regionName: string; regionCode?: string; apartmentKeywords: string[] }) => void;
+  initData?: { complexName: string; lawdCode?: string; activeTab?: "overview" | "complex" | "insight" } | null;
+  clearInitData?: () => void;
+}
+
+export default function GraphDashboard({ onNavigateToRules, initData, clearInitData }: GraphDashboardProps) {
   const { isMobile } = useBreakpoint();
   const [activeTab, setActiveTab] = useState<"overview" | "complex" | "insight">("overview");
 
@@ -23,6 +33,7 @@ export default function GraphDashboard() {
     endDate: new Date().toISOString().substring(0, 7),
   });
   const [regionName, setRegionName] = useState("");
+  const [areaUnit, setAreaUnit] = useState<"pyeong" | "m2">("pyeong");
 
   const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -44,6 +55,20 @@ export default function GraphDashboard() {
     fetchTransactions();
   }, []);
 
+  useEffect(() => {
+    if (initData) {
+      setFilter((prev) => ({
+        ...prev,
+        complexName: initData.complexName,
+        lawdCode: initData.lawdCode || prev.lawdCode,
+      }));
+      if (initData.activeTab) {
+        setActiveTab(initData.activeTab);
+      }
+      clearInitData?.();
+    }
+  }, [initData]);
+
   const handleFilterChange = (newFilter: GraphFilter, newRegionName: string) => {
     setFilter(newFilter);
     setRegionName(newRegionName);
@@ -53,22 +78,22 @@ export default function GraphDashboard() {
     fetchTransactions();
   };
 
-  const handleSelectComplex = (complexName: string) => {
-    setFilter((prev) => ({ ...prev, complexName }));
+  const handleSelectComplex = (complexName: string, lawdCode?: string) => {
+    setFilter((prev) => ({ ...prev, complexName, lawdCode: lawdCode || prev.lawdCode }));
     setActiveTab("complex");
   };
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-bold text-strong tracking-tight flex items-center gap-2">
-          <BarChart3 className="text-primary" size={isMobile ? 20 : 24} />
-          실거래 분석 리포트
-        </h1>
-        <p className="text-sm text-neutral mt-1">
-          수집된 아파트 실거래 데이터의 시계열 흐름과 다차원 통계를 분석합니다.
-        </p>
-      </header>
+      {!isMobile && (
+        <header className="flex flex-col gap-1">
+          <h2 className="text-2xl font-black text-strong tracking-tight mt-1 flex items-center gap-2">
+            <BarChart3 className="text-primary" size={24} />
+            {t.analyticsTitle}
+          </h2>
+          <p className="text-sm text-neutral">{t.analyticsSubtitle}</p>
+        </header>
+      )}
 
       <FilterPanel
         filter={filter}
@@ -77,25 +102,49 @@ export default function GraphDashboard() {
         onApply={handleApply}
       />
 
-      <div className="flex border-b border-normal gap-1 overflow-x-auto pb-px">
-        {tabs.map((t) => {
-          const Icon = t.icon;
-          const isActive = activeTab === t.id;
-          return (
-            <button
-              key={t.id}
-              onClick={() => setActiveTab(t.id)}
-              className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-semibold border-b-2 transition whitespace-nowrap ${
-                isActive
-                  ? "border-primary text-primary"
-                  : "border-transparent text-neutral hover:text-strong hover:border-normal"
-              }`}
-            >
-              <Icon size={15} />
-              <span>{t.name}</span>
-            </button>
-          );
-        })}
+      <div className="flex items-center justify-between border-b border-normal gap-1 pb-px overflow-x-auto">
+        <div className="flex gap-1">
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-semibold border-b-2 transition whitespace-nowrap ${
+                  isActive
+                    ? "border-primary text-primary"
+                    : "border-transparent text-neutral hover:text-strong hover:border-normal"
+                }`}
+              >
+                <Icon size={15} />
+                <span>{t[tab.labelKey]}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* 면적 단위 토글 버튼 */}
+        <div className="flex items-center gap-0.5 rounded-lg border border-normal p-0.5 bg-alternative shrink-0 mr-1 mb-1">
+          <button
+            type="button"
+            onClick={() => setAreaUnit("pyeong")}
+            className={`rounded-md px-2 py-0.5 text-[10px] font-bold transition-colors ${
+              areaUnit === "pyeong" ? "bg-primary text-white" : "text-neutral hover:text-strong"
+            }`}
+          >
+            평
+          </button>
+          <button
+            type="button"
+            onClick={() => setAreaUnit("m2")}
+            className={`rounded-md px-2 py-0.5 text-[10px] font-bold transition-colors ${
+              areaUnit === "m2" ? "bg-primary text-white" : "text-neutral hover:text-strong"
+            }`}
+          >
+            ㎡
+          </button>
+        </div>
       </div>
 
       <div>
@@ -106,7 +155,7 @@ export default function GraphDashboard() {
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
               </div>
             ) : (
-              <OverviewTab data={transactions} onSelectComplex={handleSelectComplex} />
+              <OverviewTab data={transactions} onSelectComplex={handleSelectComplex} areaUnit={areaUnit} />
             )}
           </>
         )}
@@ -115,6 +164,7 @@ export default function GraphDashboard() {
           <ComplexTab
             initialComplexName={filter.complexName || ""}
             lawdCode={filter.lawdCode}
+            areaUnit={areaUnit}
           />
         )}
 
@@ -125,3 +175,4 @@ export default function GraphDashboard() {
     </div>
   );
 }
+

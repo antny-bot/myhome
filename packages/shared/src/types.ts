@@ -78,6 +78,8 @@ export interface ComplexSearchResult {
 export interface DailyCollectStat {
   collectDate: string;
   count: number;
+  avgPriceEok: number;   // 당일 평균 거래가 (억 원)
+  complexCount: number;  // 당일 수집된 단지 수
 }
 
 export interface RegionCollectStat {

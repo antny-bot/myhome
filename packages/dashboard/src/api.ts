@@ -281,8 +281,45 @@ export function loadDailyCollectionStats() {
   return request<DailyCollectStat[]>("/api/graph/collect-stats/daily");
 }
 
-export function loadRegionCollectionStats(date: string) {
-  return request<RegionCollectStat[]>(`/api/graph/collect-stats/region?date=${encodeURIComponent(date)}`);
+export function loadMonthlyCollectionStats() {
+  return request<DailyCollectStat[]>("/api/graph/collect-stats/monthly");
+}
+
+export function loadRegionCollectionStats(dateOrMonth: string, type: "daily" | "monthly" = "daily") {
+  const param = type === "daily" ? `date=${encodeURIComponent(dateOrMonth)}` : `month=${encodeURIComponent(dateOrMonth)}`;
+  return request<RegionCollectStat[]>(`/api/graph/collect-stats/region?${param}`);
+}
+
+// 🚇 역세권 / Geocoding API 추가
+
+export function loadNearbyStation(station: string, radius = 500) {
+  const params = new URLSearchParams({ station, radius: String(radius) });
+  return request<{ 
+    station: { name: string; lat: number; lng: number };
+    radiusM: number;
+    complexes: {
+      name: string;
+      lawdCode: string;
+      regionName: string;
+      lat: number;
+      lng: number;
+      distanceM: number;
+      dongName: string | null;
+      jibun: string | null;
+    }[];
+    geocodeStats: { total: number; geocoded: number; pending: number };
+  }>(`/api/graph/nearby-station?${params.toString()}`);
+}
+
+export function triggerGeocodeBatch(lawdCode?: string) {
+  return request<{ total: number; success: number; failed: number }>("/api/graph/geocode-batch", {
+    method: "POST",
+    body: JSON.stringify({ lawdCode })
+  });
+}
+
+export function loadGeocodeStats() {
+  return request<{ total: number; geocoded: number; pending: number }>("/api/graph/geocode-stats");
 }
 
 

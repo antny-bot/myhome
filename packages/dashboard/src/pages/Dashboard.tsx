@@ -1,12 +1,18 @@
-import { Bell, CheckCircle2, Database, Send } from "lucide-react";
+import { Bell, CheckCircle2, ChevronRight, Database, Send, LayoutDashboard } from "lucide-react";
 import { useMemo } from "react";
+import { useBreakpoint } from "../useBreakpoint";
 import { RecentRuns } from "../components/RecentRuns";
 import { SectionCard } from "../components/SectionCard";
 import { StatCard } from "../components/StatCard";
 import { classNames, formatDate } from "../lib/format";
 import type { DashboardState } from "../types";
+import { copy } from "../locales/ko";
+
+const locale = "ko";
+const t = copy[locale];
 
 export function DashboardPage({ state, onChanged }: { state: DashboardState | undefined; onChanged?: () => void }) {
+  const { isMobile } = useBreakpoint();
   const stats = useMemo(() => {
     if (!state) return { activeRules: 0, matches: 0, sent: 0 };
     const rules = state.rules ?? [];
@@ -23,7 +29,8 @@ export function DashboardPage({ state, onChanged }: { state: DashboardState | un
     return (
       <div className="space-y-6 animate-pulse">
         <header className="flex flex-col gap-1">
-          <div className="h-8 w-48 bg-neutral/20 rounded-md" />
+          <div className="h-4 w-12 bg-neutral/15 rounded-md" />
+          <div className="h-8 w-48 bg-neutral/20 rounded-md mt-1" />
           <div className="h-4 w-72 bg-neutral/10 rounded-md mt-1" />
         </header>
 
@@ -71,31 +78,34 @@ export function DashboardPage({ state, onChanged }: { state: DashboardState | un
   return (
     <div className="space-y-6">
       <header className="flex flex-col gap-1">
-        <h2 className="text-2xl font-black text-strong tracking-tight">대시보드 요약</h2>
-        <p className="text-sm text-neutral">관심 지역의 실거래 및 알림 발송 현황을 확인하세요.</p>
+        <h2 className="text-xl md:text-2xl font-black text-strong tracking-tight mt-1 flex items-center gap-2">
+          <LayoutDashboard className="text-primary h-5 w-5 md:h-6 md:w-6" />
+          {t.dashboardTitle}
+        </h2>
+        {!isMobile && <p className="text-sm text-neutral">{t.dashboardSubtitle}</p>}
       </header>
 
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard icon={Bell} label="활성 조건" value={`${stats.activeRules}개`} tone="good" />
-        <StatCard icon={CheckCircle2} label="누적 매칭" value={`${stats.matches}건`} />
-        <StatCard icon={Send} label="발송 알림" value={`${stats.sent}건`} tone={state.config.telegramConfigured ? "good" : "warn"} />
-        <StatCard icon={Database} label="상태" value={state.config.telegramConfigured ? "정상" : "점검"} />
+        <StatCard icon={Bell} label={t.activeRules} value={`${stats.activeRules}${t.unitCount}`} tone="good" />
+        <StatCard icon={CheckCircle2} label={t.totalMatches} value={`${stats.matches}${t.unitCount}`} />
+        <StatCard icon={Send} label={t.sentNotifications} value={`${stats.sent}${t.unitCount}`} tone={state.config.telegramConfigured ? "good" : "warn"} />
+        <StatCard icon={Database} label={t.systemStatus} value={state.config.telegramConfigured ? t.statusNormal : t.statusCheck} />
       </section>
 
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_0.8fr] gap-6">
         <RecentRuns runs={state.checkRuns ?? []} onChanged={onChanged} />
 
-        <SectionCard title="알림 발송 이력">
+        <SectionCard title={t.alertHistory}>
           <div className="space-y-4">
             {(state.notifications ?? []).slice(0, 4).map((item) => {
-              let statusText = "성공";
-              let statusColor = "bg-primary/10 text-primary";
+              let statusText: string = t.alertSuccess;
+              let statusColor = "bg-primary-light text-primary";
               if (item.status === "skipped") {
-                statusText = "제외";
-                statusColor = "bg-amber-500/10 text-amber-500";
+                statusText = t.alertSkipped;
+                statusColor = "bg-warning-light text-warning";
               } else if (item.status === "failed") {
-                statusText = "실패";
-                statusColor = "bg-red-500/10 text-red-500";
+                statusText = t.alertFailed;
+                statusColor = "bg-warn-light text-warn";
               }
 
               return (
@@ -108,16 +118,16 @@ export function DashboardPage({ state, onChanged }: { state: DashboardState | un
                   </div>
                   <div className="min-w-0">
                     <p className="text-xs font-bold text-strong">
-                      {item.channel} 알림 {statusText}
+                      {item.channel} {t.alertPrefix} {statusText}
                     </p>
-                    <p className="mt-0.5 text-[11px] text-neutral truncate">{item.message}</p>
+                    <p className="mt-0.5 text-xs text-neutral truncate">{item.message}</p>
                     <p className="mt-1 text-[10px] text-assistive">{formatDate(item.createdAt)}</p>
                   </div>
                 </div>
               );
             })}
             {(state.notifications ?? []).length === 0 && (
-              <p className="text-center py-6 text-sm text-neutral">알림 발송 이력이 없습니다.</p>
+              <p className="text-center py-6 text-sm text-neutral">{t.noAlertHistory}</p>
             )}
           </div>
         </SectionCard>
@@ -125,3 +135,4 @@ export function DashboardPage({ state, onChanged }: { state: DashboardState | un
     </div>
   );
 }
+

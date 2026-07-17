@@ -24,6 +24,9 @@ function transactionToMatch(rule: WatchRule, item: unknown, fallbackMonth: strin
   if (rule.minPriceEok !== undefined && priceEok < rule.minPriceEok) return undefined;
   if (rule.maxPriceEok !== undefined && priceEok > rule.maxPriceEok) return undefined;
 
+  if (rule.minArea !== undefined && (areaM2 === undefined || areaM2 < rule.minArea)) return undefined;
+  if (rule.maxArea !== undefined && (areaM2 === undefined || areaM2 > rule.maxArea)) return undefined;
+
   const dedupeKey = [rule.id, apartmentName, dealDate, areaM2 ?? "", floor ?? "", priceEok.toFixed(4)].join("|");
   return { dedupeKey, apartmentName, dealDate, priceEok, areaM2, floor, raw: item };
 }

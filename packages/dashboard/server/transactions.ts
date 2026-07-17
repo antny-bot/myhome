@@ -70,7 +70,26 @@ export function normalizeTransaction(item: unknown, fallbackMonth: string): Tran
     const rawDealDate = readString(record, ["dealDate", "date", "거래일", "transactionDate"]);
     const fallbackDate = fallbackMonth.length === 6 ? `${fallbackMonth.slice(0, 4)}-${fallbackMonth.slice(4)}-01` : fallbackMonth;
     const dealDate = rawDealDate || fallbackDate;
-    return { apartmentName, dealDate, priceEok, areaM2, floor, raw: item };
+    
+    const dongName = readString(record, ["dongName", "umdNm", "법정동명", "법정동"]);
+    const jibun = readString(record, ["jibun", "지번"]);
+    const roadName = readString(record, ["roadName", "roadNm", "도로명"]);
+    const lat = typeof record.lat === "number" ? record.lat : (record.lat ? parseFloat(String(record.lat)) : undefined);
+    const lng = typeof record.lng === "number" ? record.lng : (record.lng ? parseFloat(String(record.lng)) : undefined);
+
+    return { 
+      apartmentName, 
+      dealDate, 
+      priceEok, 
+      areaM2, 
+      floor, 
+      dongName: dongName || undefined, 
+      jibun: jibun || undefined, 
+      roadName: roadName || undefined, 
+      lat: lat && !isNaN(lat) ? lat : undefined,
+      lng: lng && !isNaN(lng) ? lng : undefined,
+      raw: item 
+    };
   }
 
   // 2. 원시 API/MCP 응답인 경우 파싱 진행
@@ -91,7 +110,25 @@ export function normalizeTransaction(item: unknown, fallbackMonth: string): Tran
       ? `${dealYear}-${dealMonth.padStart(2, "0")}-${dealDay.padStart(2, "0")}`
       : (rawDealDate && parseKoreanDate(rawDealDate)) || rawDealDate || fallbackDate;
 
-  return { apartmentName, dealDate, priceEok, areaM2, floor, raw: item };
+  const dongName = readString(record, ["dongName", "umdNm", "법정동명", "법정동"]);
+  const jibun = readString(record, ["jibun", "지번"]);
+  const roadName = readString(record, ["roadName", "roadNm", "도로명"]);
+  const lat = typeof record.lat === "number" ? record.lat : (record.lat ? parseFloat(String(record.lat)) : undefined);
+  const lng = typeof record.lng === "number" ? record.lng : (record.lng ? parseFloat(String(record.lng)) : undefined);
+
+  return { 
+    apartmentName, 
+    dealDate, 
+    priceEok, 
+    areaM2, 
+    floor, 
+    dongName: dongName || undefined, 
+    jibun: jibun || undefined, 
+    roadName: roadName || undefined, 
+    lat: lat && !isNaN(lat) ? lat : undefined,
+    lng: lng && !isNaN(lng) ? lng : undefined,
+    raw: item 
+  };
 }
 
 export function getMonthsInRange(start: string, end: string): string[] {

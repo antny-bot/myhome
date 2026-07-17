@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { loadAdminDbTables, executeAdminDbQuery, searchComplexNames, clearDatabase, deleteDbRegion, deleteDbComplex } from "../api";
+import { useBreakpoint } from "../useBreakpoint";
+import { loadAdminDbTables, executeAdminDbQuery, searchComplexNames, clearDatabase, deleteDbRegion, deleteDbComplex, loadGeocodeStats, triggerGeocodeBatch } from "../api";
 import { SectionCard } from "../components/SectionCard";
 import { Play, Database, RefreshCw, AlertCircle, CheckCircle2, ChevronRight, FileText } from "lucide-react";
 import { copy } from "../locales/ko";
@@ -27,7 +28,51 @@ type QueryResult = {
 };
 
 export function DatabaseAdminPage() {
+  const { isMobile } = useBreakpoint();
   const [tables, setTables] = useState<string[]>([]);
+
+  // Geocoding 통계 상태
+  const [geocodeStats, setGeocodeStats] = useState<{
+    total: number;
+    geocoded: number;
+    pending: number;
+  } | null>(null);
+  const [batchLoading, setBatchLoading] = useState(false);
+  const [batchResult, setBatchResult] = useState<{ total: number; success: number; failed: number } | null>(null);
+
+  // Geocoding 통계 조회
+  const fetchGeocodeStats = async () => {
+    try {
+      const stats = await loadGeocodeStats();
+      setGeocodeStats(stats);
+    } catch (err) {
+      console.error("Failed to load geocode stats", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchGeocodeStats();
+  }, []);
+
+  const geocodePercentage = useMemo(() => {
+    if (!geocodeStats || geocodeStats.total === 0) return 0;
+    return Math.round((geocodeStats.geocoded / geocodeStats.total) * 100);
+  }, [geocodeStats]);
+
+  // 일괄 Geocoding 실행
+  const handleGeocodeBatch = async () => {
+    setBatchLoading(true);
+    setBatchResult(null);
+    try {
+      const res = await triggerGeocodeBatch();
+      setBatchResult(res);
+      await fetchGeocodeStats();
+    } catch (err: any) {
+      alert(err.message || "Geocoding 배치 실행에 실패했습니다.");
+    } finally {
+      setBatchLoading(false);
+    }
+  };
   const [schemas, setSchemas] = useState<Record<string, SchemaInfo[]>>({});
   const [selectedTable, setSelectedTable] = useState<string>("");
   const [loadingSchema, setLoadingSchema] = useState(false);
@@ -169,15 +214,15 @@ export function DatabaseAdminPage() {
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-col gap-1">
-        <div className="flex items-center gap-2 text-xs text-assistive">
-          <span>관리자</span>
-          <ChevronRight className="h-3 w-3" />
-          <span className="font-semibold text-neutral">데이터베이스</span>
-        </div>
-        <h2 className="text-2xl font-black text-strong tracking-tight">{t.dbAdminTitle}</h2>
-        <p className="text-sm text-neutral">{t.dbAdminSubtitle}</p>
-      </header>
+      {!isMobile && (
+        <header className="flex flex-col gap-1">
+          <h2 className="text-2xl font-black text-strong tracking-tight mt-1 flex items-center gap-2">
+            <Database className="text-primary h-6 w-6" />
+            {t.dbAdminTitle}
+          </h2>
+          <p className="text-sm text-neutral">{t.dbAdminSubtitle}</p>
+        </header>
+      )}
 
       {/* 2열 반응형 레이아웃 */}
       <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
@@ -299,6 +344,59 @@ export function DatabaseAdminPage() {
 
         {/* 우측: 데이터 관리 도구 및 SQL 에디터 */}
         <div className="space-y-6">
+          {/* Geocoding 좌표 캐싱 관리 */}
+          <SectionCard title="⚙️ Geocoding 좌표 캐싱 관리">
+            <div className="space-y-4">
+              <p className="text-xs text-neutral">
+                지하철역 주변 역세권 분석 속도 및 데이터 정확도 향상을 위해 로컬 DB에 등록된 아파트 단지 주소를 위도·경도 좌표로 일괄 변환(Geocoding) 및 캐싱합니다.
+              </p>
+              <div className="flex justify-between items-center text-xs font-bold border-t border-normal/50 pt-3">
+                <span className="text-neutral">좌표 데이터 현황</span>
+                <span className="text-strong">
+                  {geocodeStats?.geocoded || 0} / {geocodeStats?.total || 0} 단지 ({geocodePercentage}%)
+                </span>
+              </div>
+              <div className="w-full h-2 rounded-full bg-alternative overflow-hidden border border-normal">
+                <div
+                  className="h-full bg-emerald-500 transition-all duration-500"
+                  style={{ width: `${geocodePercentage}%` }}
+                />
+              </div>
+
+              {geocodeStats && geocodeStats.pending > 0 ? (
+                <div className="space-y-3">
+                  <p className="text-[11px] text-neutral leading-relaxed">
+                    현재 DB에 등록된 아파트 중 <strong>{geocodeStats.pending}개</strong> 단지의 위도·경도 좌표가 없습니다.
+                    국토부 지번 주소 기반으로 카카오 Geocoding 일괄 수집을 실행할 수 있습니다.
+                  </p>
+                  <button
+                    onClick={handleGeocodeBatch}
+                    disabled={batchLoading}
+                    className="w-full py-2.5 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-500 active:scale-95 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 disabled:opacity-50"
+                  >
+                    {batchLoading ? (
+                      <RefreshCw size={15} className="animate-spin" />
+                    ) : (
+                      <Play size={15} />
+                    )}
+                    <span>{batchLoading ? "좌표 수집 중..." : "좌표 미확보 단지 일괄 수집"}</span>
+                  </button>
+                </div>
+              ) : (
+                <p className="text-[11px] text-emerald-500 font-semibold flex items-center gap-1.5 py-2">
+                  ✓ 모든 아파트 단지의 위도·경도 좌표가 확보되었습니다.
+                </p>
+              )}
+
+              {batchResult && (
+                <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-[11px] text-emerald-600 font-bold space-y-1">
+                  <p>✓ Geocoding 수집 배치 완료</p>
+                  <p>- 대상: {batchResult.total}건 / 성공: {batchResult.success}건 / 실패: {batchResult.failed}건</p>
+                </div>
+              )}
+            </div>
+          </SectionCard>
+
           <SectionCard title="데이터 관리 도구">
             <div className="space-y-4">
               <p className="text-xs text-neutral">

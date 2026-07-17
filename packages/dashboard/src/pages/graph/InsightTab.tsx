@@ -98,11 +98,11 @@ const MarkdownComponents = {
     const match = /language-(\w+)/.exec(className || "");
     const inline = !match;
     return inline ? (
-      <code className="bg-normal border border-normal px-1 py-0.5 rounded text-[10px] font-mono text-primary" {...props}>
+      <code className="bg-normal border border-normal px-1 py-0.5 rounded text-xs font-mono text-primary" {...props}>
         {children}
       </code>
     ) : (
-      <pre className="bg-normal border border-normal p-3 rounded-lg overflow-x-auto text-[10px] font-mono text-neutral mb-3.5 leading-relaxed">
+      <pre className="bg-normal border border-normal p-3 rounded-lg overflow-x-auto text-xs font-mono text-neutral mb-3.5 leading-relaxed">
         <code className={className} {...props}>
           {children}
         </code>
@@ -114,7 +114,7 @@ const MarkdownComponents = {
   ),
   table: ({ ...props }) => (
     <div className="overflow-x-auto my-3 border border-normal rounded-lg">
-      <table className="min-w-full divide-y divide-normal text-left text-[11px]" {...props} />
+      <table className="min-w-full divide-y divide-normal text-left text-xs" {...props} />
     </div>
   ),
   thead: ({ ...props }) => <thead className="bg-alternative text-neutral" {...props} />,
@@ -259,12 +259,12 @@ export default function InsightTab({ filter }: InsightTabProps) {
             {/* 템플릿 선택 */}
             <div className="flex flex-col gap-1.5">
               <label className="text-xs text-neutral font-semibold">{t("templateType")}</label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="flex md:grid md:grid-cols-3 gap-2 overflow-x-auto pb-1 max-w-full shrink-0">
                 {promptTemplates.map((item) => (
                   <button
                     key={item.id}
                     onClick={() => setSelectedTemplateId(item.id)}
-                    className={`py-2 px-3 text-xs font-semibold rounded-lg border transition ${
+                    className={`py-2 px-3 text-xs font-semibold rounded-lg border transition whitespace-nowrap ${
                       selectedTemplateId === item.id
                         ? "bg-primary/20 border-primary text-primary"
                         : "bg-normal border-normal hover:bg-alternative text-neutral"
@@ -421,12 +421,12 @@ export default function InsightTab({ filter }: InsightTabProps) {
                   >
                     <div className="space-y-1">
                       <p className="font-semibold text-sm text-strong">{insight.title}</p>
-                      <div className="flex items-center gap-3 text-[11px] text-assistive">
+                      <div className="flex items-center gap-3 text-[10px] text-assistive">
                         <span className="flex items-center gap-1">
                           <Calendar size={11} />
                           {new Date(insight.createdAt).toLocaleDateString()}
                         </span>
-                        <span className="px-1.5 py-0.5 bg-alternative rounded text-[9px] font-semibold text-neutral">
+                        <span className="px-1.5 py-0.5 bg-alternative rounded text-[10px] font-semibold text-neutral">
                           {insight.promptTemplate === "price-trend"
                             ? t("priceTrend")
                             : insight.promptTemplate === "investment-eval"
@@ -474,7 +474,7 @@ export default function InsightTab({ filter }: InsightTabProps) {
                           <summary className="text-[10px] text-assistive hover:text-neutral outline-none select-none">
                             {t("promptSourceFolding")}
                           </summary>
-                          <pre className="mt-2 p-3 bg-elevated border border-normal rounded text-[10px] font-mono text-assistive whitespace-pre-wrap select-all">
+                          <pre className="mt-2 p-3 bg-elevated border border-normal rounded text-xs font-mono text-assistive whitespace-pre-wrap select-all">
                             {insight.generatedPrompt}
                           </pre>
                         </details>
@@ -501,7 +501,7 @@ export default function InsightTab({ filter }: InsightTabProps) {
                     <Calendar size={10} />
                     {new Date(modalInsight.createdAt).toLocaleDateString()}
                   </span>
-                  <span className="px-1.5 py-0.2 bg-alternative rounded text-[9px] font-semibold text-neutral">
+                  <span className="px-1.5 py-0.2 bg-alternative rounded text-[10px] font-semibold text-neutral">
                     {modalInsight.promptTemplate === "price-trend"
                       ? t("priceTrend")
                       : modalInsight.promptTemplate === "investment-eval"

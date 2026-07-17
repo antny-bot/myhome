@@ -20,6 +20,8 @@ interface ComplexSummary {
   maxPrice: number;
   count: number;
   address: string;
+  lat?: number | null;
+  lng?: number | null;
 }
 
 // 주소-좌표 변환용 글로벌/메모리 캐시
@@ -54,17 +56,23 @@ export function KakaoMap({
       const prices = list.map((item) => item.priceEok);
       const avgPrice = prices.reduce((sum, v) => sum + v, 0) / prices.length;
       const maxPrice = Math.max(...prices);
-      // 검색된 지역명(searchedRegion)과 아파트명을 결합하여 검색 주소 생성
-      // 괄호 및 괄호 안의 브랜드명 등은 카카오 Geocoder 매칭률을 높이기 위해 정제합니다. (예: "봇들마을7단지(금호어울림)" -> "봇들마을7단지")
+      
+      const firstRec = list[0];
       const cleanAptName = aptName.replace(/\(.*?\)/g, "").trim();
-      const address = `${searchedRegion} ${cleanAptName}`;
+      
+      // dongName과 jibun이 있으면 정밀한 지번 주소 조합, 없으면 기존대로 단지명 조합
+      const address = (firstRec.dongName && firstRec.jibun)
+        ? `${searchedRegion} ${firstRec.dongName} ${firstRec.jibun}`
+        : `${searchedRegion} ${cleanAptName}`;
 
       summaries.push({
         apartmentName: aptName,
         avgPrice,
         maxPrice,
         count: list.length,
-        address
+        address,
+        lat: firstRec.lat,
+        lng: firstRec.lng,
       });
     }
     return summaries;
@@ -146,7 +154,14 @@ export function KakaoMap({
 
       for (const summary of complexSummaries) {
         if (isCancelled) return;
-        const pos = await geocodeAddress(geocoder, summary.address);
+        
+        let pos: { lat: number; lng: number } | null = null;
+        if (summary.lat && summary.lng) {
+          pos = { lat: summary.lat, lng: summary.lng };
+        } else {
+          pos = await geocodeAddress(geocoder, summary.address);
+        }
+
         if (pos) {
           const kakaoCoords = new window.kakao.maps.LatLng(pos.lat, pos.lng);
           validPoints.push({ coords: kakaoCoords, summary });
@@ -185,7 +200,7 @@ export function KakaoMap({
             <div class="px-2.5 py-1.5 rounded-xl text-white font-bold flex flex-col items-center text-center shadow-lg ${colorClass}">
               <span class="text-[10px] opacity-90 truncate max-w-[110px] leading-tight font-medium">${summary.apartmentName}</span>
               <div class="flex items-baseline gap-0.5 mt-0.5">
-                <span class="text-xs font-black tracking-tight">${summary.avgPrice.toFixed(1)}</span>
+                <span class="text-xs font-black tracking-tight">${summary.avgPrice.toFixed(2)}</span>
                 <span class="text-[10px] font-bold opacity-80">${t.unitDeal}</span>
               </div>
               <span class="text-[9px] mt-0.5 px-1 py-0.2 bg-black/20 rounded font-semibold">${summary.count}${t.unitCount}</span>

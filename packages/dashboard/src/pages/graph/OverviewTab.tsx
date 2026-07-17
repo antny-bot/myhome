@@ -19,6 +19,7 @@ import { TrendingUp, DollarSign, Home, Activity } from "lucide-react";
 interface OverviewTabProps {
   data: any[]; // searchTransactions 결과
   onSelectComplex?: (complexName: string) => void;
+  areaUnit?: "pyeong" | "m2";
 }
 
 const tooltipContentStyle = {
@@ -66,25 +67,25 @@ const CustomTooltip = ({ active, payload, label }: any) => {
             </p>
           )}
           {maxVal !== undefined && (
-            <p className="text-red-500 flex justify-between gap-4">
+            <p className="flex justify-between gap-4" style={{ color: "var(--color-chart-max)" }}>
               <span>최고가:</span>
               <span className="font-bold">{maxVal.toFixed(2)} 억</span>
             </p>
           )}
           {avgVal !== undefined && (
-            <p className="text-blue-500 flex justify-between gap-4">
+            <p className="flex justify-between gap-4" style={{ color: "var(--color-chart-primary)" }}>
               <span>평균가:</span>
               <span className="font-bold">{avgVal.toFixed(2)} 억</span>
             </p>
           )}
           {medVal !== undefined && (
-            <p className="text-violet-500 flex justify-between gap-4">
+            <p className="flex justify-between gap-4" style={{ color: "var(--color-chart-median)" }}>
               <span>중위값:</span>
               <span className="font-bold">{medVal.toFixed(2)} 억</span>
             </p>
           )}
           {minVal !== undefined && (
-            <p className="text-emerald-500 flex justify-between gap-4">
+            <p className="flex justify-between gap-4" style={{ color: "var(--color-chart-min)" }}>
               <span>최저가:</span>
               <span className="font-bold">{minVal.toFixed(2)} 억</span>
             </p>
@@ -96,7 +97,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
-export default function OverviewTab({ data, onSelectComplex }: OverviewTabProps) {
+export default function OverviewTab({ data, onSelectComplex, areaUnit = "pyeong" }: OverviewTabProps) {
   const { isNarrow } = useBreakpoint();
   const [sizeFilter, setSizeFilter] = React.useState<"all" | "under20" | "20s" | "30s" | "over40">("all");
 
@@ -202,10 +203,10 @@ export default function OverviewTab({ data, onSelectComplex }: OverviewTabProps)
   // 실제 평수 기준 필터 버튼 옵션
   const sizeOptions = [
     { key: "all", label: "전체" },
-    { key: "under20", label: "20평 미만" },
-    { key: "20s", label: "20평대" },
-    { key: "30s", label: "30평대" },
-    { key: "over40", label: "40평 이상" },
+    { key: "under20", label: areaUnit === "pyeong" ? "20평 미만" : "50㎡ 미만" },
+    { key: "20s", label: areaUnit === "pyeong" ? "20평대" : "50㎡ ~ 80㎡" },
+    { key: "30s", label: areaUnit === "pyeong" ? "30평대" : "80㎡ ~ 110㎡" },
+    { key: "over40", label: areaUnit === "pyeong" ? "40평 이상" : "110㎡ 이상" },
   ] as const;
 
   const sizeFilterSelector = (
@@ -216,7 +217,7 @@ export default function OverviewTab({ data, onSelectComplex }: OverviewTabProps)
           onClick={() => setSizeFilter(opt.key)}
           className={`px-2 md:px-3 py-1 text-[9px] md:text-[10px] font-bold rounded-md transition-colors ${
             sizeFilter === opt.key
-              ? "bg-primary text-white shadow-sm"
+              ? "bg-primary text-[var(--color-semantic-background-normal-normal)] shadow-sm"
               : "text-neutral hover:text-strong"
           }`}
         >
@@ -261,23 +262,23 @@ export default function OverviewTab({ data, onSelectComplex }: OverviewTabProps)
         {/* 커스텀 범례 */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mb-4">
           <div className="flex items-center gap-1.5">
-            <span className="inline-block w-3 h-3 rounded-sm opacity-60" style={{ backgroundColor: "#3b82f6" }} />
+            <span className="inline-block w-3 h-3 rounded-sm opacity-60" style={{ backgroundColor: "var(--color-chart-primary)" }} />
             <span className="text-xs text-neutral">거래량 (보조)</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: "#ef4444" }} />
+            <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: "var(--color-chart-max)" }} />
             <span className="text-xs text-neutral">최고가</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="inline-block w-3 h-3 rounded-sm opacity-60" style={{ backgroundColor: "#3b82f6" }} />
+            <span className="inline-block w-3 h-3 rounded-sm opacity-60" style={{ backgroundColor: "var(--color-chart-primary)" }} />
             <span className="text-xs text-neutral">평균가 (배경)</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: "#8b5cf6" }} />
+            <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: "var(--color-chart-median)" }} />
             <span className="text-xs text-neutral">중위값</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: "#10b981" }} />
+            <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: "var(--color-chart-min)" }} />
             <span className="text-xs text-neutral">최소가</span>
           </div>
         </div>
@@ -292,7 +293,7 @@ export default function OverviewTab({ data, onSelectComplex }: OverviewTabProps)
               <YAxis yAxisId="right" orientation="right" width={52} stroke="#64748b" fontSize={11} tickLine={false} label={{ value: "거래수(건)", angle: 90, position: "insideRight", fill: "#64748b", fontSize: 10, offset: 6 }} domain={[(dataMin) => Math.max(0, Math.floor(dataMin * 0.9)), "auto"]} />
               <Tooltip content={<CustomTooltip />} />
               {/* 우측 Y축(거래량) 기준의 투명 Bar */}
-              <Bar yAxisId="right" dataKey="거래량" fill="#3b82f6" fillOpacity={0.15} radius={[4, 4, 0, 0]} barSize={24} />
+              <Bar yAxisId="right" dataKey="거래량" fill="var(--color-chart-primary)" fillOpacity={0.15} radius={[4, 4, 0, 0]} barSize={24} />
               
               {/* 평균가를 배경 반투명 Area 스타일로 뒷배경에 깔아줌 */}
               <Area
@@ -301,15 +302,15 @@ export default function OverviewTab({ data, onSelectComplex }: OverviewTabProps)
                 dataKey="평균가"
                 name="평균가 (배경)"
                 stroke="none"
-                fill="#3b82f6"
+                fill="var(--color-chart-primary)"
                 fillOpacity={0.08}
                 connectNulls={true}
               />
               
               {/* 좌측 Y축(가격) 기준의 최고, 중위, 최소 시계열 라인 */}
-              <Line yAxisId="left" type="monotone" dataKey="최대가" stroke="#ef4444" strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 4 }} connectNulls={true} />
-              <Line yAxisId="left" type="monotone" dataKey="중위값" stroke="#8b5cf6" strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 4 }} connectNulls={true} />
-              <Line yAxisId="left" type="monotone" dataKey="최소가" stroke="#10b981" strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 4 }} connectNulls={true} />
+              <Line yAxisId="left" type="monotone" dataKey="최대가" stroke="var(--color-chart-max)" strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 4 }} connectNulls={true} />
+              <Line yAxisId="left" type="monotone" dataKey="중위값" stroke="var(--color-chart-median)" strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 4 }} connectNulls={true} />
+              <Line yAxisId="left" type="monotone" dataKey="최소가" stroke="var(--color-chart-min)" strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 4 }} connectNulls={true} />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
@@ -322,7 +323,7 @@ export default function OverviewTab({ data, onSelectComplex }: OverviewTabProps)
           {/* 커스텀 범례 */}
           <div className="flex items-center gap-4 mb-4">
             <div className="flex items-center gap-1.5">
-              <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: "#10b981" }} />
+              <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: "var(--color-chart-min)" }} />
               <span className="text-xs text-neutral">평균가</span>
             </div>
           </div>
@@ -333,7 +334,7 @@ export default function OverviewTab({ data, onSelectComplex }: OverviewTabProps)
                 <XAxis dataKey="name" stroke="#64748b" fontSize={10} tickLine={false} interval="preserveStartEnd" tickFormatter={(v) => v.split(" ").slice(-1)[0]} />
                 <YAxis width={52} stroke="#64748b" fontSize={11} tickLine={false} domain={[(dataMin) => Math.max(0, Math.floor(dataMin * 0.9)), "auto"]} />
                 <Tooltip contentStyle={tooltipContentStyle} />
-                <Bar dataKey="평균가" fill="#10b981" radius={[4, 4, 0, 0]} label={{ position: "top", fill: "#94a3b8", fontSize: 9 }} />
+                <Bar dataKey="평균가" fill="var(--color-chart-min)" radius={[4, 4, 0, 0]} label={{ position: "top", fill: "#94a3b8", fontSize: 9 }} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -344,7 +345,7 @@ export default function OverviewTab({ data, onSelectComplex }: OverviewTabProps)
           {/* 커스텀 범례 */}
           <div className="flex items-center gap-4 mb-4">
             <div className="flex items-center gap-1.5">
-              <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: "#f59e0b" }} />
+              <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: "var(--color-chart-accent)" }} />
               <span className="text-xs text-neutral">거래수</span>
             </div>
           </div>
@@ -357,7 +358,7 @@ export default function OverviewTab({ data, onSelectComplex }: OverviewTabProps)
                 <Tooltip contentStyle={tooltipContentStyle} />
                 <Bar
                   dataKey="거래수"
-                  fill="#f59e0b"
+                  fill="var(--color-chart-accent)"
                   radius={[0, 4, 4, 0]}
                   cursor="pointer"
                   onClick={(data) => {

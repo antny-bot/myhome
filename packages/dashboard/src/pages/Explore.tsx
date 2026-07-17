@@ -1,4 +1,4 @@
-import { ArrowDownRight, ArrowUpRight, ChevronRight, ChevronDown, LayoutGrid, TableProperties, RefreshCw, Search, MapPin } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, ChevronRight, ChevronDown, LayoutGrid, TableProperties, RefreshCw, Search, MapPin, History } from "lucide-react";
 import React, { useMemo, useState } from "react";
 import { searchTransactions, searchComplexNames, getApartments } from "../api";
 
@@ -82,10 +82,12 @@ function sortRecords(items: EnrichedRecord[], mode: SortMode) {
   });
 }
 
-function formatArea(item: EnrichedRecord) {
+function formatArea(item: EnrichedRecord, unit: "pyeong" | "m2") {
   if (item.areaM2 === undefined) return "-";
-  if (item.pyeong <= 0) return `${item.areaM2}㎡`;
-  return `${item.areaM2}㎡ · ${item.pyeong.toFixed(1)}평`;
+  if (unit === "pyeong") {
+    return `${item.pyeong.toFixed(1)}평`;
+  }
+  return `${item.areaM2.toFixed(1)}㎡`;
 }
 
 function DeltaTag({ value }: { value?: number }) {
@@ -133,6 +135,7 @@ export function ExplorePage() {
   const [priceMax, setPriceMax] = useState("");
   const [sortMode, setSortMode] = useState<SortMode>("date");
   const [viewMode, setViewMode] = useState<"grouped" | "table">("grouped");
+  const [areaUnit, setAreaUnit] = useState<"pyeong" | "m2">("pyeong");
 
   // 아파트 단지 연동 및 탭 상태
   const [selectedApartment, setSelectedApartment] = useState<string | null>(null);
@@ -290,18 +293,18 @@ export function ExplorePage() {
   const showMap = !isMobile || mobileActiveTab === "map";
 
   return (
-    <div className="space-y-4 flex flex-col min-h-0">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="mb-1 flex items-center gap-1.5 text-xs text-assistive font-bold">
-            <span>{t.breadcrumb}</span>
-            <ChevronRight className="h-3 w-3" />
-            <span>{t.subBreadcrumb}</span>
-          </p>
-          <h2 className="text-2xl font-black tracking-tight text-strong">{t.title}</h2>
-          <p className="mt-1 max-w-3xl text-xs text-neutral">{t.subtitle}</p>
-        </div>
-      </header>
+    <div className="space-y-6 flex flex-col min-h-0">
+      {!isMobile && (
+        <header className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-black text-strong tracking-tight mt-1 flex items-center gap-2">
+              <History className="text-primary h-6 w-6" />
+              {t.title}
+            </h2>
+            <p className="mt-1 max-w-3xl text-sm text-neutral">{t.subtitle}</p>
+          </div>
+        </header>
+      )}
 
       <SectionCard className="p-3 md:p-4">
         <div className="space-y-3">
@@ -558,9 +561,9 @@ export function ExplorePage() {
       {/* KPI 카드 섹션 */}
       <section className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         <KpiCard label={t.recordCount} value={`${kpis.count}${t.unitCount}`} hint={t.searchScope} />
-        <KpiCard label={t.averagePrice} value={`${kpis.avgPrice.toFixed(1)}${t.unitDeal}`} hint={searchedRegion || t.prompt} />
+        <KpiCard label={t.averagePrice} value={`${kpis.avgPrice.toFixed(2)}${t.unitDeal}`} hint={searchedRegion || t.prompt} />
         <KpiCard label={t.averagePpy} value={kpis.avgPpy > 0 ? `${kpis.avgPpy.toLocaleString()}${t.unitPpy}` : "-"} hint={t.ppyHint} />
-        <KpiCard label={t.priceRange} value={kpis.count > 0 ? `${kpis.maxPrice.toFixed(1)} · ${kpis.minPrice.toFixed(1)}${t.unitDeal}` : "-"} hint={t.searchScope} />
+        <KpiCard label={t.priceRange} value={kpis.count > 0 ? `${kpis.maxPrice.toFixed(2)} · ${kpis.minPrice.toFixed(2)}${t.unitDeal}` : "-"} hint={t.searchScope} />
       </section>
 
       {/* 메인 결과 분할 뷰 영역 */}
@@ -578,29 +581,56 @@ export function ExplorePage() {
                 <p className="text-[10px] text-neutral mt-0.5">{t.resultSubtitle}</p>
               </div>
               {results.length > 0 && (
-                <div className="flex items-center gap-0.5 rounded-lg border border-normal p-0.5 bg-alternative">
-                  <button
-                    type="button"
-                    onClick={() => setViewMode("grouped")}
-                    className={classNames(
-                      "flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-bold transition-colors",
-                      viewMode === "grouped" ? "bg-primary text-white" : "text-neutral hover:text-strong"
-                    )}
-                  >
-                    <LayoutGrid className="h-3 w-3" />
-                    {t.groupedView}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setViewMode("table")}
-                    className={classNames(
-                      "flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-bold transition-colors",
-                      viewMode === "table" ? "bg-primary text-white" : "text-neutral hover:text-strong"
-                    )}
-                  >
-                    <TableProperties className="h-3 w-3" />
-                    {t.tableView}
-                  </button>
+                <div className="flex items-center gap-2">
+                  {/* 면적 단위 토글 버튼 */}
+                  <div className="flex items-center gap-0.5 rounded-lg border border-normal p-0.5 bg-alternative">
+                    <button
+                      type="button"
+                      onClick={() => setAreaUnit("pyeong")}
+                      className={classNames(
+                        "rounded-md px-2 py-0.5 text-[10px] font-bold transition-colors",
+                        areaUnit === "pyeong" ? "bg-primary text-white" : "text-neutral hover:text-strong"
+                      )}
+                    >
+                      평
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAreaUnit("m2")}
+                      className={classNames(
+                        "rounded-md px-2 py-0.5 text-[10px] font-bold transition-colors",
+                        areaUnit === "m2" ? "bg-primary text-white" : "text-neutral hover:text-strong"
+                      )}
+                    >
+                      ㎡
+                    </button>
+                  </div>
+
+                  {/* 뷰 모드 토글 버튼 */}
+                  <div className="flex items-center gap-0.5 rounded-lg border border-normal p-0.5 bg-alternative">
+                    <button
+                      type="button"
+                      onClick={() => setViewMode("grouped")}
+                      className={classNames(
+                        "flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-bold transition-colors",
+                        viewMode === "grouped" ? "bg-primary text-white" : "text-neutral hover:text-strong"
+                      )}
+                    >
+                      <LayoutGrid className="h-3 w-3" />
+                      {t.groupedView}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setViewMode("table")}
+                      className={classNames(
+                        "flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-bold transition-colors",
+                        viewMode === "table" ? "bg-primary text-white" : "text-neutral hover:text-strong"
+                      )}
+                    >
+                      <TableProperties className="h-3 w-3" />
+                      {t.tableView}
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -632,6 +662,7 @@ export function ExplorePage() {
                       setSelectedApartment(aptName);
                       // 지도로 포커스도 주고, 원한다면 검색 필터를 고정
                     }}
+                    areaUnit={areaUnit}
                   />
                 ) : (
                   <div className="overflow-x-auto">
@@ -661,7 +692,7 @@ export function ExplorePage() {
                                 <p className="font-bold text-strong text-xs">{item.apartmentName}</p>
                                 <p className="text-[10px] text-assistive mt-0.5">{item.dealDate}</p>
                               </td>
-                              <td className="px-3 py-2.5 text-neutral">{formatArea(item)}</td>
+                              <td className="px-3 py-2.5 text-neutral">{formatArea(item, areaUnit)}</td>
                               <td className="px-3 py-2.5 text-right tabular-nums text-strong">{item.floor ? `${item.floor}층` : "-"}</td>
                               <td className="px-3 py-2.5 text-right tabular-nums text-strong font-extrabold text-primary">{item.priceEok.toFixed(2)}{t.unitDeal}</td>
                               <td className="px-3 py-2.5 text-right tabular-nums text-neutral">{item.ppy > 0 ? `${item.ppy.toLocaleString()}` : "-"}</td>
@@ -673,7 +704,16 @@ export function ExplorePage() {
                   </div>
                 )
               ) : (
-                <p className="py-16 text-center text-xs text-neutral">{loading ? t.loading : results.length > 0 ? t.noResults : t.prompt}</p>
+                <div className="py-16 flex flex-col items-center justify-center gap-3">
+                  {loading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+                      <p className="text-xs text-neutral">{t.loading}</p>
+                    </>
+                  ) : (
+                    <p className="text-xs text-neutral">{results.length > 0 ? t.noResults : t.prompt}</p>
+                  )}
+                </div>
               )}
             </div>
           </div>

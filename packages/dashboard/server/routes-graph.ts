@@ -15,10 +15,13 @@ import {
   getAllDbRegions,
   getComplexesByRegion,
   getDailyCollectionStats,
-  getRegionCollectionStatsByDate
+  getRegionCollectionStatsByDate,
+  getMonthlyCollectionStats,
+  getRegionCollectionStatsByMonth
 } from "@myhome/shared";
 import { readPresets, savePreset, deletePreset } from "./graphPresets.js";
 import { readInsights, saveInsight, deleteInsight } from "./graphInsights.js";
+import { findComplexesNearStation, batchGeocodeComplexes } from "./geocoding.js";
 
 export function createGraphRouter(): Router {
   const router = Router();
@@ -212,16 +215,34 @@ export function createGraphRouter(): Router {
     }
   });
 
-  /** GET /api/graph/collect-stats/region — 특정 날짜의 지역별 수집 집계 */
+  /** GET /api/graph/collect-stats/monthly — 등록월 단위 수집 집계 */
+  router.get("/collect-stats/monthly", async (_req, res) => {
+    try {
+      const stats = await getMonthlyCollectionStats();
+      res.json(stats);
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message ?? "내부 오류" });
+    }
+  });
+
+  /** GET /api/graph/collect-stats/region — 특정 날짜 또는 월의 지역별 수집 집계 */
   router.get("/collect-stats/region", async (req, res) => {
     try {
-      const date = req.query.date as string;
-      if (!date) {
-        res.status(400).json({ error: "date 파라미터가 누락되었습니다." });
+      const date = req.query.date as string | undefined;
+      const month = req.query.month as string | undefined;
+
+      if (!date && !month) {
+        res.status(400).json({ error: "date 또는 month 파라미터가 누락되었습니다." });
         return;
       }
-      const stats = await getRegionCollectionStatsByDate(date);
-      res.json(stats);
+
+      if (month) {
+        const stats = await getRegionCollectionStatsByMonth(month);
+        res.json(stats);
+      } else if (date) {
+        const stats = await getRegionCollectionStatsByDate(date);
+        res.json(stats);
+      }
     } catch (err: any) {
       res.status(500).json({ error: err?.message ?? "내부 오류" });
     }
@@ -305,6 +326,51 @@ export function createGraphRouter(): Router {
       } else {
         res.status(404).json({ error: "존재하지 않는 인사이트 ID입니다." });
       }
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message ?? "내부 오류" });
+    }
+  });
+  // ──────────────────────────────────────────────────
+  // 역세권 / Geocoding API
+  // ──────────────────────────────────────────────────
+
+  /** GET /api/graph/nearby-station — 지하철역 반경 내 아파트 단지 검색 */
+  router.get("/nearby-station", async (req, res) => {
+    try {
+      const station = (req.query.station as string || "").trim();
+      const radius = req.query.radius ? Number(req.query.radius) : 500;
+      if (!station) {
+        res.status(400).json({ error: "station 파라미터가 누락되었습니다." });
+        return;
+      }
+      if (radius < 100 || radius > 5000) {
+        res.status(400).json({ error: "radius는 100~5000 사이여야 합니다." });
+        return;
+      }
+      const result = await findComplexesNearStation(station, radius);
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message ?? "내부 오류" });
+    }
+  });
+
+  /** POST /api/graph/geocode-batch — 좌표 미확보 단지 일괄 Geocoding */
+  router.post("/geocode-batch", async (req, res) => {
+    try {
+      const lawdCode = req.body?.lawdCode as string | undefined;
+      const result = await batchGeocodeComplexes(lawdCode);
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message ?? "내부 오류" });
+    }
+  });
+
+  /** GET /api/graph/geocode-stats — Geocoding 현황 통계 */
+  router.get("/geocode-stats", async (_req, res) => {
+    try {
+      const { getGeocodeStats } = await import("@myhome/shared");
+      const stats = getGeocodeStats();
+      res.json(stats);
     } catch (err: any) {
       res.status(500).json({ error: err?.message ?? "내부 오류" });
     }

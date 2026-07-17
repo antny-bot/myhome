@@ -71,14 +71,31 @@ const tooltipContentStyle = {
   fontSize: "12px",
 };
 
-const lineColors = ["#10b981", "#3b82f6", "#f59e0b", "#ec4899", "#8b5cf6", "#14b8a6", "#ef4444"];
+const lineColors = [
+  "var(--color-chart-min)",
+  "var(--color-chart-primary)",
+  "var(--color-chart-accent)",
+  "var(--color-chart-floor)",
+  "var(--color-chart-median)",
+  "var(--color-semantic-primary-normal)",
+  "var(--color-chart-max)"
+];
 
 interface ComplexTabProps {
   initialComplexName?: string;
   lawdCode?: string;
+  areaUnit?: "pyeong" | "m2";
 }
 
-export default function ComplexTab({ initialComplexName = "", lawdCode }: ComplexTabProps) {
+export default function ComplexTab({ initialComplexName = "", lawdCode, areaUnit = "pyeong" }: ComplexTabProps) {
+  const formatSizeString = (sizeStr: string, unit: "pyeong" | "m2") => {
+    const num = parseFloat(sizeStr);
+    if (isNaN(num)) return sizeStr;
+    if (unit === "pyeong") {
+      return `${Math.round(num / 3.305785)}평`;
+    }
+    return `${Math.round(num)}㎡`;
+  };
   const { isNarrow } = useBreakpoint();
   const [complexName, setComplexName] = useState(initialComplexName);
   const [selectedArea, setSelectedArea] = useState<number | undefined>(undefined);
@@ -208,7 +225,7 @@ export default function ComplexTab({ initialComplexName = "", lawdCode }: Comple
             onClick={() => setSelectedArea(undefined)}
             className={`px-3 py-1 text-xs font-semibold rounded-md transition whitespace-nowrap ${
               selectedArea === undefined
-                ? "bg-primary text-white shadow-sm"
+                ? "bg-primary text-[var(--color-semantic-background-normal-normal)] shadow-sm"
                 : "text-neutral hover:text-strong"
             }`}
           >
@@ -223,11 +240,11 @@ export default function ComplexTab({ initialComplexName = "", lawdCode }: Comple
                 onClick={() => setSelectedArea(areaNum)}
                 className={`px-3 py-1 text-xs font-semibold rounded-md transition whitespace-nowrap ${
                   isActive
-                    ? "bg-primary text-white shadow-sm"
+                    ? "bg-primary text-[var(--color-semantic-background-normal-normal)] shadow-sm"
                     : "text-neutral hover:text-strong"
                 }`}
               >
-                {size}
+                {formatSizeString(size, areaUnit)}
               </button>
             );
           })}
@@ -247,11 +264,11 @@ export default function ComplexTab({ initialComplexName = "", lawdCode }: Comple
             {/* 커스텀 범례 (클릭 시 토글 가능) */}
             <div className="flex flex-wrap items-center gap-4 mb-4">
               {[
-                { key: "최대가", label: "최대가", color: "#ef4444", type: "line" },
-                { key: "평균가", label: "평균가", color: "#3b82f6", type: "area" },
-                { key: "중위값", label: "중위값", color: "#8b5cf6", type: "line" },
-                { key: "최소가", label: "최소가", color: "#10b981", type: "line" },
-                { key: "거래량", label: "거래량", color: "#3b82f6", type: "bar" }
+                { key: "최대가", label: "최대가", color: "var(--color-chart-max)", type: "line" },
+                { key: "평균가", label: "평균가", color: "var(--color-chart-primary)", type: "area" },
+                { key: "중위값", label: "중위값", color: "var(--color-chart-median)", type: "line" },
+                { key: "최소가", label: "최소가", color: "var(--color-chart-min)", type: "line" },
+                { key: "거래량", label: "거래량", color: "var(--color-chart-primary)", type: "bar" }
               ].map((item) => {
                 const isHidden = hiddenKeys[item.key];
                 return (
@@ -285,7 +302,7 @@ export default function ComplexTab({ initialComplexName = "", lawdCode }: Comple
                   
                   {/* 우측 Y축 기준의 거래량 Bar (뒷배경) */}
                   {!hiddenKeys["거래량"] && (
-                    <Bar yAxisId="right" dataKey="거래량" name="거래량" fill="#3b82f6" fillOpacity={0.15} radius={[4, 4, 0, 0]} barSize={24} />
+                    <Bar yAxisId="right" dataKey="거래량" name="거래량" fill="var(--color-chart-primary)" fillOpacity={0.15} radius={[4, 4, 0, 0]} barSize={24} />
                   )}
 
                   {/* 평균가를 배경 반투명 Area 스타일로 뒷배경에 깔아줌 */}
@@ -296,7 +313,7 @@ export default function ComplexTab({ initialComplexName = "", lawdCode }: Comple
                       dataKey="평균가"
                       name="평균가 (배경)"
                       stroke="none"
-                      fill="#3b82f6"
+                      fill="var(--color-chart-primary)"
                       fillOpacity={0.08}
                       connectNulls={true}
                     />
@@ -304,13 +321,13 @@ export default function ComplexTab({ initialComplexName = "", lawdCode }: Comple
                   
                   {/* 최대가, 중위값, 최소가 선 그래프 드로잉 (평균가 Line 제거) */}
                   {!hiddenKeys["최대가"] && (
-                    <Line yAxisId="left" type="monotone" dataKey="최대가" name="최대가" stroke="#ef4444" strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 4 }} connectNulls={true} />
+                    <Line yAxisId="left" type="monotone" dataKey="최대가" name="최대가" stroke="var(--color-chart-max)" strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 4 }} connectNulls={true} />
                   )}
                   {!hiddenKeys["중위값"] && (
-                    <Line yAxisId="left" type="monotone" dataKey="중위값" name="중위값" stroke="#8b5cf6" strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 4 }} connectNulls={true} />
+                    <Line yAxisId="left" type="monotone" dataKey="중위값" name="중위값" stroke="var(--color-chart-median)" strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 4 }} connectNulls={true} />
                   )}
                   {!hiddenKeys["최소가"] && (
-                    <Line yAxisId="left" type="monotone" dataKey="최소가" name="최소가" stroke="#10b981" strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 4 }} connectNulls={true} />
+                    <Line yAxisId="left" type="monotone" dataKey="최소가" name="최소가" stroke="var(--color-chart-min)" strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 4 }} connectNulls={true} />
                   )}
                 </ComposedChart>
               </ResponsiveContainer>
@@ -323,11 +340,11 @@ export default function ComplexTab({ initialComplexName = "", lawdCode }: Comple
               {/* 커스텀 범례 */}
               <div className="flex items-center gap-4 mb-4">
                 <div className="flex items-center gap-1.5">
-                  <span className="inline-block w-3 h-3 rounded bg-[#3b82f6]" />
+                  <span className="inline-block w-3 h-3 rounded bg-[var(--color-chart-primary)]" />
                   <span className="text-xs text-neutral">{`${t("avgPrice")} (${t("eokUnit")})`}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="inline-block w-3.5 h-0.5 bg-[#10b981]" />
+                  <span className="inline-block w-3.5 h-0.5 bg-[var(--color-chart-min)]" />
                   <span className="text-xs text-neutral">{`${t("txCount")} (${t("countUnit")})`}</span>
                 </div>
               </div>
@@ -335,14 +352,14 @@ export default function ComplexTab({ initialComplexName = "", lawdCode }: Comple
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={detailData.areaBreakdown} margin={{ top: 10, right: -5, left: -25, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                    <XAxis dataKey="area" stroke="#64748b" fontSize={11} tickLine={false} interval="preserveStartEnd" />
+                    <XAxis dataKey="area" stroke="#64748b" fontSize={11} tickLine={false} interval="preserveStartEnd" tickFormatter={(v) => formatSizeString(v, areaUnit)} />
                     {/* Y축 1: 평균 거래가 (억 원) */}
                     <YAxis yAxisId="left" width={52} stroke="#64748b" fontSize={11} tickLine={false} domain={[(dataMin) => Math.max(0, Math.floor(dataMin * 0.9)), "auto"]} />
                     {/* Y축 2: 거래 건수 (건) */}
                     <YAxis yAxisId="right" orientation="right" width={35} stroke="#64748b" fontSize={11} tickLine={false} domain={[(dataMin) => Math.max(0, Math.floor(dataMin * 0.9)), "auto"]} />
-                    <Tooltip contentStyle={tooltipContentStyle} />
-                    <Bar yAxisId="left" dataKey="avgPriceEok" name={`${t("avgPrice")} (${t("eokUnit")})`} fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                    <Line yAxisId="right" type="monotone" dataKey="count" name={`${t("txCount")} (${t("countUnit")})`} stroke="#10b981" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                    <Tooltip contentStyle={tooltipContentStyle} labelFormatter={(label) => formatSizeString(label, areaUnit)} />
+                    <Bar yAxisId="left" dataKey="avgPriceEok" name={`${t("avgPrice")} (${t("eokUnit")})`} fill="var(--color-chart-primary)" radius={[4, 4, 0, 0]} />
+                    <Line yAxisId="right" type="monotone" dataKey="count" name={`${t("txCount")} (${t("countUnit")})`} stroke="var(--color-chart-min)" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
@@ -353,11 +370,11 @@ export default function ComplexTab({ initialComplexName = "", lawdCode }: Comple
               {/* 커스텀 범례 */}
               <div className="flex items-center gap-4 mb-4">
                 <div className="flex items-center gap-1.5">
-                  <span className="inline-block w-3 h-3 rounded bg-[#f59e0b]" />
+                  <span className="inline-block w-3 h-3 rounded bg-[var(--color-chart-accent)]" />
                   <span className="text-xs text-neutral">{`${t("txCount")} (${t("countUnit")})`}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="inline-block w-3.5 h-0.5 bg-[#ec4899]" />
+                  <span className="inline-block w-3.5 h-0.5 bg-[var(--color-chart-floor)]" />
                   <span className="text-xs text-neutral">{`${t("avgPrice")} (${t("eokUnit")})`}</span>
                 </div>
               </div>
@@ -371,8 +388,8 @@ export default function ComplexTab({ initialComplexName = "", lawdCode }: Comple
                     {/* Y축 2: 평균 거래가 (억 원) */}
                     <YAxis yAxisId="right" orientation="right" width={35} stroke="#64748b" fontSize={11} tickLine={false} domain={[(dataMin) => Math.max(0, Math.floor(dataMin * 0.9)), "auto"]} />
                     <Tooltip contentStyle={tooltipContentStyle} />
-                    <Bar yAxisId="left" dataKey="count" name={`${t("txCount")} (${t("countUnit")})`} fill="#f59e0b" radius={[4, 4, 0, 0]} />
-                    <Line yAxisId="right" type="monotone" dataKey="avgPriceEok" name={`${t("avgPrice")} (${t("eokUnit")})`} stroke="#ec4899" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                    <Bar yAxisId="left" dataKey="count" name={`${t("txCount")} (${t("countUnit")})`} fill="var(--color-chart-accent)" radius={[4, 4, 0, 0]} />
+                    <Line yAxisId="right" type="monotone" dataKey="avgPriceEok" name={`${t("avgPrice")} (${t("eokUnit")})`} stroke="var(--color-chart-floor)" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
@@ -382,13 +399,13 @@ export default function ComplexTab({ initialComplexName = "", lawdCode }: Comple
           {/* 4. 최근 실거래 목록 */}
           <SectionCard title={t("recentTxTitle")}>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left text-neutral">
+              <table className="w-full text-sm text-left text-neutral tabular-nums">
                 <thead className="text-xs uppercase bg-alternative/60 text-neutral">
                   <tr>
                     <th scope="col" className="px-4 py-3">{t("dealDate")}</th>
-                    <th scope="col" className="px-4 py-3">{t("dealPrice")}</th>
-                    <th scope="col" className="px-4 py-3">{t("exclusiveArea")}</th>
-                    <th scope="col" className="px-4 py-3">{t("floor")}</th>
+                    <th scope="col" className="px-4 py-3 text-right">{t("dealPrice")}</th>
+                    <th scope="col" className="px-4 py-3 text-right">{t("exclusiveArea")}</th>
+                    <th scope="col" className="px-4 py-3 text-right">{t("floor")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -398,18 +415,20 @@ export default function ComplexTab({ initialComplexName = "", lawdCode }: Comple
                         <Calendar size={13} className="text-assistive" />
                         {tx.dealDate}
                       </td>
-                      <td className="px-4 py-3.5 text-primary font-bold">
-                        <span className="flex items-center gap-0.5">
+                      <td className="px-4 py-3.5 text-primary font-bold text-right">
+                        <span className="inline-flex items-center gap-0.5 justify-end">
                           <DollarSign size={13} />
                           {tx.priceEok.toFixed(2)}{t("eokUnit")}
                         </span>
                       </td>
-                      <td className="px-4 py-3.5">
-                        {tx.areaM2 ? `${Math.round(tx.areaM2)} ㎡` : "-"}
+                      <td className="px-4 py-3.5 text-right">
+                        {tx.areaM2 ? formatSizeString(String(tx.areaM2), areaUnit) : "-"}
                       </td>
-                      <td className="px-4 py-3.5 flex items-center gap-1 text-neutral">
-                        <Layers size={13} />
-                        {tx.floor ? `${tx.floor}${t("floorUnit")}` : "-"}
+                      <td className="px-4 py-3.5 text-neutral text-right">
+                        <span className="inline-flex items-center gap-1 justify-end">
+                          <Layers size={13} />
+                          {tx.floor ? `${tx.floor}${t("floorUnit")}` : "-"}
+                        </span>
                       </td>
                     </tr>
                   ))}

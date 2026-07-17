@@ -61,6 +61,19 @@ export function initDb(): void {
     CREATE INDEX IF NOT EXISTS idx_complexes_lawd_code ON complexes(lawd_code);
     CREATE INDEX IF NOT EXISTS idx_region_apartment_cache_lawd_code ON region_apartment_cache(lawd_code);
   `);
+
+  // -- complexes 테이블 주소·좌표 컬럼 마이그레이션 (기존 DB 호환)
+  const complexCols = db.prepare("PRAGMA table_info(complexes)").all() as { name: string }[];
+  const colNames = new Set(complexCols.map((c: any) => c.name));
+  if (!colNames.has('dong_name')) db.exec('ALTER TABLE complexes ADD COLUMN dong_name TEXT');
+  if (!colNames.has('jibun')) db.exec('ALTER TABLE complexes ADD COLUMN jibun TEXT');
+  if (!colNames.has('road_name')) db.exec('ALTER TABLE complexes ADD COLUMN road_name TEXT');
+  if (!colNames.has('lat')) db.exec('ALTER TABLE complexes ADD COLUMN lat REAL');
+  if (!colNames.has('lng')) db.exec('ALTER TABLE complexes ADD COLUMN lng REAL');
+  if (!colNames.has('geocoded_at')) db.exec('ALTER TABLE complexes ADD COLUMN geocoded_at TEXT');
+
+  // 좌표 보유 단지 조회 성능 인덱스
+  db.exec('CREATE INDEX IF NOT EXISTS idx_complexes_geocoded ON complexes(lat, lng) WHERE lat IS NOT NULL');
 }
 
 export function closeDb(): void {
@@ -94,7 +107,8 @@ export function makeGraphDedupeKey(
 export async function upsertTransaction(
   region: RegionInfo,
   complexName: string,
-  tx: TransactionNode
+  tx: TransactionNode,
+  addressInfo?: { dongName?: string; jibun?: string; roadName?: string }
 ): Promise<void> {
   const db = getDb();
   const now = new Date().toISOString();
@@ -108,12 +122,21 @@ export async function upsertTransaction(
       ON CONFLICT(lawd_code) DO UPDATE SET display_name = excluded.display_name
     `).run(region.lawdCode, region.displayName, now);
 
-    // 2. complex upsert
+    // 2. complex upsert (주소 정보 포함)
     const complexId = `${region.lawdCode}|${complexName}`;
     db.prepare(`
-      INSERT OR IGNORE INTO complexes (id, lawd_code, name, created_at)
-      VALUES (?, ?, ?, ?)
-    `).run(complexId, region.lawdCode, complexName, now);
+      INSERT INTO complexes (id, lawd_code, name, created_at, dong_name, jibun, road_name)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        dong_name = COALESCE(excluded.dong_name, complexes.dong_name),
+        jibun = COALESCE(excluded.jibun, complexes.jibun),
+        road_name = COALESCE(excluded.road_name, complexes.road_name)
+    `).run(
+      complexId, region.lawdCode, complexName, now,
+      addressInfo?.dongName ?? null,
+      addressInfo?.jibun ?? null,
+      addressInfo?.roadName ?? null
+    );
 
     // 3. transaction upsert
     db.prepare(`
@@ -765,11 +788,13 @@ export function getDailyCollectionStats(): DailyCollectStat[] {
   const db = getDb();
   const rows = db.prepare(`
     SELECT substr(collected_at, 1, 10) AS collectDate,
-           COUNT(*) AS count
+           COUNT(*) AS count,
+           ROUND(AVG(price_eok), 2) AS avgPriceEok,
+           COUNT(DISTINCT complex_id) AS complexCount
     FROM transactions
     GROUP BY collectDate
     ORDER BY collectDate ASC
-  `).all() as { collectDate: string; count: number }[];
+  `).all() as { collectDate: string; count: number; avgPriceEok: number; complexCount: number }[];
   return rows;
 }
 
@@ -789,6 +814,42 @@ export function getRegionCollectionStatsByDate(date: string): RegionCollectStat[
     GROUP BY r.lawd_code, r.display_name
     ORDER BY count DESC
   `).all(date) as { lawdCode: string; regionName: string; count: number }[];
+  return rows;
+}
+
+/**
+ * 등록월별(계약월별) 수집 건수 통계 조회
+ */
+export function getMonthlyCollectionStats(): DailyCollectStat[] {
+  const db = getDb();
+  const rows = db.prepare(`
+    SELECT substr(deal_date, 1, 7) AS collectDate,
+           COUNT(*) AS count,
+           ROUND(AVG(price_eok), 2) AS avgPriceEok,
+           COUNT(DISTINCT complex_id) AS complexCount
+    FROM transactions
+    GROUP BY collectDate
+    ORDER BY collectDate ASC
+  `).all() as { collectDate: string; count: number; avgPriceEok: number; complexCount: number }[];
+  return rows;
+}
+
+/**
+ * 특정 등록월(계약월, YYYY-MM)의 지역별 수집 건수 통계 조회
+ */
+export function getRegionCollectionStatsByMonth(month: string): RegionCollectStat[] {
+  const db = getDb();
+  const rows = db.prepare(`
+    SELECT r.lawd_code AS lawdCode,
+           r.display_name AS regionName,
+           COUNT(*) AS count
+    FROM transactions t
+    JOIN complexes c ON t.complex_id = c.id
+    JOIN regions r ON c.lawd_code = r.lawd_code
+    WHERE substr(t.deal_date, 1, 7) = ?
+    GROUP BY r.lawd_code, r.display_name
+    ORDER BY count DESC
+  `).all(month) as { lawdCode: string; regionName: string; count: number }[];
   return rows;
 }
 
@@ -813,7 +874,18 @@ export function getLocalTransactionsCount(lawdCode: string, dealMonth: string): 
 export function getLocalApartmentPrices(
   lawdCode: string,
   dealMonth: string
-): { apartmentName: string; dealDate: string; priceEok: number; areaM2: number; floor: number }[] {
+): { 
+  apartmentName: string; 
+  dealDate: string; 
+  priceEok: number; 
+  areaM2: number; 
+  floor: number;
+  dongName?: string | null;
+  jibun?: string | null;
+  roadName?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+}[] {
   const db = getDb();
   const dealMonthHyphen = `${dealMonth.slice(0, 4)}-${dealMonth.slice(4, 6)}`;
   const rows = db.prepare(`
@@ -821,7 +893,12 @@ export function getLocalApartmentPrices(
            t.deal_date AS dealDate,
            t.price_eok AS priceEok,
            t.area_m2 AS areaM2,
-           t.floor AS floor
+           t.floor AS floor,
+           c.dong_name AS dongName,
+           c.jibun AS jibun,
+           c.road_name AS roadName,
+           c.lat AS lat,
+           c.lng AS lng
     FROM transactions t
     JOIN complexes c ON t.complex_id = c.id
     WHERE c.lawd_code = ? AND t.deal_date LIKE ?
@@ -830,4 +907,65 @@ export function getLocalApartmentPrices(
   return rows;
 }
 
+/**
+ * 좌표 미확보 단지 목록 조회 (Geocoding 대상)
+ */
+export function getComplexesWithoutCoords(lawdCode?: string): { id: string; name: string; lawdCode: string; regionName: string; dongName: string | null; jibun: string | null; roadName: string | null }[] {
+  const db = getDb();
+  let query = `
+    SELECT c.id, c.name, c.lawd_code AS lawdCode, r.display_name AS regionName,
+           c.dong_name AS dongName, c.jibun, c.road_name AS roadName
+    FROM complexes c
+    JOIN regions r ON c.lawd_code = r.lawd_code
+    WHERE c.lat IS NULL
+  `;
+  const params: any[] = [];
+  if (lawdCode) {
+    query += ' AND c.lawd_code = ?';
+    params.push(lawdCode);
+  }
+  query += ' ORDER BY c.name ASC';
+  return db.prepare(query).all(...params) as any[];
+}
 
+/**
+ * 좌표 확보 단지 목록 조회 (반경 검색 대상)
+ */
+export function getComplexesWithCoords(lawdCode?: string): { id: string; name: string; lawdCode: string; regionName: string; lat: number; lng: number; dongName: string | null; jibun: string | null }[] {
+  const db = getDb();
+  let query = `
+    SELECT c.id, c.name, c.lawd_code AS lawdCode, r.display_name AS regionName,
+           c.lat, c.lng, c.dong_name AS dongName, c.jibun
+    FROM complexes c
+    JOIN regions r ON c.lawd_code = r.lawd_code
+    WHERE c.lat IS NOT NULL AND c.lng IS NOT NULL
+  `;
+  const params: any[] = [];
+  if (lawdCode) {
+    query += ' AND c.lawd_code = ?';
+    params.push(lawdCode);
+  }
+  query += ' ORDER BY c.name ASC';
+  return db.prepare(query).all(...params) as any[];
+}
+
+/**
+ * 단지 좌표 업데이트 (Geocoding 결과 저장)
+ */
+export function updateComplexCoords(complexId: string, lat: number, lng: number): void {
+  const db = getDb();
+  const now = new Date().toISOString();
+  db.prepare(`
+    UPDATE complexes SET lat = ?, lng = ?, geocoded_at = ? WHERE id = ?
+  `).run(lat, lng, now, complexId);
+}
+
+/**
+ * Geocoding 현황 통계 조회
+ */
+export function getGeocodeStats(): { total: number; geocoded: number; pending: number } {
+  const db = getDb();
+  const total = (db.prepare('SELECT COUNT(*) AS c FROM complexes').get() as any).c;
+  const geocoded = (db.prepare('SELECT COUNT(*) AS c FROM complexes WHERE lat IS NOT NULL').get() as any).c;
+  return { total, geocoded, pending: total - geocoded };
+}

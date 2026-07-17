@@ -13,7 +13,15 @@
   --color-semantic-primary-normal: #0066ff;
   --color-semantic-status-positive: #0f766e;
   --color-semantic-status-negative: #b45309;
+  --color-semantic-status-warning: #d97706;
   --color-semantic-line-normal-normal: #d7dee8;
+
+  --color-chart-primary: #3b82f6;
+  --color-chart-max: #ef4444;
+  --color-chart-min: #10b981;
+  --color-chart-median: #8b5cf6;
+  --color-chart-accent: #f59e0b;
+  --color-chart-floor: #ec4899;
 
   --font-body: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: SF Mono, ui-monospace, Monaco, "Segoe UI Mono", "Roboto Mono", monospace;
@@ -31,7 +39,15 @@
     --color-semantic-primary-normal: #4dabf7;
     --color-semantic-status-positive: #63e6be;
     --color-semantic-status-negative: #ffc078;
+    --color-semantic-status-warning: #fbbf24;
     --color-semantic-line-normal-normal: #343a40;
+
+    --color-chart-primary: #60a5fa;
+    --color-chart-max: #f87171;
+    --color-chart-min: #34d399;
+    --color-chart-median: #a78bfa;
+    --color-chart-accent: #fbbf24;
+    --color-chart-floor: #f472b6;
   }
 }
 
@@ -67,6 +83,12 @@ textarea {
 .bg-primary { background-color: var(--color-semantic-primary-normal); }
 .text-signal { color: var(--color-semantic-status-positive); }
 .text-warn { color: var(--color-semantic-status-negative); }
+.text-warning { color: var(--color-semantic-status-warning); }
+.bg-warning { background-color: var(--color-semantic-status-warning); }
+.bg-signal-light { background-color: color-mix(in srgb, var(--color-semantic-status-positive) 10%, transparent); }
+.bg-warn-light { background-color: color-mix(in srgb, var(--color-semantic-status-negative) 10%, transparent); }
+.bg-warning-light { background-color: color-mix(in srgb, var(--color-semantic-status-warning) 10%, transparent); }
+.bg-primary-light { background-color: color-mix(in srgb, var(--color-semantic-primary-normal) 10%, transparent); }
 
 /* 마우스/터치 클릭 시 발생하는 파란색/검은색 outline 테두리 제거 */
 *:focus:not(:focus-visible) {
