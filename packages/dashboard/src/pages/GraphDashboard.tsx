@@ -186,7 +186,7 @@ export default function GraphDashboard({ onNavigateToRules, initData, clearInitD
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
               </div>
             ) : (
-              <OverviewTab data={transactions} onSelectComplex={handleSelectComplex} areaUnit={areaUnit} />
+              <OverviewTab data={transactions} onSelectComplex={handleSelectComplex} areaUnit={areaUnit} locale={locale} />
             )}
           </>
         )}
