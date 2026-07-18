@@ -1,164 +1,160 @@
-import { Bell, History, LayoutDashboard, Menu, RefreshCw, Settings, Sparkles, X, LucideIcon, BarChart3, Database, ClipboardList, Sliders, Compass, Home, LogOut, UserCheck } from "lucide-react";
-import { useState } from "react";
+import { Bell, History, LayoutDashboard, Menu, X, LucideIcon, BarChart3, Database, ClipboardList, Compass, Home, LogOut, UserCheck, Sun, Moon, ShieldCheck, Star, Settings } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { classNames } from "../lib/format";
 import { useBreakpoint } from "../useBreakpoint";
+import { useTheme } from "../useTheme";
 import packageJson from "../../package.json";
 
 export type View = "dashboard" | "rules" | "explore" | "settings" | "analytics" | "dbAdmin" | "collect" | "nearby" | "allowedAccounts";
 
-const copy = {
-  ko: {
-    dashboard: "대시보드",
-    rules: "알림 규칙",
-    explore: "실거래 탐색",
-    analytics: "실거래 분석",
-    nearby: "역세권 분석",
-    collect: "수집 현황",
-    dbAdmin: "데이터베이스",
-    settings: "환경 설정",
-    allowedAccounts: "승인 계정",
-    dataConstraint: "데이터 제약",
-    dataConstraintDesc: "실거래가/단지정보 기준이며 호가 정보는 포함되지 않습니다.",
-    serviceName: "아파트 실거래 자동 알림 서비스",
-    closeMenu: "메뉴 닫기",
-    groupHome: "홈",
-    groupExplore: "조회",
-    groupAlert: "알림",
-    groupAdmin: "관리자",
-    groupSettings: "설정"
-  },
-  en: {
-    dashboard: "Dashboard",
-    rules: "Alert Rules",
-    explore: "Explore Deals",
-    analytics: "Real Estate Analytics",
-    nearby: "Station Area",
-    collect: "Collection Stats",
-    dbAdmin: "Database",
-    settings: "Settings",
-    allowedAccounts: "Allowed Accounts",
-    dataConstraint: "Data Constraints",
-    dataConstraintDesc: "Based on real transaction prices and complex details. Asking prices not included.",
-    serviceName: "Apartment Real Transaction Alert Service",
-    closeMenu: "Close Menu",
-    groupHome: "Home",
-    groupExplore: "Explore",
-    groupAlert: "Alerts",
-    groupAdmin: "Admin",
-    groupSettings: "Settings"
-  }
-} as const;
-
-const locale = "ko";
-const t = copy[locale];
-
-const navItems: Array<{ view: View; icon: LucideIcon; labelKey: keyof typeof copy.ko }> = [
-  { view: "dashboard", icon: LayoutDashboard, labelKey: "dashboard" },
-  { view: "rules", icon: Bell, labelKey: "rules" },
-  { view: "explore", icon: History, labelKey: "explore" },
-  { view: "analytics", icon: BarChart3, labelKey: "analytics" },
-  { view: "nearby", icon: Compass, labelKey: "nearby" },
-  { view: "collect", icon: ClipboardList, labelKey: "collect" },
-  { view: "dbAdmin", icon: Database, labelKey: "dbAdmin" },
-  { view: "allowedAccounts", icon: UserCheck, labelKey: "allowedAccounts" },
-  { view: "settings", icon: Settings, labelKey: "settings" }
-];
-
-const mobileNavItems: Array<
-  | { type: "link"; view: View; icon: LucideIcon; label: string }
-  | { type: "menu"; key: "admin"; icon: LucideIcon; label: string; subItems: Array<{ view: View; label: string; icon: LucideIcon }> }
-> = [
-  { type: "link", view: "dashboard", icon: LayoutDashboard, label: "홈" },
-  { type: "link", view: "explore", icon: History, label: "탐색" },
-  { type: "link", view: "analytics", icon: BarChart3, label: "분석" },
-  { type: "link", view: "rules", icon: Bell, label: "알림" },
-  {
-    type: "menu",
-    key: "admin",
-    icon: Sliders,
-    label: "관리자",
-    subItems: [
-      { view: "collect", label: "수집 현황", icon: ClipboardList },
-      { view: "dbAdmin", label: "데이터베이스", icon: Database },
-      { view: "allowedAccounts", label: "승인 계정", icon: UserCheck },
-      { view: "settings", label: "환경 설정", icon: Settings },
-    ]
-  }
-];
-
-interface NavGroup {
-  groupKey: "groupHome" | "groupExplore" | "groupAlert" | "groupAdmin" | "groupSettings";
-  items: Array<{
-    view: View;
-    icon: LucideIcon;
-    labelKey: "dashboard" | "rules" | "explore" | "analytics" | "collect" | "dbAdmin" | "settings" | "nearby" | "allowedAccounts";
-  }>;
+interface NavItemMeta {
+  key: View;
+  label: string;
+  compactLabel: string;
+  adminOnly: boolean;
+  Icon: LucideIcon;
 }
 
-const navGroups: NavGroup[] = [
-  {
-    groupKey: "groupHome",
-    items: [
-      { view: "dashboard", icon: LayoutDashboard, labelKey: "dashboard" }
-    ]
-  },
-  {
-    groupKey: "groupExplore",
-    items: [
-      { view: "explore", icon: History, labelKey: "explore" },
-      { view: "analytics", icon: BarChart3, labelKey: "analytics" },
-      { view: "nearby", icon: Compass, labelKey: "nearby" }
-    ]
-  },
-  {
-    groupKey: "groupAlert",
-    items: [
-      { view: "rules", icon: Bell, labelKey: "rules" }
-    ]
-  },
-  {
-    groupKey: "groupAdmin",
-    items: [
-      { view: "collect", icon: ClipboardList, labelKey: "collect" },
-      { view: "dbAdmin", icon: Database, labelKey: "dbAdmin" },
-      { view: "allowedAccounts", icon: UserCheck, labelKey: "allowedAccounts" }
-    ]
-  },
-  {
-    groupKey: "groupSettings",
-    items: [
-      { view: "settings", icon: Settings, labelKey: "settings" }
-    ]
-  }
+const NAV_ITEMS: NavItemMeta[] = [
+  { key: "dashboard", label: "대시보드", compactLabel: "대시보드", adminOnly: false, Icon: LayoutDashboard },
+  { key: "explore", label: "실거래 탐색", compactLabel: "탐색", adminOnly: false, Icon: History },
+  { key: "analytics", label: "실거래 분석", compactLabel: "분석", adminOnly: false, Icon: BarChart3 },
+  { key: "nearby", label: "역세권 분석", compactLabel: "역세권", adminOnly: false, Icon: Compass },
+  { key: "rules", label: "알림 규칙", compactLabel: "알림", adminOnly: false, Icon: Bell },
+  { key: "collect", label: "수집 현황", compactLabel: "수집", adminOnly: true, Icon: ClipboardList },
+  { key: "dbAdmin", label: "데이터베이스", compactLabel: "DB", adminOnly: true, Icon: Database },
+  { key: "allowedAccounts", label: "승인 계정", compactLabel: "승인", adminOnly: true, Icon: UserCheck },
+  { key: "settings", label: "환경 설정", compactLabel: "설정", adminOnly: false, Icon: Settings }
 ];
 
-function NavItem({
-  icon: Icon,
-  label,
-  active,
-  onClick,
-  collapsed = false
-}: {
-  icon: LucideIcon;
-  label: string;
-  active: boolean;
-  onClick: () => void;
-  collapsed?: boolean;
-}) {
+const DEFAULT_ORDER: View[] = [
+  "dashboard",
+  "explore",
+  "analytics",
+  "rules",
+  "nearby",
+  "collect",
+  "dbAdmin",
+  "allowedAccounts",
+  "settings"
+];
+
+const COLLAPSED_KEY = "myhome_sidebar_collapsed";
+const DEFAULT_PAGE_KEY = "myhome_default_page";
+
+function readCollapsed(): boolean {
+  try { return localStorage.getItem(COLLAPSED_KEY) === "1"; } catch { return false; }
+}
+function writeCollapsed(v: boolean) {
+  try { localStorage.setItem(COLLAPSED_KEY, v ? "1" : "0"); } catch {}
+}
+function readDefaultPage(): string | null {
+  try { return localStorage.getItem(DEFAULT_PAGE_KEY); } catch { return null; }
+}
+function writeDefaultPage(v: string | null) {
+  try {
+    if (v) localStorage.setItem(DEFAULT_PAGE_KEY, v);
+    else localStorage.removeItem(DEFAULT_PAGE_KEY);
+  } catch {}
+}
+
+interface AllMenuDrawerProps {
+  isAdmin: boolean;
+  defaultPage: string | null;
+  onDefaultChange: (view: View | null) => void;
+  onNavigate: (view: View) => void;
+  onClose: () => void;
+}
+
+function AllMenuDrawer({ isAdmin, defaultPage, onDefaultChange, onNavigate, onClose }: AllMenuDrawerProps) {
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [onClose]);
+
+  useEffect(() => {
+    const original = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = original;
+    };
+  }, []);
+
+  const visibleItems = NAV_ITEMS.filter(item => {
+    if (item.key === "settings") return false; // Settings is hidden from bottom nav and drawer
+    return !item.adminOnly || isAdmin;
+  });
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={classNames(
-        "w-full flex items-center rounded-xl transition-all",
-        collapsed ? "justify-center p-3" : "text-left gap-3 px-4 py-3",
-        active ? "bg-primary text-white font-bold shadow-md shadow-primary/20" : "text-neutral hover:bg-alternative hover:text-strong"
-      )}
-      title={collapsed ? label : undefined}
-    >
-      <Icon className="h-5 w-5 flex-shrink-0" />
-      {!collapsed && <span className="text-[15px] whitespace-nowrap">{label}</span>}
-    </button>
+    <>
+      <div
+        className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity"
+        onClick={onClose}
+      />
+      <div className="fixed inset-x-0 bottom-0 z-50 rounded-t-2xl bg-white dark:bg-slate-900 shadow-2xl max-h-[80vh] flex flex-col transition-transform transform translate-y-0 duration-200">
+        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 px-4 py-3 shrink-0">
+          <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">전체 메뉴</h2>
+          <p className="text-xs text-slate-400 dark:text-slate-500 flex-1 text-center">★ 터치 시 기본 시작 페이지 설정</p>
+          <button
+            onClick={onClose}
+            className="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 px-3 py-3">
+          <ul className="space-y-1">
+            {visibleItems.map((item) => {
+              const isDefault = defaultPage === item.key;
+              return (
+                <li
+                  key={item.key}
+                  className="flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                >
+                  <button
+                    onClick={() => {
+                      onNavigate(item.key);
+                      onClose();
+                    }}
+                    className="flex flex-1 items-center gap-3 min-w-0"
+                  >
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800">
+                      <item.Icon size={18} className="text-slate-600 dark:text-slate-300" />
+                    </div>
+                    <span className="text-app-body-sm font-medium text-slate-800 dark:text-slate-200 truncate flex items-center gap-1">
+                      {item.label}
+                      {item.adminOnly && <ShieldCheck size={12} className="text-slate-400 dark:text-slate-500" />}
+                    </span>
+                  </button>
+
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const next = isDefault ? null : item.key;
+                      onDefaultChange(next);
+                    }}
+                    className={`shrink-0 rounded-lg p-1.5 transition-colors ${
+                      isDefault
+                        ? "text-amber-400 dark:text-amber-300"
+                        : "text-slate-300 dark:text-slate-600 hover:text-amber-400"
+                    }`}
+                    title={isDefault ? "기본 페이지 해제" : "기본 페이지로 설정"}
+                  >
+                    <Star size={16} fill={isDefault ? "currentColor" : "none"} />
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+        <div className="safe-bottom" />
+      </div>
+    </>
   );
 }
 
@@ -176,305 +172,302 @@ export function Layout({
   children: React.ReactNode;
 }) {
   const { isMobile } = useBreakpoint();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [adminMenuOpen, setAdminMenuOpen] = useState(false);
-  const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(true);
+  const { isDark, toggle: toggleTheme } = useTheme();
+  
+  const [collapsed, setCollapsed] = useState(readCollapsed);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [showDrawer, setShowDrawer] = useState(false);
+  const [defaultPage, setDefaultPage] = useState<string | null>(readDefaultPage);
+  
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Apply default page redirection on mount if applicable
+  useEffect(() => {
+    const def = readDefaultPage();
+    if (def && def !== view && DEFAULT_ORDER.includes(def as View)) {
+      onNavigate(def as View);
+    }
+  }, []);
+
+  useEffect(() => { writeCollapsed(collapsed); }, [collapsed]);
+
+  // Close profile settings popup on outside click
+  useEffect(() => {
+    if (!menuOpen) return;
+    function handler(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [menuOpen]);
+
+  const handleDefaultChange = (v: View | null) => {
+    writeDefaultPage(v);
+    setDefaultPage(v);
+  };
+
+  // Nav Items visible in sidebar
+  const visibleItems = NAV_ITEMS.filter(
+    (item) => item.key !== "settings" && (!item.adminOnly || isAdmin)
+  );
+
+  // Pin top 5 nav items for mobile bottom nav
+  const pinnedItems = NAV_ITEMS.filter(
+    (item) => item.key !== "settings" && (!item.adminOnly || isAdmin)
+  ).slice(0, 5);
+
+  const displayName = "Admin User";
 
   return (
-    <div className="min-h-screen bg-alternative flex text-strong font-body">
-      {/* Desktop Sidebar */}
+    <div className="font-app-ui min-h-screen bg-slate-50 dark:bg-slate-950 flex text-slate-900 dark:text-slate-100">
+      
+      {/* Desktop Sidebar (md+) */}
       {!isMobile && (
         <aside
           className={classNames(
-            "bg-elevated sticky top-0 h-screen flex flex-col transition-all duration-300 ease-in-out overflow-hidden",
-            desktopSidebarOpen ? "w-64 border-r border-normal p-5" : "w-20 border-r border-normal p-4"
+            "hidden md:flex flex-col shrink-0 h-screen sticky top-0 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 transition-all duration-200 overflow-visible",
+            collapsed ? "w-16" : "w-56"
           )}
         >
-          <div className="flex flex-col h-full justify-between w-full">
-            <div className="flex-1 flex flex-col min-h-0">
-              <div className={classNames(
-                "py-6 flex items-center gap-2.5",
-                desktopSidebarOpen ? "justify-between px-4" : "justify-center"
-              )}>
-                {desktopSidebarOpen ? (
-                  <>
-                    <div className="flex items-center gap-2.5">
-                      <Home className="h-6 w-6 text-primary flex-shrink-0" />
-                      <div>
-                        <h1 className="text-xl font-black text-primary tracking-tight leading-none">MY HOME</h1>
-                        <p className="text-[10px] text-neutral font-bold tracking-widest uppercase mt-1">Apartment Alert</p>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setDesktopSidebarOpen(false)}
-                      className="p-1.5 text-neutral hover:text-strong hover:bg-alternative rounded-lg transition-colors"
-                      aria-label="Collapse sidebar"
-                    >
-                      <Menu className="h-5 w-5" />
-                    </button>
-                  </>
-                ) : (
+          {/* Logo block */}
+          <div className={classNames(
+            "flex h-14 items-center border-b border-slate-200 dark:border-slate-800 shrink-0 px-3 gap-2",
+            collapsed ? "justify-center" : ""
+          )}>
+            {!collapsed && (
+              <button
+                onClick={() => onNavigate("dashboard")}
+                className="flex items-center gap-2 font-bold text-slate-900 dark:text-white min-w-0 flex-1 text-left"
+              >
+                <div className="shrink-0 rounded-lg bg-primary-600 p-1.5">
+                  <Home size={14} className="text-white" />
+                </div>
+                <span className="text-app-body-sm font-black whitespace-nowrap truncate uppercase tracking-tight">MY HOME</span>
+              </button>
+            )}
+            <button
+              onClick={() => setCollapsed((v) => !v)}
+              className="shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition-colors"
+              title={collapsed ? "메뉴 펼치기" : "메뉴 접기"}
+            >
+              <Menu size={16} />
+            </button>
+          </div>
+
+          {/* Navigation Links */}
+          <nav className="flex-1 overflow-y-auto py-3 space-y-0.5 px-2">
+            {visibleItems.map((item) => {
+              const isActive = view === item.key;
+              return (
+                <button
+                  key={item.key}
+                  onClick={() => onNavigate(item.key)}
+                  title={collapsed ? item.label : undefined}
+                  className={`w-full flex items-center gap-3 rounded-xl px-2.5 py-2 text-app-body-sm font-medium transition-colors ${
+                    isActive
+                      ? "bg-primary-50 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400"
+                      : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                  } ${collapsed ? "justify-center" : ""}`}
+                >
+                  <item.Icon size={18} className="shrink-0" />
+                  {!collapsed && (
+                    <>
+                      <span className="truncate">{item.label}</span>
+                      {item.adminOnly && (
+                        <ShieldCheck size={12} className="ml-auto shrink-0 text-slate-400 dark:text-slate-500" />
+                      )}
+                    </>
+                  )}
+                </button>
+              );
+            })}
+          </nav>
+
+          {/* User profile and popup triggers */}
+          <div className="shrink-0 border-t border-slate-200 dark:border-slate-800 px-2 py-3 relative" ref={menuRef}>
+            {menuOpen && (
+              <div className="absolute bottom-full left-2 right-2 mb-1 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-lg overflow-hidden z-50 animate-fade-in-up">
+                {/* Theme options */}
+                <div className="flex items-center gap-1 px-3 py-2 border-b border-slate-100 dark:border-slate-800">
+                  <span className="text-app-caption text-slate-500 dark:text-slate-400 flex-1">
+                    {collapsed ? "" : "테마"}
+                  </span>
                   <button
-                    type="button"
-                    onClick={() => setDesktopSidebarOpen(true)}
-                    className="p-2 text-primary hover:text-strong hover:bg-alternative rounded-xl transition-all shadow-sm shadow-primary/10 hover:scale-105"
-                    aria-label="Expand sidebar"
+                    onClick={() => { if (isDark) toggleTheme(); }}
+                    title="라이트 모드"
+                    className={`rounded-lg p-1.5 transition-colors ${
+                      !isDark
+                        ? "bg-primary-50 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400"
+                        : "text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
+                    }`}
                   >
-                    <Menu className="h-5 w-5" />
+                    <Sun size={15} />
+                  </button>
+                  <button
+                    onClick={() => { if (!isDark) toggleTheme(); }}
+                    title="다크 모드"
+                    className={`rounded-lg p-1.5 transition-colors ${
+                      isDark
+                        ? "bg-primary-50 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400"
+                        : "text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
+                    }`}
+                  >
+                    <Moon size={15} />
+                  </button>
+                </div>
+
+                {/* Settings link */}
+                <button
+                  onClick={() => {
+                    onNavigate("settings");
+                    setMenuOpen(false);
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2.5 text-app-body-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-left"
+                >
+                  <Settings size={15} className="shrink-0 text-slate-500 dark:text-slate-400" />
+                  <span>설정</span>
+                </button>
+
+                {/* Logout button */}
+                {onLogout && (
+                  <button
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onLogout();
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 text-app-body-sm text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors border-t border-slate-100 dark:border-slate-800 text-left"
+                  >
+                    <LogOut size={15} className="shrink-0" />
+                    <span>로그아웃</span>
                   </button>
                 )}
               </div>
-              <nav className="mt-4 space-y-5 flex-1 overflow-y-auto">
-                {navGroups.filter((g) => {
-                  if (g.groupKey === "groupAdmin" || g.groupKey === "groupSettings") {
-                    return isAdmin;
-                  }
-                  return true;
-                }).map((group, idx) => (
-                  <div key={group.groupKey} className="space-y-1.5">
-                    {desktopSidebarOpen ? (
-                      <span className="text-[10px] font-bold tracking-wider text-neutral/50 uppercase px-4 block">
-                        {t[group.groupKey]}
-                      </span>
-                    ) : (
-                      idx > 0 && <div className="border-t border-normal/30 my-2 mx-1" />
-                    )}
-                    <div className="space-y-0.5">
-                      {group.items.map((item) => (
-                        <NavItem
-                          key={item.view}
-                          icon={item.icon}
-                          label={t[item.labelKey]}
-                          active={view === item.view}
-                          onClick={() => onNavigate(item.view)}
-                          collapsed={!desktopSidebarOpen}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </nav>
-            </div>
-            <div>
-              {onLogout && (
-                <div className="mb-2">
-                  <button
-                    type="button"
-                    onClick={onLogout}
-                    className={classNames(
-                      "w-full flex items-center text-neutral hover:bg-rose-500/10 hover:text-rose-600 rounded-xl transition-all font-semibold",
-                      desktopSidebarOpen ? "gap-3 px-4 py-2.5 text-sm" : "justify-center p-3"
-                    )}
-                    title={!desktopSidebarOpen ? "로그아웃" : undefined}
-                  >
-                    <LogOut className={classNames("flex-shrink-0", desktopSidebarOpen ? "h-4 w-4" : "h-5 w-5")} />
-                    {desktopSidebarOpen && <span>로그아웃</span>}
-                  </button>
-                </div>
+            )}
+
+            {/* Profile Avatar Bar */}
+            <button
+              onClick={() => setMenuOpen((v) => !v)}
+              className={`w-full flex items-center gap-2.5 rounded-xl px-2 py-2 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800 ${
+                collapsed ? "justify-center" : ""
+              } ${menuOpen ? "bg-slate-100 dark:bg-slate-800" : ""}`}
+              title={collapsed ? displayName : undefined}
+            >
+              <div className="shrink-0 h-7 w-7 rounded-full bg-primary-100 dark:bg-primary-900/40 flex items-center justify-center">
+                <span className="text-xs font-bold text-primary-600 dark:text-primary-400">
+                  {displayName.slice(0, 1).toUpperCase()}
+                </span>
+              </div>
+              {!collapsed && (
+                <>
+                  <span className="flex-1 text-left text-app-body-sm font-medium text-slate-700 dark:text-slate-200 truncate min-w-0">
+                    {displayName}
+                  </span>
+                  <Settings size={14} className="shrink-0 text-slate-400 dark:text-slate-500" />
+                </>
               )}
-              {desktopSidebarOpen && (
-                <div className="pt-6 border-t border-normal/50">
-                  <div className="bg-alternative rounded-xl p-4">
-                    <p className="text-xs text-neutral font-medium">{t.dataConstraint}</p>
-                    <p className="mt-1 text-[11px] leading-relaxed text-neutral/70">{t.dataConstraintDesc}</p>
-                  </div>
-                </div>
-              )}
-            </div>
+            </button>
           </div>
         </aside>
       )}
 
-      {/* Mobile Drawer (Sidebar) */}
-      {isMobile && (
-        <div className={classNames("fixed inset-0 z-50 transition-opacity duration-300 lg:hidden", sidebarOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none")}>
-          {/* Backdrop Overlay */}
-          <div className="fixed inset-0 bg-black/50 transition-opacity duration-300" onClick={() => setSidebarOpen(false)} />
-          {/* Sidebar Drawer Panel */}
-          <aside className={classNames(
-            "fixed top-0 left-0 bottom-0 w-64 bg-elevated flex flex-col p-5 transition-transform duration-300 ease-in-out border-r border-normal",
-            sidebarOpen ? "translate-x-0" : "-translate-x-full"
-          )}>
-            <div className="px-4 py-6 flex justify-between items-center">
-              <div className="flex items-center gap-2.5">
-                <Home className="h-6 w-6 text-primary flex-shrink-0" />
-                <div>
-                  <h1 className="text-xl font-black text-primary tracking-tight leading-none">MY HOME</h1>
-                  <p className="text-[10px] text-neutral font-bold tracking-widest uppercase mt-1">Apartment Alert</p>
-                </div>
-              </div>
-              <button onClick={() => setSidebarOpen(false)} className="p-1 text-strong" aria-label={t.closeMenu}>
-                <X className="h-6 w-6" />
-              </button>
-            </div>
-            <nav className="mt-4 space-y-5 flex-1 overflow-y-auto">
-              {navGroups.filter((g) => {
-                if (g.groupKey === "groupAdmin" || g.groupKey === "groupSettings") {
-                  return isAdmin;
-                }
-                return true;
-              }).map((group) => (
-                <div key={group.groupKey} className="space-y-1.5">
-                  <span className="text-[10px] font-bold tracking-wider text-neutral/50 uppercase px-4 block">
-                    {t[group.groupKey]}
-                  </span>
-                  <div className="space-y-0.5">
-                    {group.items.map((item) => (
-                      <NavItem
-                        key={item.view}
-                        icon={item.icon}
-                        label={t[item.labelKey]}
-                        active={view === item.view}
-                        onClick={() => {
-                          onNavigate(item.view);
-                          setSidebarOpen(false);
-                        }}
-                      />
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </nav>
-            {onLogout && (
-              <div className="mb-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    onLogout();
-                    setSidebarOpen(false);
-                  }}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-neutral hover:bg-rose-500/10 hover:text-rose-600 rounded-xl transition-all text-sm font-semibold"
-                >
-                  <LogOut className="h-4 w-4" />
-                  <span>로그아웃</span>
-                </button>
-              </div>
-            )}
-            <div className="pt-6 border-t border-normal/50">
-              <div className="bg-alternative rounded-xl p-4">
-                <p className="text-xs text-neutral font-medium">{t.dataConstraint}</p>
-                <p className="mt-1 text-[11px] leading-relaxed text-neutral/70">{t.dataConstraintDesc}</p>
-              </div>
-            </div>
-          </aside>
-        </div>
-      )}
-
+      {/* Main Content Column */}
       <div className="flex-1 flex flex-col min-w-0">
+        
+        {/* Mobile Top Header (md hidden) */}
         {isMobile && (
-          <header className="bg-elevated border-b border-normal sticky top-0 z-40 flex items-center justify-between h-14 px-4">
-            <button onClick={() => setSidebarOpen(true)} className="p-1 text-strong" aria-label="Open menu">
-              <Menu className="h-6 w-6" />
-            </button>
-            <div className="flex items-center gap-1.5">
-              <Home className="h-5 w-5 text-primary flex-shrink-0" />
-              <h2 className="text-base font-black tracking-tight text-strong">MY HOME</h2>
+          <header className="md:hidden sticky top-0 z-40 border-b border-slate-200 bg-white/80 backdrop-blur dark:border-slate-800 dark:bg-slate-900/80">
+            <div className="flex h-14 items-center gap-3 px-4">
+              <button
+                onClick={() => onNavigate("dashboard")}
+                className="flex items-center gap-2 font-bold text-slate-900 dark:text-white"
+              >
+                <div className="rounded-lg bg-primary-600 p-1.5">
+                  <Home size={14} className="text-white" />
+                </div>
+                <span className="text-app-body-sm font-black uppercase tracking-tight">MY HOME</span>
+              </button>
+
+              <div className="ml-auto flex items-center gap-1">
+                <button
+                  onClick={toggleTheme}
+                  className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                  title={isDark ? "라이트 모드" : "다크 모드"}
+                >
+                  {isDark ? <Sun size={16} /> : <Moon size={16} />}
+                </button>
+                {onLogout && (
+                  <button
+                    onClick={onLogout}
+                    className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-rose-50 hover:text-rose-600 dark:text-slate-400 dark:hover:bg-rose-900/20 dark:hover:text-rose-400"
+                    title="로그아웃"
+                  >
+                    <LogOut size={16} />
+                  </button>
+                )}
+              </div>
             </div>
-            <div className="w-8" />
           </header>
         )}
 
-        <main className={classNames(
-          "flex-1 overflow-auto",
-          isMobile ? "p-4 pb-24" : "p-8 max-w-6xl mx-auto w-full"
-        )}>
-          {children}
+        {/* Content Body */}
+        <main className="flex-1 px-4 py-5 pb-24 md:pb-8 md:px-6 max-w-screen-xl w-full mx-auto">
+          <div key={view} className="animate-fade-in-up">
+            {children}
+          </div>
         </main>
-
-        {isMobile && (
-          <nav className="fixed bottom-0 left-0 right-0 bg-elevated border-t border-normal h-14 flex items-center px-2 z-40">
-            {/* Admin Menu Dropup Backdrop */}
-            {adminMenuOpen && (
-              <div 
-                className="fixed inset-0 bg-black/10 z-45" 
-                onClick={() => setAdminMenuOpen(false)} 
-              />
-            )}
-
-            {/* Admin Dropup Menu */}
-            {adminMenuOpen && (
-              <div className="absolute bottom-16 right-2 w-44 bg-elevated border border-normal rounded-2xl p-1.5 shadow-2xl z-50 flex flex-col gap-0.5 animate-in slide-in-from-bottom-2 fade-in duration-200">
-                {mobileNavItems.find(item => item.type === "menu")?.subItems.map((sub) => {
-                  const Icon = sub.icon;
-                  const isActive = view === sub.view;
-                  return (
-                    <button
-                      key={sub.view}
-                      type="button"
-                      onClick={() => {
-                        onNavigate(sub.view);
-                        setAdminMenuOpen(false);
-                      }}
-                      className={classNames(
-                        "w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-left text-xs font-semibold transition-all",
-                        isActive 
-                          ? "bg-primary text-white font-bold" 
-                          : "text-neutral hover:bg-alternative hover:text-strong"
-                      )}
-                    >
-                      <Icon className="h-4 w-4" />
-                      <span>{sub.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Mobile Bottom Tabs */}
-            {mobileNavItems.filter((item) => {
-              if (item.type === "menu" && item.key === "admin") {
-                return isAdmin;
-              }
-              return true;
-            }).map((item) => {
-              if (item.type === "link") {
-                const Icon = item.icon;
-                const isActive = view === item.view;
-                return (
-                  <button
-                    key={item.view}
-                    type="button"
-                    onClick={() => {
-                      onNavigate(item.view);
-                      setAdminMenuOpen(false);
-                    }}
-                    className={classNames(
-                      "flex-1 flex flex-col items-center justify-center h-full",
-                      isActive ? "text-primary" : "text-neutral"
-                    )}
-                  >
-                    <Icon className="h-5 w-5" />
-                    <span className={classNames("text-[10px] mt-1", isActive ? "font-bold" : "font-medium")}>
-                      {item.label}
-                    </span>
-                  </button>
-                );
-              } else {
-                const Icon = item.icon;
-                // subItems 중 하나라도 선택되어 있으면 관리자 활성화 상태
-                const isSubActive = item.subItems.some((sub) => view === sub.view);
-                return (
-                  <button
-                    key={item.key}
-                    type="button"
-                    onClick={() => setAdminMenuOpen(!adminMenuOpen)}
-                    className={classNames(
-                      "flex-1 flex flex-col items-center justify-center h-full relative",
-                      isSubActive || adminMenuOpen ? "text-primary" : "text-neutral"
-                    )}
-                  >
-                    <Icon className="h-5 w-5" />
-                    <span className={classNames("text-[10px] mt-1", isSubActive || adminMenuOpen ? "font-bold" : "font-medium")}>
-                      {item.label}
-                    </span>
-                  </button>
-                );
-              }
-            })}
-          </nav>
-        )}
       </div>
+
+      {/* Mobile Bottom Navigation (md hidden) */}
+      {isMobile && (
+        <nav className="safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/90 backdrop-blur dark:border-slate-800 dark:bg-slate-900/90 md:hidden">
+          <div className="flex">
+            {pinnedItems.map((item) => {
+              const isActive = view === item.key;
+              return (
+                <button
+                  key={item.key}
+                  onClick={() => onNavigate(item.key)}
+                  className={`min-h-[56px] flex-1 flex flex-col items-center justify-center gap-0.5 py-2 text-app-caption font-medium transition-colors ${
+                    isActive
+                      ? "text-primary-600 dark:text-primary-400 font-bold"
+                      : "text-slate-500 dark:text-slate-500"
+                  }`}
+                >
+                  <div className={`rounded-xl p-1.5 transition-colors ${isActive ? "bg-primary-50 dark:bg-primary-900/30" : ""}`}>
+                    <item.Icon size={20} />
+                  </div>
+                  {item.compactLabel}
+                </button>
+              );
+            })}
+
+            {/* General menu button */}
+            <button
+              onClick={() => setShowDrawer(true)}
+              className="min-h-[56px] flex-1 flex flex-col items-center justify-center gap-0.5 py-2 text-app-caption font-medium transition-colors text-slate-500 dark:text-slate-500"
+            >
+              <div className="rounded-xl p-1.5">
+                <Menu size={20} />
+              </div>
+              전체
+            </button>
+          </div>
+        </nav>
+      )}
+
+      {/* Mobile Drawer (md hidden) */}
+      {isMobile && showDrawer && (
+        <AllMenuDrawer
+          isAdmin={isAdmin}
+          defaultPage={defaultPage}
+          onDefaultChange={handleDefaultChange}
+          onNavigate={onNavigate}
+          onClose={() => setShowDrawer(false)}
+        />
+      )}
     </div>
   );
 }
+
