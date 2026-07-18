@@ -9,7 +9,7 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  BarChart
+  BarChart,
 } from "recharts";
 import { SectionCard } from "../../components/SectionCard";
 import { StatCard } from "../../components/StatCard";
@@ -94,36 +94,72 @@ const BoxPlotTooltip = ({ active, payload, label, t }: any) => {
 
     return (
       <div className="rounded-xl border border-normal bg-elevated p-3.5 shadow-xl text-xs space-y-2 min-w-[180px]">
-        <p className="font-black text-strong border-b border-normal pb-1.5 mb-1.5 text-[13px]">{label}</p>
-        
+        <p className="font-black text-strong border-b border-normal pb-1.5 mb-1.5 text-[13px]">
+          {label}
+        </p>
+
         <div className="space-y-1.5">
           <p className="text-neutral flex justify-between gap-4">
             <span>{t?.tradeCount || "거래량"}:</span>
             <span className="font-bold text-strong">{volume} 건</span>
           </p>
-          <p className="flex justify-between gap-4" style={{ color: "var(--color-chart-max)" }}>
+          <p
+            className="flex justify-between gap-4"
+            style={{ color: "var(--color-chart-max)" }}
+          >
             <span>{t?.maxPriceLabel || "최고가"} (Max):</span>
-            <span className="font-bold">{max !== null && max !== undefined ? `${max.toFixed(2)} 억` : "-"}</span>
+            <span className="font-bold">
+              {max !== null && max !== undefined ? `${max.toFixed(2)} 억` : "-"}
+            </span>
           </p>
-          <p className="flex justify-between gap-4" style={{ color: "var(--color-chart-median)" }}>
+          <p
+            className="flex justify-between gap-4"
+            style={{ color: "var(--color-chart-median)" }}
+          >
             <span>Q3 (75%):</span>
-            <span className="font-bold">{q3 !== null && q3 !== undefined ? `${q3.toFixed(2)} 억` : "-"}</span>
+            <span className="font-bold">
+              {q3 !== null && q3 !== undefined ? `${q3.toFixed(2)} 억` : "-"}
+            </span>
           </p>
-          <p className="flex justify-between gap-4" style={{ color: "var(--color-chart-primary)" }}>
+          <p
+            className="flex justify-between gap-4"
+            style={{ color: "var(--color-chart-primary)" }}
+          >
             <span>{t?.avgPriceLabel || "평균가"} (Avg):</span>
-            <span className="font-bold">{avg !== null && avg !== undefined ? `${avg.toFixed(2)} 억` : "-"}</span>
+            <span className="font-bold">
+              {avg !== null && avg !== undefined ? `${avg.toFixed(2)} 억` : "-"}
+            </span>
           </p>
-          <p className="flex justify-between gap-4" style={{ color: "var(--color-chart-median)" }}>
-            <span>{t?.boxPlotMedian?.replace(" (Median)", "") || "중위값"}:</span>
-            <span className="font-bold">{median !== null && median !== undefined ? `${median.toFixed(2)} 억` : "-"}</span>
+          <p
+            className="flex justify-between gap-4"
+            style={{ color: "var(--color-chart-median)" }}
+          >
+            <span>
+              {t?.boxPlotMedian?.replace(" (Median)", "") || "중위값"}:
+            </span>
+            <span className="font-bold">
+              {median !== null && median !== undefined
+                ? `${median.toFixed(2)} 억`
+                : "-"}
+            </span>
           </p>
-          <p className="flex justify-between gap-4" style={{ color: "var(--color-chart-median)" }}>
+          <p
+            className="flex justify-between gap-4"
+            style={{ color: "var(--color-chart-median)" }}
+          >
             <span>Q1 (25%):</span>
-            <span className="font-bold">{q1 !== null && q1 !== undefined ? `${q1.toFixed(2)} 억` : "-"}</span>
+            <span className="font-bold">
+              {q1 !== null && q1 !== undefined ? `${q1.toFixed(2)} 억` : "-"}
+            </span>
           </p>
-          <p className="flex justify-between gap-4" style={{ color: "var(--color-chart-min)" }}>
+          <p
+            className="flex justify-between gap-4"
+            style={{ color: "var(--color-chart-min)" }}
+          >
             <span>최저가 (Min):</span>
-            <span className="font-bold">{min !== null && min !== undefined ? `${min.toFixed(2)} 억` : "-"}</span>
+            <span className="font-bold">
+              {min !== null && min !== undefined ? `${min.toFixed(2)} 억` : "-"}
+            </span>
           </p>
         </div>
       </div>
@@ -137,7 +173,10 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     // ComposedChart 전체 메타 데이터
     const metaRecord = payload.find(
-      (p: any) => p.dataKey === "최대가" || p.dataKey === "최소가" || p.dataKey === "거래량"
+      (p: any) =>
+        p.dataKey === "최대가" ||
+        p.dataKey === "최소가" ||
+        p.dataKey === "거래량",
     )?.payload;
 
     const maxVal = metaRecord?.최대가;
@@ -148,8 +187,10 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 
     return (
       <div className="rounded-xl border border-normal bg-elevated p-3.5 shadow-xl text-xs space-y-2 min-w-[180px]">
-        <p className="font-black text-strong border-b border-normal pb-1.5 mb-1.5 text-[13px]">{label}</p>
-        
+        <p className="font-black text-strong border-b border-normal pb-1.5 mb-1.5 text-[13px]">
+          {label}
+        </p>
+
         <div className="space-y-1.5">
           {volume !== undefined && (
             <p className="text-neutral flex justify-between gap-4">
@@ -158,25 +199,37 @@ const CustomTooltip = ({ active, payload, label }: any) => {
             </p>
           )}
           {maxVal !== undefined && (
-            <p className="flex justify-between gap-4" style={{ color: "var(--color-chart-max)" }}>
+            <p
+              className="flex justify-between gap-4"
+              style={{ color: "var(--color-chart-max)" }}
+            >
               <span>최고가:</span>
               <span className="font-bold">{maxVal.toFixed(2)} 억</span>
             </p>
           )}
           {avgVal !== undefined && (
-            <p className="flex justify-between gap-4" style={{ color: "var(--color-chart-primary)" }}>
+            <p
+              className="flex justify-between gap-4"
+              style={{ color: "var(--color-chart-primary)" }}
+            >
               <span>평균가:</span>
               <span className="font-bold">{avgVal.toFixed(2)} 억</span>
             </p>
           )}
           {medVal !== undefined && (
-            <p className="flex justify-between gap-4" style={{ color: "var(--color-chart-median)" }}>
+            <p
+              className="flex justify-between gap-4"
+              style={{ color: "var(--color-chart-median)" }}
+            >
               <span>중위값:</span>
               <span className="font-bold">{medVal.toFixed(2)} 억</span>
             </p>
           )}
           {minVal !== undefined && (
-            <p className="flex justify-between gap-4" style={{ color: "var(--color-chart-min)" }}>
+            <p
+              className="flex justify-between gap-4"
+              style={{ color: "var(--color-chart-min)" }}
+            >
               <span>최저가:</span>
               <span className="font-bold">{minVal.toFixed(2)} 억</span>
             </p>
@@ -188,18 +241,51 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
-export default function OverviewTab({ data, onSelectComplex, areaUnit = "pyeong", locale = "ko" }: OverviewTabProps) {
+export default function OverviewTab({
+  data,
+  onSelectComplex,
+  areaUnit = "pyeong",
+  locale = "ko",
+}: OverviewTabProps) {
   const { isNarrow } = useBreakpoint();
-  const [sizeFilter, setSizeFilter] = React.useState<"all" | "under20" | "20s" | "30s" | "over40">("all");
+  const [sizeFilter, setSizeFilter] = React.useState<
+    "all" | "under20" | "20s" | "30s" | "over40"
+  >("all");
   const t = copy[locale];
 
   // 범례 On/Off 필터 상태 (차트별 독립 설정)
-  const [monthlyVisible, setMonthlyVisible] = React.useState({ volume: true, whisker: true, box: true, median: true, avg: true });
-  const [sizeVisible, setSizeVisible] = React.useState({ volume: true, whisker: true, box: true, median: true, avg: true });
-  const [floorVisible, setFloorVisible] = React.useState({ volume: true, whisker: true, box: true, median: true, avg: true });
-  const [regionVisible, setRegionVisible] = React.useState({ volume: true, whisker: true, box: true, median: true, avg: true });
+  const [monthlyVisible, setMonthlyVisible] = React.useState({
+    volume: true,
+    whisker: true,
+    box: true,
+    median: true,
+    avg: true,
+  });
+  const [sizeVisible, setSizeVisible] = React.useState({
+    volume: true,
+    whisker: true,
+    box: true,
+    median: true,
+    avg: true,
+  });
+  const [floorVisible, setFloorVisible] = React.useState({
+    volume: true,
+    whisker: true,
+    box: true,
+    median: true,
+    avg: true,
+  });
+  const [regionVisible, setRegionVisible] = React.useState({
+    volume: true,
+    whisker: true,
+    box: true,
+    median: true,
+    avg: true,
+  });
 
-  const createToggleHandler = (setter: React.Dispatch<React.SetStateAction<typeof monthlyVisible>>) => {
+  const createToggleHandler = (
+    setter: React.Dispatch<React.SetStateAction<typeof monthlyVisible>>,
+  ) => {
     return (key: keyof typeof monthlyVisible) => {
       setter((prev) => ({
         ...prev,
@@ -215,7 +301,7 @@ export default function OverviewTab({ data, onSelectComplex, areaUnit = "pyeong"
 
   const renderLegendHeader = (
     visible: typeof monthlyVisible,
-    onToggle: (key: keyof typeof monthlyVisible) => void
+    onToggle: (key: keyof typeof monthlyVisible) => void,
   ) => {
     return (
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mb-4 select-none">
@@ -229,7 +315,10 @@ export default function OverviewTab({ data, onSelectComplex, areaUnit = "pyeong"
               : "opacity-40 text-neutral"
           }`}
         >
-          <span className="inline-block w-3.5 h-2.5 rounded-sm opacity-60" style={{ backgroundColor: "var(--color-chart-primary)" }} />
+          <span
+            className="inline-block w-3.5 h-2.5 rounded-sm opacity-60"
+            style={{ backgroundColor: "var(--color-chart-primary)" }}
+          />
           <span>{t.boxPlotVolume}</span>
         </button>
 
@@ -243,7 +332,10 @@ export default function OverviewTab({ data, onSelectComplex, areaUnit = "pyeong"
               : "opacity-40 text-neutral"
           }`}
         >
-          <span className="inline-block w-0.5 h-3 bg-neutral" style={{ backgroundColor: "var(--color-semantic-label-neutral)" }} />
+          <span
+            className="inline-block w-0.5 h-3 bg-neutral"
+            style={{ backgroundColor: "var(--color-semantic-label-neutral)" }}
+          />
           <span>{t.boxPlotWhisker}</span>
         </button>
 
@@ -257,7 +349,10 @@ export default function OverviewTab({ data, onSelectComplex, areaUnit = "pyeong"
               : "opacity-40 text-neutral"
           }`}
         >
-          <span className="inline-block w-3.5 h-2.5 border border-primary opacity-40" style={{ backgroundColor: "var(--color-chart-primary)" }} />
+          <span
+            className="inline-block w-3.5 h-2.5 border border-primary opacity-40"
+            style={{ backgroundColor: "var(--color-chart-primary)" }}
+          />
           <span>{t.boxPlotBox}</span>
         </button>
 
@@ -271,7 +366,10 @@ export default function OverviewTab({ data, onSelectComplex, areaUnit = "pyeong"
               : "opacity-40 text-neutral"
           }`}
         >
-          <span className="inline-block w-3 h-0.5 bg-median" style={{ backgroundColor: "var(--color-chart-median)" }} />
+          <span
+            className="inline-block w-3 h-0.5 bg-median"
+            style={{ backgroundColor: "var(--color-chart-median)" }}
+          />
           <span>{t.boxPlotMedian}</span>
         </button>
 
@@ -285,7 +383,13 @@ export default function OverviewTab({ data, onSelectComplex, areaUnit = "pyeong"
               : "opacity-40 text-neutral"
           }`}
         >
-          <span className="inline-block w-2.5 h-2.5 rotate-45 border" style={{ backgroundColor: "var(--color-chart-max)", borderColor: "#fff" }} />
+          <span
+            className="inline-block w-2.5 h-2.5 rotate-45 border"
+            style={{
+              backgroundColor: "var(--color-chart-max)",
+              borderColor: "#fff",
+            }}
+          />
           <span>{t.boxPlotAvg}</span>
         </button>
       </div>
@@ -297,7 +401,9 @@ export default function OverviewTab({ data, onSelectComplex, areaUnit = "pyeong"
       <div className="flex flex-col items-center justify-center py-16 text-neutral">
         <Home size={48} className="mb-3 opacity-30" />
         <p className="text-sm">조회된 실거래 데이터가 없습니다.</p>
-        <p className="text-xs mt-1 text-assistive">필터 조건을 설정하고 분석 실행 버튼을 눌러주세요.</p>
+        <p className="text-xs mt-1 text-assistive">
+          필터 조건을 설정하고 분석 실행 버튼을 눌러주세요.
+        </p>
       </div>
     );
   }
@@ -307,10 +413,10 @@ export default function OverviewTab({ data, onSelectComplex, areaUnit = "pyeong"
     return data.filter((d) => {
       if (sizeFilter === "all") return true;
       const area = d.areaM2 || 0;
-      if (sizeFilter === "under20") return area < 50;                     // 20평 미만 (50㎡ 미만)
-      if (sizeFilter === "20s") return area >= 50 && area < 80;           // 20평대 (50㎡ ~ 80㎡ 미만, ex: 59㎡)
-      if (sizeFilter === "30s") return area >= 80 && area < 110;          // 30평대 (80㎡ ~ 110㎡ 미만, ex: 84㎡)
-      if (sizeFilter === "over40") return area >= 110;                    // 40평 이상 (110㎡ 이상, ex: 114㎡)
+      if (sizeFilter === "under20") return area < 50; // 20평 미만 (50㎡ 미만)
+      if (sizeFilter === "20s") return area >= 50 && area < 80; // 20평대 (50㎡ ~ 80㎡ 미만, ex: 59㎡)
+      if (sizeFilter === "30s") return area >= 80 && area < 110; // 30평대 (80㎡ ~ 110㎡ 미만, ex: 84㎡)
+      if (sizeFilter === "over40") return area >= 110; // 40평 이상 (110㎡ 이상, ex: 114㎡)
       return true;
     });
   }, [data, sizeFilter]);
@@ -318,7 +424,8 @@ export default function OverviewTab({ data, onSelectComplex, areaUnit = "pyeong"
   // 1. 통계 데이터 가공 (필터링된 데이터 기준)
   const totalCount = filteredData.length;
   const prices = filteredData.map((d) => d.priceEok);
-  const avgPrice = totalCount > 0 ? prices.reduce((sum, p) => sum + p, 0) / totalCount : 0;
+  const avgPrice =
+    totalCount > 0 ? prices.reduce((sum, p) => sum + p, 0) / totalCount : 0;
   const maxPrice = totalCount > 0 ? Math.max(...prices) : 0;
   const minPrice = totalCount > 0 ? Math.min(...prices) : 0;
 
@@ -366,21 +473,29 @@ export default function OverviewTab({ data, onSelectComplex, areaUnit = "pyeong"
         q3: Number(q3Val.toFixed(2)),
         max: Number(maxVal.toFixed(2)),
         avg: Number(avgVal.toFixed(2)),
-        whiskerRange: [Number(minVal.toFixed(2)), Number(maxVal.toFixed(2))] as [number, number],
-        boxRange: [Number(q1Val.toFixed(2)), Number(q3Val.toFixed(2))] as [number, number],
+        whiskerRange: [
+          Number(minVal.toFixed(2)),
+          Number(maxVal.toFixed(2)),
+        ] as [number, number],
+        boxRange: [Number(q1Val.toFixed(2)), Number(q3Val.toFixed(2))] as [
+          number,
+          number,
+        ],
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name));
 
   // 개별 실거래가 점용 데이터셋 (Scatter용 x/y 사용)
-  const scatterData = filteredData.map((d) => ({
-    x: d.dealDate.substring(0, 7),
-    y: Number(d.priceEok.toFixed(2)),
-    aptName: d.apartmentName,
-    dealDate: d.dealDate,
-    floor: d.floor,
-    areaM2: d.areaM2,
-  })).sort((a, b) => a.x.localeCompare(b.x));
+  const scatterData = filteredData
+    .map((d) => ({
+      x: d.dealDate.substring(0, 7),
+      y: Number(d.priceEok.toFixed(2)),
+      aptName: d.apartmentName,
+      dealDate: d.dealDate,
+      floor: d.floor,
+      areaM2: d.areaM2,
+    }))
+    .sort((a, b) => a.x.localeCompare(b.x));
 
   // 3. 지역별 거래가 분포 & 거래량 (상위 10개)
   const regionDataMap = new Map<string, { prices: number[] }>();
@@ -425,8 +540,14 @@ export default function OverviewTab({ data, onSelectComplex, areaUnit = "pyeong"
         q3: Number(q3Val.toFixed(2)),
         max: Number(maxVal.toFixed(2)),
         avg: Number(avgVal.toFixed(2)),
-        whiskerRange: [Number(minVal.toFixed(2)), Number(maxVal.toFixed(2))] as [number, number],
-        boxRange: [Number(q1Val.toFixed(2)), Number(q3Val.toFixed(2))] as [number, number],
+        whiskerRange: [
+          Number(minVal.toFixed(2)),
+          Number(maxVal.toFixed(2)),
+        ] as [number, number],
+        boxRange: [Number(q1Val.toFixed(2)), Number(q3Val.toFixed(2))] as [
+          number,
+          number,
+        ],
       };
     })
     .sort((a, b) => (b.avg ?? 0) - (a.avg ?? 0))
@@ -435,7 +556,10 @@ export default function OverviewTab({ data, onSelectComplex, areaUnit = "pyeong"
   // 4. 단지별 거래량 순위 (상위 10개)
   const complexDataMap = new Map<string, number>();
   filteredData.forEach((d) => {
-    complexDataMap.set(d.apartmentName, (complexDataMap.get(d.apartmentName) || 0) + 1);
+    complexDataMap.set(
+      d.apartmentName,
+      (complexDataMap.get(d.apartmentName) || 0) + 1,
+    );
   });
 
   const complexChartData = Array.from(complexDataMap.entries())
@@ -446,10 +570,34 @@ export default function OverviewTab({ data, onSelectComplex, areaUnit = "pyeong"
   // 5. 평형별 Box Plot 데이터 가공
   const boxPlotChartData = React.useMemo(() => {
     const pyeongGroups = [
-      { key: "under20", labelPyeong: "20평 미만", labelM2: "50㎡ 미만", minArea: 0, maxArea: 50 },
-      { key: "20s", labelPyeong: "20평대", labelM2: "50㎡ ~ 80㎡", minArea: 50, maxArea: 80 },
-      { key: "30s", labelPyeong: "30평대", labelM2: "80㎡ ~ 110㎡", minArea: 80, maxArea: 110 },
-      { key: "over40", labelPyeong: "40평 이상", labelM2: "110㎡ 이상", minArea: 110, maxArea: Infinity }
+      {
+        key: "under20",
+        labelPyeong: "20평 미만",
+        labelM2: "50㎡ 미만",
+        minArea: 0,
+        maxArea: 50,
+      },
+      {
+        key: "20s",
+        labelPyeong: "20평대",
+        labelM2: "50㎡ ~ 80㎡",
+        minArea: 50,
+        maxArea: 80,
+      },
+      {
+        key: "30s",
+        labelPyeong: "30평대",
+        labelM2: "80㎡ ~ 110㎡",
+        minArea: 80,
+        maxArea: 110,
+      },
+      {
+        key: "over40",
+        labelPyeong: "40평 이상",
+        labelM2: "110㎡ 이상",
+        minArea: 110,
+        maxArea: Infinity,
+      },
     ];
 
     return pyeongGroups.map((group) => {
@@ -493,8 +641,14 @@ export default function OverviewTab({ data, onSelectComplex, areaUnit = "pyeong"
         max: Number(maxVal.toFixed(2)),
         avg: Number(avgVal.toFixed(2)),
         volume: count,
-        whiskerRange: [Number(minVal.toFixed(2)), Number(maxVal.toFixed(2))] as [number, number],
-        boxRange: [Number(q1Val.toFixed(2)), Number(q3Val.toFixed(2))] as [number, number],
+        whiskerRange: [
+          Number(minVal.toFixed(2)),
+          Number(maxVal.toFixed(2)),
+        ] as [number, number],
+        boxRange: [Number(q1Val.toFixed(2)), Number(q3Val.toFixed(2))] as [
+          number,
+          number,
+        ],
       };
     });
   }, [data, areaUnit]);
@@ -502,10 +656,25 @@ export default function OverviewTab({ data, onSelectComplex, areaUnit = "pyeong"
   // 6. 층별 Box Plot 데이터 가공
   const floorBoxPlotChartData = React.useMemo(() => {
     const floorGroups = [
-      { key: "low", labelKey: "floorLow" as const, minFloor: -Infinity, maxFloor: 5 },
+      {
+        key: "low",
+        labelKey: "floorLow" as const,
+        minFloor: -Infinity,
+        maxFloor: 5,
+      },
       { key: "mid", labelKey: "floorMid" as const, minFloor: 6, maxFloor: 15 },
-      { key: "high", labelKey: "floorHigh" as const, minFloor: 16, maxFloor: 25 },
-      { key: "super", labelKey: "floorSuper" as const, minFloor: 26, maxFloor: Infinity }
+      {
+        key: "high",
+        labelKey: "floorHigh" as const,
+        minFloor: 16,
+        maxFloor: 25,
+      },
+      {
+        key: "super",
+        labelKey: "floorSuper" as const,
+        minFloor: 26,
+        maxFloor: Infinity,
+      },
     ];
 
     return floorGroups.map((group) => {
@@ -550,8 +719,14 @@ export default function OverviewTab({ data, onSelectComplex, areaUnit = "pyeong"
         max: Number(maxVal.toFixed(2)),
         avg: Number(avgVal.toFixed(2)),
         volume: count,
-        whiskerRange: [Number(minVal.toFixed(2)), Number(maxVal.toFixed(2))] as [number, number],
-        boxRange: [Number(q1Val.toFixed(2)), Number(q3Val.toFixed(2))] as [number, number],
+        whiskerRange: [
+          Number(minVal.toFixed(2)),
+          Number(maxVal.toFixed(2)),
+        ] as [number, number],
+        boxRange: [Number(q1Val.toFixed(2)), Number(q3Val.toFixed(2))] as [
+          number,
+          number,
+        ],
       };
     });
   }, [data, t]);
@@ -559,10 +734,16 @@ export default function OverviewTab({ data, onSelectComplex, areaUnit = "pyeong"
   // 실제 평수 기준 필터 버튼 옵션
   const sizeOptions = [
     { key: "all", label: "전체" },
-    { key: "under20", label: areaUnit === "pyeong" ? "20평 미만" : "50㎡ 미만" },
+    {
+      key: "under20",
+      label: areaUnit === "pyeong" ? "20평 미만" : "50㎡ 미만",
+    },
     { key: "20s", label: areaUnit === "pyeong" ? "20평대" : "50㎡ ~ 80㎡" },
     { key: "30s", label: areaUnit === "pyeong" ? "30평대" : "80㎡ ~ 110㎡" },
-    { key: "over40", label: areaUnit === "pyeong" ? "40평 이상" : "110㎡ 이상" },
+    {
+      key: "over40",
+      label: areaUnit === "pyeong" ? "40평 이상" : "110㎡ 이상",
+    },
   ] as const;
 
   const sizeFilterSelector = (
@@ -575,74 +756,253 @@ export default function OverviewTab({ data, onSelectComplex, areaUnit = "pyeong"
             sizeFilter === opt.key
               ? "bg-primary text-[var(--color-semantic-background-normal-normal)] shadow-sm"
               : "text-neutral hover:text-strong"
-               {/* 시계열 메인 차트 */}
-      <SectionCard title="📈 월별 실거래가 & 거래량 추이" right={sizeFilterSelector}>
+          }`}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  );
+
+  return (
+    <div className="space-y-6">
+      {/* 시계열 메인 차트 */}
+      <SectionCard
+        title="📈 월별 실거래가 & 거래량 추이"
+        right={sizeFilterSelector}
+      >
         {renderLegendHeader(monthlyVisible, toggleMonthly)}
         <div className="h-72 w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={monthlyChartData} margin={{ top: 10, right: -5, left: -15, bottom: 0 }}>
+            <ComposedChart
+              data={monthlyChartData}
+              margin={{ top: 10, right: -5, left: -15, bottom: 0 }}
+            >
               <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-              <XAxis dataKey="name" xAxisId="box" stroke="#64748b" fontSize={11} tickLine={false} interval="preserveStartEnd" />
+              <XAxis
+                dataKey="name"
+                xAxisId="box"
+                stroke="#64748b"
+                fontSize={11}
+                tickLine={false}
+                interval="preserveStartEnd"
+              />
               <XAxis dataKey="name" xAxisId="whisker" hide />
               <XAxis dataKey="name" xAxisId="volume" hide />
               {/* 좌측 Y축: 가격(억) */}
-              <YAxis yAxisId="left" width={52} stroke="#64748b" fontSize={11} tickLine={false} label={{ value: "가격(억)", angle: -90, position: "insideLeft", fill: "#64748b", fontSize: 10, offset: 6 }} domain={[(dataMin) => Math.max(0, Math.floor(dataMin * 0.9)), "auto"]} />
+              <YAxis
+                yAxisId="left"
+                width={52}
+                stroke="#64748b"
+                fontSize={11}
+                tickLine={false}
+                label={{
+                  value: "가격(억)",
+                  angle: -90,
+                  position: "insideLeft",
+                  fill: "#64748b",
+                  fontSize: 10,
+                  offset: 6,
+                }}
+                domain={[
+                  (dataMin) => Math.max(0, Math.floor(dataMin * 0.9)),
+                  "auto",
+                ]}
+              />
               {/* 우측 Y축: 거래수(건) */}
-              <YAxis yAxisId="right" orientation="right" width={52} stroke="#64748b" fontSize={11} tickLine={false} label={{ value: "거래수(건)", angle: 90, position: "insideRight", fill: "#64748b", fontSize: 10, offset: 6 }} domain={[0, "auto"]} />
+              <YAxis
+                yAxisId="right"
+                orientation="right"
+                width={52}
+                stroke="#64748b"
+                fontSize={11}
+                tickLine={false}
+                label={{
+                  value: "거래수(건)",
+                  angle: 90,
+                  position: "insideRight",
+                  fill: "#64748b",
+                  fontSize: 10,
+                  offset: 6,
+                }}
+                domain={[0, "auto"]}
+              />
               <Tooltip content={<BoxPlotTooltip t={t} />} />
               {/* 우측 Y축(거래량) 기준의 투명 Bar */}
-              <Bar yAxisId="right" xAxisId="volume" dataKey="volume" fill="var(--color-chart-primary)" fillOpacity={0.06} radius={[4, 4, 0, 0]} barSize={24} hide={!monthlyVisible.volume} />
-              
+              <Bar
+                yAxisId="right"
+                xAxisId="volume"
+                dataKey="volume"
+                fill="var(--color-chart-primary)"
+                fillOpacity={0.06}
+                radius={[4, 4, 0, 0]}
+                barSize={24}
+                hide={!monthlyVisible.volume}
+              />
+
               {/* Whisker (최소~최대 세로선, 좌측 Y축) */}
-              <Bar yAxisId="left" xAxisId="whisker" dataKey="whiskerRange" fill="var(--color-semantic-label-neutral)" fillOpacity={0.4} barSize={2} hide={!monthlyVisible.whisker} />
-              
+              <Bar
+                yAxisId="left"
+                xAxisId="whisker"
+                dataKey="whiskerRange"
+                fill="var(--color-semantic-label-neutral)"
+                fillOpacity={0.4}
+                barSize={2}
+                hide={!monthlyVisible.whisker}
+              />
+
               {/* Box (Q1~Q3 박스, 좌측 Y축) */}
-              <Bar yAxisId="left" xAxisId="box" dataKey="boxRange" fill="var(--color-chart-primary)" fillOpacity={0.25} stroke="var(--color-chart-primary)" strokeWidth={1.5} barSize={12} hide={!monthlyVisible.box} />
-              
+              <Bar
+                yAxisId="left"
+                xAxisId="box"
+                dataKey="boxRange"
+                fill="var(--color-chart-primary)"
+                fillOpacity={0.25}
+                stroke="var(--color-chart-primary)"
+                strokeWidth={1.5}
+                barSize={12}
+                hide={!monthlyVisible.box}
+              />
+
               {/* 중위값 (Scatter, 커스텀 shape로 가로 대시선 렌더링, 좌측 Y축) */}
-              <Line yAxisId="left" xAxisId="box" type="monotone" dataKey="median" stroke="none" dot={<RenderBoxPlotMedian />} activeDot={false} hide={!monthlyVisible.median} />
-              
+              <Line
+                yAxisId="left"
+                xAxisId="box"
+                type="monotone"
+                dataKey="median"
+                stroke="none"
+                dot={<RenderBoxPlotMedian />}
+                activeDot={false}
+                hide={!monthlyVisible.median}
+              />
+
               {/* 평균값 (Scatter, 커스텀 shape로 다이아몬드 렌더링, 좌측 Y축) */}
-              <Line yAxisId="left" xAxisId="box" type="monotone" dataKey="avg" stroke="none" dot={<RenderBoxPlotAvg />} activeDot={false} hide={!monthlyVisible.avg} />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
-      </SectionCard>�) */}
-              <Bar yAxisId="left" xAxisId="whisker" dataKey="whiskerRange" fill="var(--color-semantic-label-neutral)" fillOpacity={0.4} barSize={2} hide={!visibleSeries.whisker} />
-              
-              {/* Box (Q1~Q3 박스, 좌측 Y축) */}
-              <Bar yAxisId="left" xAxisId="box" dataKey="boxRange" fill="var(--color-chart-primary)" fillOpacity={0.25} stroke="var(--color-chart-primary)" strokeWidth={1.5} barSize={12} hide={!visibleSeries.box} />
-              
-              {/* 중위값 (Scatter, 커스텀 shape로 가로 대시선 렌더링, 좌측 Y축) */}
-              <Line yAxisId="left" xAxisId="box" type="monotone" dataKey="median" stroke="none" dot={<RenderBoxPlotMedian />} activeDot={false} />
-              
-              {/* 평균값 (Scatter, 커스텀 shape로 다이아몬드 렌더링, 좌측 Y축) */}
-              <Line yAxisId="left" xAxisId="box" type="monotone" dataKey="avg" stroke="none" dot={<RenderBoxPlotAvg />} activeDot={false} />
+              <Line
+                yAxisId="left"
+                xAxisId="box"
+                type="monotone"
+                dataKey="avg"
+                stroke="none"
+                dot={<RenderBoxPlotAvg />}
+                activeDot={false}
+                hide={!monthlyVisible.avg}
+              />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
       </SectionCard>
 
       {/* 평형별 & 층별 박스 플롯 차트 */}
-      <div className="grid gap-6" style={{ gridTemplateColumns: isNarrow ? '1fr' : 'repeat(2, 1fr)' }}>
+      <div
+        className="grid gap-6"
+        style={{ gridTemplateColumns: isNarrow ? "1fr" : "repeat(2, 1fr)" }}
+      >
         {/* 평형별 Box Plot */}
         <SectionCard title={t.boxPlotTitleArea}>
           {renderLegendHeader(sizeVisible, toggleSize)}
           <div className="h-72 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={boxPlotChartData} margin={{ top: 10, right: -5, left: -15, bottom: 0 }}>
+              <ComposedChart
+                data={boxPlotChartData}
+                margin={{ top: 10, right: -5, left: -15, bottom: 0 }}
+              >
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis dataKey="name" xAxisId="box" stroke="#64748b" fontSize={11} tickLine={false} />
+                <XAxis
+                  dataKey="name"
+                  xAxisId="box"
+                  stroke="#64748b"
+                  fontSize={11}
+                  tickLine={false}
+                />
                 <XAxis dataKey="name" xAxisId="whisker" hide />
                 <XAxis dataKey="name" xAxisId="volume" hide />
-                <YAxis yAxisId="left" width={52} stroke="#64748b" fontSize={11} tickLine={false} label={{ value: "가격(억)", angle: -90, position: "insideLeft", fill: "#64748b", fontSize: 10, offset: 6 }} domain={[(dataMin) => Math.max(0, Math.floor(dataMin * 0.9)), "auto"]} />
-                <YAxis yAxisId="right" orientation="right" width={52} stroke="#64748b" fontSize={11} tickLine={false} label={{ value: "거래수(건)", angle: 90, position: "insideRight", fill: "#64748b", fontSize: 10, offset: 6 }} domain={[0, "auto"]} />
+                <YAxis
+                  yAxisId="left"
+                  width={52}
+                  stroke="#64748b"
+                  fontSize={11}
+                  tickLine={false}
+                  label={{
+                    value: "가격(억)",
+                    angle: -90,
+                    position: "insideLeft",
+                    fill: "#64748b",
+                    fontSize: 10,
+                    offset: 6,
+                  }}
+                  domain={[
+                    (dataMin) => Math.max(0, Math.floor(dataMin * 0.9)),
+                    "auto",
+                  ]}
+                />
+                <YAxis
+                  yAxisId="right"
+                  orientation="right"
+                  width={52}
+                  stroke="#64748b"
+                  fontSize={11}
+                  tickLine={false}
+                  label={{
+                    value: "거래수(건)",
+                    angle: 90,
+                    position: "insideRight",
+                    fill: "#64748b",
+                    fontSize: 10,
+                    offset: 6,
+                  }}
+                  domain={[0, "auto"]}
+                />
                 <Tooltip content={<BoxPlotTooltip t={t} />} />
-                <Bar yAxisId="right" xAxisId="volume" dataKey="volume" fill="var(--color-chart-primary)" fillOpacity={0.06} radius={[4, 4, 0, 0]} barSize={40} hide={!sizeVisible.volume} />
-                <Bar yAxisId="left" xAxisId="whisker" dataKey="whiskerRange" fill="var(--color-semantic-label-neutral)" fillOpacity={0.4} barSize={2} hide={!sizeVisible.whisker} />
-                <Bar yAxisId="left" xAxisId="box" dataKey="boxRange" fill="var(--color-chart-primary)" fillOpacity={0.25} stroke="var(--color-chart-primary)" strokeWidth={1.5} barSize={20} hide={!sizeVisible.box} />
-                <Line yAxisId="left" xAxisId="box" type="monotone" dataKey="median" stroke="none" dot={<RenderBoxPlotMedian />} activeDot={false} hide={!sizeVisible.median} />
-                <Line yAxisId="left" xAxisId="box" type="monotone" dataKey="avg" stroke="none" dot={<RenderBoxPlotAvg />} activeDot={false} hide={!sizeVisible.avg} />
+                <Bar
+                  yAxisId="right"
+                  xAxisId="volume"
+                  dataKey="volume"
+                  fill="var(--color-chart-primary)"
+                  fillOpacity={0.06}
+                  radius={[4, 4, 0, 0]}
+                  barSize={40}
+                  hide={!sizeVisible.volume}
+                />
+                <Bar
+                  yAxisId="left"
+                  xAxisId="whisker"
+                  dataKey="whiskerRange"
+                  fill="var(--color-semantic-label-neutral)"
+                  fillOpacity={0.4}
+                  barSize={2}
+                  hide={!sizeVisible.whisker}
+                />
+                <Bar
+                  yAxisId="left"
+                  xAxisId="box"
+                  dataKey="boxRange"
+                  fill="var(--color-chart-primary)"
+                  fillOpacity={0.25}
+                  stroke="var(--color-chart-primary)"
+                  strokeWidth={1.5}
+                  barSize={20}
+                  hide={!sizeVisible.box}
+                />
+                <Line
+                  yAxisId="left"
+                  xAxisId="box"
+                  type="monotone"
+                  dataKey="median"
+                  stroke="none"
+                  dot={<RenderBoxPlotMedian />}
+                  activeDot={false}
+                  hide={!sizeVisible.median}
+                />
+                <Line
+                  yAxisId="left"
+                  xAxisId="box"
+                  type="monotone"
+                  dataKey="avg"
+                  stroke="none"
+                  dot={<RenderBoxPlotAvg />}
+                  activeDot={false}
+                  hide={!sizeVisible.avg}
+                />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
@@ -653,19 +1013,107 @@ export default function OverviewTab({ data, onSelectComplex, areaUnit = "pyeong"
           {renderLegendHeader(floorVisible, toggleFloor)}
           <div className="h-72 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={floorBoxPlotChartData} margin={{ top: 10, right: -5, left: -15, bottom: 0 }}>
+              <ComposedChart
+                data={floorBoxPlotChartData}
+                margin={{ top: 10, right: -5, left: -15, bottom: 0 }}
+              >
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis dataKey="name" xAxisId="box" stroke="#64748b" fontSize={11} tickLine={false} />
+                <XAxis
+                  dataKey="name"
+                  xAxisId="box"
+                  stroke="#64748b"
+                  fontSize={11}
+                  tickLine={false}
+                />
                 <XAxis dataKey="name" xAxisId="whisker" hide />
                 <XAxis dataKey="name" xAxisId="volume" hide />
-                <YAxis yAxisId="left" width={52} stroke="#64748b" fontSize={11} tickLine={false} label={{ value: "가격(억)", angle: -90, position: "insideLeft", fill: "#64748b", fontSize: 10, offset: 6 }} domain={[(dataMin) => Math.max(0, Math.floor(dataMin * 0.9)), "auto"]} />
-                <YAxis yAxisId="right" orientation="right" width={52} stroke="#64748b" fontSize={11} tickLine={false} label={{ value: "거래수(건)", angle: 90, position: "insideRight", fill: "#64748b", fontSize: 10, offset: 6 }} domain={[0, "auto"]} />
+                <YAxis
+                  yAxisId="left"
+                  width={52}
+                  stroke="#64748b"
+                  fontSize={11}
+                  tickLine={false}
+                  label={{
+                    value: "가격(억)",
+                    angle: -90,
+                    position: "insideLeft",
+                    fill: "#64748b",
+                    fontSize: 10,
+                    offset: 6,
+                  }}
+                  domain={[
+                    (dataMin) => Math.max(0, Math.floor(dataMin * 0.9)),
+                    "auto",
+                  ]}
+                />
+                <YAxis
+                  yAxisId="right"
+                  orientation="right"
+                  width={52}
+                  stroke="#64748b"
+                  fontSize={11}
+                  tickLine={false}
+                  label={{
+                    value: "거래수(건)",
+                    angle: 90,
+                    position: "insideRight",
+                    fill: "#64748b",
+                    fontSize: 10,
+                    offset: 6,
+                  }}
+                  domain={[0, "auto"]}
+                />
                 <Tooltip content={<BoxPlotTooltip t={t} />} />
-                <Bar yAxisId="right" xAxisId="volume" dataKey="volume" fill="var(--color-chart-primary)" fillOpacity={0.06} radius={[4, 4, 0, 0]} barSize={40} hide={!floorVisible.volume} />
-                <Bar yAxisId="left" xAxisId="whisker" dataKey="whiskerRange" fill="var(--color-semantic-label-neutral)" fillOpacity={0.4} barSize={2} hide={!floorVisible.whisker} />
-                <Bar yAxisId="left" xAxisId="box" dataKey="boxRange" fill="var(--color-chart-primary)" fillOpacity={0.25} stroke="var(--color-chart-primary)" strokeWidth={1.5} barSize={20} hide={!floorVisible.box} />
-                <Line yAxisId="left" xAxisId="box" type="monotone" dataKey="median" stroke="none" dot={<RenderBoxPlotMedian />} activeDot={false} hide={!floorVisible.median} />
-                <Line yAxisId="left" xAxisId="box" type="monotone" dataKey="avg" stroke="none" dot={<RenderBoxPlotAvg />} activeDot={false} hide={!floorVisible.avg} />
+                <Bar
+                  yAxisId="right"
+                  xAxisId="volume"
+                  dataKey="volume"
+                  fill="var(--color-chart-primary)"
+                  fillOpacity={0.06}
+                  radius={[4, 4, 0, 0]}
+                  barSize={40}
+                  hide={!floorVisible.volume}
+                />
+                <Bar
+                  yAxisId="left"
+                  xAxisId="whisker"
+                  dataKey="whiskerRange"
+                  fill="var(--color-semantic-label-neutral)"
+                  fillOpacity={0.4}
+                  barSize={2}
+                  hide={!floorVisible.whisker}
+                />
+                <Bar
+                  yAxisId="left"
+                  xAxisId="box"
+                  dataKey="boxRange"
+                  fill="var(--color-chart-primary)"
+                  fillOpacity={0.25}
+                  stroke="var(--color-chart-primary)"
+                  strokeWidth={1.5}
+                  barSize={20}
+                  hide={!floorVisible.box}
+                />
+                <Line
+                  yAxisId="left"
+                  xAxisId="box"
+                  type="monotone"
+                  dataKey="median"
+                  stroke="none"
+                  dot={<RenderBoxPlotMedian />}
+                  activeDot={false}
+                  hide={!floorVisible.median}
+                />
+                <Line
+                  yAxisId="left"
+                  xAxisId="box"
+                  type="monotone"
+                  dataKey="avg"
+                  stroke="none"
+                  dot={<RenderBoxPlotAvg />}
+                  activeDot={false}
+                  hide={!floorVisible.avg}
+                />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
@@ -673,25 +1121,118 @@ export default function OverviewTab({ data, onSelectComplex, areaUnit = "pyeong"
       </div>
 
       {/* 서브 차트 2개 나란히 */}
-      <div className="grid gap-6" style={{ gridTemplateColumns: isNarrow ? '1fr' : 'repeat(2, 1fr)' }}>
+      <div
+        className="grid gap-6"
+        style={{ gridTemplateColumns: isNarrow ? "1fr" : "repeat(2, 1fr)" }}
+      >
         {/* 지역별 거래가 분포 & 거래량 */}
         <SectionCard title={t.boxPlotTitleRegion}>
           {renderLegendHeader(regionVisible, toggleRegion)}
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={regionBoxPlotChartData} margin={{ top: 10, right: -5, left: -15, bottom: 0 }}>
+              <ComposedChart
+                data={regionBoxPlotChartData}
+                margin={{ top: 10, right: -5, left: -15, bottom: 0 }}
+              >
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis dataKey="name" xAxisId="box" stroke="#64748b" fontSize={10} tickLine={false} interval="preserveStartEnd" tickFormatter={(v) => v.split(" ").slice(-1)[0]} />
+                <XAxis
+                  dataKey="name"
+                  xAxisId="box"
+                  stroke="#64748b"
+                  fontSize={10}
+                  tickLine={false}
+                  interval="preserveStartEnd"
+                  tickFormatter={(v) => v.split(" ").slice(-1)[0]}
+                />
                 <XAxis dataKey="name" xAxisId="whisker" hide />
                 <XAxis dataKey="name" xAxisId="volume" hide />
-                <YAxis yAxisId="left" width={52} stroke="#64748b" fontSize={11} tickLine={false} label={{ value: "가격(억)", angle: -90, position: "insideLeft", fill: "#64748b", fontSize: 10, offset: 6 }} domain={[(dataMin) => Math.max(0, Math.floor(dataMin * 0.9)), "auto"]} />
-                <YAxis yAxisId="right" orientation="right" width={52} stroke="#64748b" fontSize={11} tickLine={false} label={{ value: "거래수(건)", angle: 90, position: "insideRight", fill: "#64748b", fontSize: 10, offset: 6 }} domain={[0, "auto"]} />
+                <YAxis
+                  yAxisId="left"
+                  width={52}
+                  stroke="#64748b"
+                  fontSize={11}
+                  tickLine={false}
+                  label={{
+                    value: "가격(억)",
+                    angle: -90,
+                    position: "insideLeft",
+                    fill: "#64748b",
+                    fontSize: 10,
+                    offset: 6,
+                  }}
+                  domain={[
+                    (dataMin) => Math.max(0, Math.floor(dataMin * 0.9)),
+                    "auto",
+                  ]}
+                />
+                <YAxis
+                  yAxisId="right"
+                  orientation="right"
+                  width={52}
+                  stroke="#64748b"
+                  fontSize={11}
+                  tickLine={false}
+                  label={{
+                    value: "거래수(건)",
+                    angle: 90,
+                    position: "insideRight",
+                    fill: "#64748b",
+                    fontSize: 10,
+                    offset: 6,
+                  }}
+                  domain={[0, "auto"]}
+                />
                 <Tooltip content={<BoxPlotTooltip t={t} />} />
-                <Bar yAxisId="right" xAxisId="volume" dataKey="volume" fill="var(--color-chart-primary)" fillOpacity={0.06} radius={[4, 4, 0, 0]} barSize={24} hide={!regionVisible.volume} />
-                <Bar yAxisId="left" xAxisId="whisker" dataKey="whiskerRange" fill="var(--color-semantic-label-neutral)" fillOpacity={0.4} barSize={2} hide={!regionVisible.whisker} />
-                <Bar yAxisId="left" xAxisId="box" dataKey="boxRange" fill="var(--color-chart-primary)" fillOpacity={0.25} stroke="var(--color-chart-primary)" strokeWidth={1.5} barSize={12} hide={!regionVisible.box} />
-                <Line yAxisId="left" xAxisId="box" type="monotone" dataKey="median" stroke="none" dot={<RenderBoxPlotMedian />} activeDot={false} hide={!regionVisible.median} />
-                <Line yAxisId="left" xAxisId="box" type="monotone" dataKey="avg" stroke="none" dot={<RenderBoxPlotAvg />} activeDot={false} hide={!regionVisible.avg} />
+                <Bar
+                  yAxisId="right"
+                  xAxisId="volume"
+                  dataKey="volume"
+                  fill="var(--color-chart-primary)"
+                  fillOpacity={0.06}
+                  radius={[4, 4, 0, 0]}
+                  barSize={24}
+                  hide={!regionVisible.volume}
+                />
+                <Bar
+                  yAxisId="left"
+                  xAxisId="whisker"
+                  dataKey="whiskerRange"
+                  fill="var(--color-semantic-label-neutral)"
+                  fillOpacity={0.4}
+                  barSize={2}
+                  hide={!regionVisible.whisker}
+                />
+                <Bar
+                  yAxisId="left"
+                  xAxisId="box"
+                  dataKey="boxRange"
+                  fill="var(--color-chart-primary)"
+                  fillOpacity={0.25}
+                  stroke="var(--color-chart-primary)"
+                  strokeWidth={1.5}
+                  barSize={12}
+                  hide={!regionVisible.box}
+                />
+                <Line
+                  yAxisId="left"
+                  xAxisId="box"
+                  type="monotone"
+                  dataKey="median"
+                  stroke="none"
+                  dot={<RenderBoxPlotMedian />}
+                  activeDot={false}
+                  hide={!regionVisible.median}
+                />
+                <Line
+                  yAxisId="left"
+                  xAxisId="box"
+                  type="monotone"
+                  dataKey="avg"
+                  stroke="none"
+                  dot={<RenderBoxPlotAvg />}
+                  activeDot={false}
+                  hide={!regionVisible.avg}
+                />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
@@ -702,16 +1243,40 @@ export default function OverviewTab({ data, onSelectComplex, areaUnit = "pyeong"
           {/* 커스텀 범례 */}
           <div className="flex items-center gap-4 mb-4">
             <div className="flex items-center gap-1.5">
-              <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: "var(--color-chart-accent)" }} />
+              <span
+                className="inline-block w-3 h-3 rounded-full"
+                style={{ backgroundColor: "var(--color-chart-accent)" }}
+              />
               <span className="text-xs text-neutral">거래수</span>
             </div>
           </div>
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={complexChartData} layout="vertical" margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+              <BarChart
+                data={complexChartData}
+                layout="vertical"
+                margin={{ top: 10, right: 10, left: 10, bottom: 0 }}
+              >
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis type="number" stroke="#64748b" fontSize={11} tickLine={false} interval="preserveStartEnd" domain={[(dataMin) => Math.max(0, Math.floor(dataMin * 0.9)), "auto"]} />
-                <YAxis dataKey="name" type="category" stroke="#64748b" fontSize={10} tickLine={false} width={80} />
+                <XAxis
+                  type="number"
+                  stroke="#64748b"
+                  fontSize={11}
+                  tickLine={false}
+                  interval="preserveStartEnd"
+                  domain={[
+                    (dataMin) => Math.max(0, Math.floor(dataMin * 0.9)),
+                    "auto",
+                  ]}
+                />
+                <YAxis
+                  dataKey="name"
+                  type="category"
+                  stroke="#64748b"
+                  fontSize={10}
+                  tickLine={false}
+                  width={80}
+                />
                 <Tooltip contentStyle={tooltipContentStyle} />
                 <Bar
                   dataKey="거래수"
