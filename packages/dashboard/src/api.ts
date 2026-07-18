@@ -257,6 +257,11 @@ export function loadSystemConfig() {
     dataGoKrApiKey: string;
     kakaoJavascriptKey: string;
     kakaoNativeAppKey: string;
+    googleClientId?: string;
+    googleClientSecret?: string;
+    googleRedirectUri?: string;
+    allowedEmails?: string;
+    adminEmails?: string;
   }>("/api/system-config");
 }
 
@@ -268,8 +273,32 @@ export function saveSystemConfig(config: {
   dataGoKrApiKey?: string;
   kakaoJavascriptKey?: string;
   kakaoNativeAppKey?: string;
+  googleClientId?: string;
+  googleClientSecret?: string;
+  googleRedirectUri?: string;
+  allowedEmails?: string;
+  adminEmails?: string;
 }) {
   return request<{ ok: boolean }>("/api/system-config", {
+    method: "POST",
+    body: JSON.stringify(config)
+  });
+}
+
+export function loadUserConfig() {
+  return request<{
+    telegramBotToken: string;
+    telegramChatId: string;
+    kakaoRestApiKey: string;
+  }>("/api/user-config");
+}
+
+export function saveUserConfig(config: {
+  telegramBotToken?: string;
+  telegramChatId?: string;
+  kakaoRestApiKey?: string;
+}) {
+  return request<{ ok: boolean }>("/api/user-config", {
     method: "POST",
     body: JSON.stringify(config)
   });
@@ -320,6 +349,16 @@ export function triggerGeocodeBatch(lawdCode?: string) {
 
 export function loadGeocodeStats() {
   return request<{ total: number; geocoded: number; pending: number }>("/api/graph/geocode-stats");
+}
+
+export function checkAuth() {
+  return request<{ isAuthenticated: boolean; email?: string; isAdmin?: boolean }>("/api/auth/me");
+}
+
+export function logout() {
+  return request<{ ok: boolean }>("/api/auth/logout", {
+    method: "POST"
+  });
 }
 
 

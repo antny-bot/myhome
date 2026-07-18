@@ -4,7 +4,8 @@ import { createRouter } from "./routes.js";
 import { createGraphRouter } from "./routes-graph.js";
 import { createAdminRouter } from "./routes-admin.js";
 import { startScheduler } from "./scheduler.js";
-import { initDb, closeGraphDb } from "@myhome/shared";
+import { initDb, closeGraphDb, cleanExpiredSessions } from "@myhome/shared";
+import { createAuthRouter, authMiddleware, adminRequired } from "./authRoutes.js";
 
 import { join, dirname } from "node:path";
 
@@ -68,9 +69,11 @@ const yamlPort = findAndLoadYamlPort();
 const port = Number(process.env.PORT ?? yamlPort ?? "4174");
 
 app.use(express.json());
+app.use("/api", authMiddleware);
+app.use("/api/auth", createAuthRouter());
 app.use("/api", createRouter());
 app.use("/api/graph", createGraphRouter());
-app.use("/api/admin", createAdminRouter());
+app.use("/api/admin", adminRequired, createAdminRouter());
 
 // SPA 정적 파일 서빙 추가
 const fileDir = dirname(new URL(import.meta.url).pathname).replace(/^\/([a-zA-Z]:)/, '$1');
@@ -92,6 +95,15 @@ const server = app.listen(port, host, async () => {
   try {
     initDb();
     console.log("💾 SQLite 데이터베이스가 정상적으로 초기화되었습니다.");
+    
+    // 만료 세션 주기적 제거 (1시간 주기)
+    setInterval(() => {
+      try {
+        cleanExpiredSessions();
+      } catch (err: any) {
+        console.error("⚠️ 만료 세션 제거 실패:", err.message);
+      }
+    }, 3600 * 1000);
     // app-state.json 설정을 process.env에 로드
     const { applySystemConfigToEnv } = await import("./storage.js");
     await applySystemConfigToEnv();

@@ -5,7 +5,7 @@ import { SectionCard } from "../components/SectionCard";
 import { classNames } from "../lib/format";
 import type { DashboardState } from "../types";
 import packageJson from "../../package.json";
-import { loadSystemConfig, saveSystemConfig } from "../api";
+import { loadSystemConfig, saveSystemConfig, loadUserConfig, saveUserConfig } from "../api";
 import { copy } from "../locales/ko";
 
 const locale = "ko";
@@ -26,21 +26,31 @@ export function SettingsPage({ state, onChanged }: { state: DashboardState | und
   const [kakaoNativeAppKey, setKakaoNativeAppKey] = useState("");
   const [jusoConfmKey, setJusoConfmKey] = useState("");
   const [dataGoKrApiKey, setDataGoKrApiKey] = useState("");
+  const [googleClientId, setGoogleClientId] = useState("");
+  const [googleClientSecret, setGoogleClientSecret] = useState("");
+  const [googleRedirectUri, setGoogleRedirectUri] = useState("");
 
   // 설정값 불러오기
   const fetchConfig = async () => {
     setLoading(true);
     try {
-      const data = await loadSystemConfig();
-      setTelegramBotToken(data.telegramBotToken || "");
-      setTelegramChatId(data.telegramChatId || "");
-      setKakaoRestApiKey(data.kakaoRestApiKey || "");
-      setKakaoJavascriptKey(data.kakaoJavascriptKey || "");
-      setKakaoNativeAppKey(data.kakaoNativeAppKey || "");
-      setJusoConfmKey(data.jusoConfmKey || "");
-      setDataGoKrApiKey(data.dataGoKrApiKey || "");
+      const [systemData, userData] = await Promise.all([
+        loadSystemConfig(),
+        loadUserConfig(),
+      ]);
+      setTelegramBotToken(userData.telegramBotToken || "");
+      setTelegramChatId(userData.telegramChatId || "");
+      setKakaoRestApiKey(userData.kakaoRestApiKey || "");
+
+      setKakaoJavascriptKey(systemData.kakaoJavascriptKey || "");
+      setKakaoNativeAppKey(systemData.kakaoNativeAppKey || "");
+      setJusoConfmKey(systemData.jusoConfmKey || "");
+      setDataGoKrApiKey(systemData.dataGoKrApiKey || "");
+      setGoogleClientId(systemData.googleClientId || "");
+      setGoogleClientSecret(systemData.googleClientSecret || "");
+      setGoogleRedirectUri(systemData.googleRedirectUri || "");
     } catch (err: any) {
-      console.error("Failed to load system config:", err);
+      console.error("Failed to load config:", err);
     } finally {
       setLoading(false);
     }
@@ -57,16 +67,23 @@ export function SettingsPage({ state, onChanged }: { state: DashboardState | und
     setSuccessMsg("");
     setErrorMsg("");
     try {
-      await saveSystemConfig({
-        telegramBotToken,
-        telegramChatId,
-        kakaoRestApiKey,
-        kakaoJavascriptKey,
-        kakaoNativeAppKey,
-        jusoConfmKey,
-        dataGoKrApiKey,
-      });
-      setSuccessMsg("시스템 설정이 성공적으로 저장 및 적용되었습니다.");
+      await Promise.all([
+        saveUserConfig({
+          telegramBotToken,
+          telegramChatId,
+          kakaoRestApiKey,
+        }),
+        saveSystemConfig({
+          kakaoJavascriptKey,
+          kakaoNativeAppKey,
+          jusoConfmKey,
+          dataGoKrApiKey,
+          googleClientId,
+          googleClientSecret,
+          googleRedirectUri,
+        }),
+      ]);
+      setSuccessMsg("설정이 성공적으로 저장 및 적용되었습니다.");
       setTimeout(() => setSuccessMsg(""), 3000);
       if (onChanged) onChanged();
     } catch (err: any) {
@@ -168,7 +185,7 @@ export function SettingsPage({ state, onChanged }: { state: DashboardState | und
               </div>
             )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* 1. 실거래 수집 설정 (공공데이터포털) */}
               <div className="space-y-4 p-4 rounded-xl border border-normal bg-normal/30 flex flex-col justify-between">
                 <div>
@@ -193,7 +210,42 @@ export function SettingsPage({ state, onChanged }: { state: DashboardState | und
                 </p>
               </div>
 
-              {/* 2. 주소 및 지도 검색 설정 (카카오 & 도로명주소) */}
+              {/* 2. 텔레그램 설정 */}
+              <div className="space-y-4 p-4 rounded-xl border border-normal bg-normal/30 flex flex-col justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-strong border-b border-normal pb-2 flex items-center gap-1.5">
+                    📬 텔레그램 알림 채널 (개인 설정)
+                  </h3>
+                  <p className="text-[11px] text-neutral mt-1">아파트 실거래가 기준 조건 충족 시 실시간 텔레그램 메신저 알림을 전달하는 키입니다.</p>
+                  
+                  <div className="flex flex-col gap-1.5 mt-4">
+                    <label className="text-xs font-semibold text-neutral">텔레그램 봇 토큰 (Bot Token)</label>
+                    <input
+                      type="password"
+                      value={telegramBotToken}
+                      onChange={(e) => setTelegramBotToken(e.target.value)}
+                      placeholder="텔레그램 봇 API 토큰 입력"
+                      className="w-full bg-normal border border-normal rounded-lg px-3 py-2 text-xs text-strong placeholder-assistive focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1.5 mt-3">
+                    <label className="text-xs font-semibold text-neutral">텔레그램 대화방 ID (Chat ID)</label>
+                    <input
+                      type="text"
+                      value={telegramChatId}
+                      onChange={(e) => setTelegramChatId(e.target.value)}
+                      placeholder="알림을 수신할 Chat ID 입력 (예: -100...)"
+                      className="w-full bg-normal border border-normal rounded-lg px-3 py-2 text-xs text-strong placeholder-assistive focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
+                </div>
+                <p className="text-[10px] text-assistive mt-4 border-t border-normal/50 pt-2">
+                  * <a href="https://t.me/BotFather" target="_blank" rel="noreferrer" className="text-primary hover:underline font-semibold">@BotFather</a>를 통해 봇을 생성하고 토큰을 획득합니다. 대화방 ID는 수신 그룹/채널에 봇을 참여시킨 뒤 <a href="https://t.me/getidsbot" target="_blank" rel="noreferrer" className="text-primary hover:underline font-semibold">@getidsbot</a> 등을 호출해 확인합니다.
+                </p>
+              </div>
+
+              {/* 3. 주소 및 지도 검색 설정 (카카오 & 도로명주소) */}
               <div className="space-y-4 p-4 rounded-xl border border-normal bg-normal/30 flex flex-col justify-between">
                 <div>
                   <h3 className="text-sm font-bold text-strong border-b border-normal pb-2 flex items-center gap-1.5">
@@ -250,38 +302,51 @@ export function SettingsPage({ state, onChanged }: { state: DashboardState | und
                 </p>
               </div>
 
-              {/* 3. 텔레그램 설정 */}
+              {/* 4. Google OAuth 로그인 설정 */}
               <div className="space-y-4 p-4 rounded-xl border border-normal bg-normal/30 flex flex-col justify-between">
                 <div>
                   <h3 className="text-sm font-bold text-strong border-b border-normal pb-2 flex items-center gap-1.5">
-                    📬 텔레그램 알림 채널
+                    🔐 Google OAuth 로그인 설정
                   </h3>
-                  <p className="text-[11px] text-neutral mt-1">아파트 실거래가 기준 조건 충족 시 실시간 텔레그램 메신저 알림을 전달하는 키입니다.</p>
-                  
+                  <p className="text-[11px] text-neutral mt-1">대시보드 보안 접근을 위한 Google OAuth 2.0 연동 설정입니다.</p>
+
                   <div className="flex flex-col gap-1.5 mt-4">
-                    <label className="text-xs font-semibold text-neutral">텔레그램 봇 토큰 (Bot Token)</label>
+                    <label className="text-xs font-semibold text-neutral">Google Client ID</label>
                     <input
-                      type="password"
-                      value={telegramBotToken}
-                      onChange={(e) => setTelegramBotToken(e.target.value)}
-                      placeholder="텔레그램 봇 API 토큰 입력"
+                      type="text"
+                      value={googleClientId}
+                      onChange={(e) => setGoogleClientId(e.target.value)}
+                      placeholder="구글 클라우드 콘솔 Client ID 입력"
                       className="w-full bg-normal border border-normal rounded-lg px-3 py-2 text-xs text-strong placeholder-assistive focus:outline-none focus:ring-2 focus:ring-primary"
                     />
                   </div>
 
                   <div className="flex flex-col gap-1.5 mt-3">
-                    <label className="text-xs font-semibold text-neutral">텔레그램 대화방 ID (Chat ID)</label>
+                    <label className="text-xs font-semibold text-neutral">Google Client Secret</label>
                     <input
-                      type="text"
-                      value={telegramChatId}
-                      onChange={(e) => setTelegramChatId(e.target.value)}
-                      placeholder="알림을 수신할 Chat ID 입력 (예: -100...)"
+                      type="password"
+                      value={googleClientSecret}
+                      onChange={(e) => setGoogleClientSecret(e.target.value)}
+                      placeholder="구글 클라우드 콘솔 Client Secret 입력"
                       className="w-full bg-normal border border-normal rounded-lg px-3 py-2 text-xs text-strong placeholder-assistive focus:outline-none focus:ring-2 focus:ring-primary"
                     />
                   </div>
+
+                  <div className="flex flex-col gap-1.5 mt-3">
+                    <label className="text-xs font-semibold text-neutral">Google Redirect URI</label>
+                    <input
+                      type="text"
+                      value={googleRedirectUri}
+                      onChange={(e) => setGoogleRedirectUri(e.target.value)}
+                      placeholder="예: http://localhost:4174/api/auth/google/callback"
+                      className="w-full bg-normal border border-normal rounded-lg px-3 py-2 text-xs text-strong placeholder-assistive focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
+
+
                 </div>
                 <p className="text-[10px] text-assistive mt-4 border-t border-normal/50 pt-2">
-                  * <a href="https://t.me/BotFather" target="_blank" rel="noreferrer" className="text-primary hover:underline font-semibold">@BotFather</a>를 통해 봇을 생성하고 토큰을 획득합니다. 대화방 ID는 수신 그룹/채널에 봇을 참여시킨 뒤 <a href="https://t.me/getidsbot" target="_blank" rel="noreferrer" className="text-primary hover:underline font-semibold">@getidsbot</a> 등을 호출해 확인합니다.
+                  * <a href="https://console.cloud.google.com/" target="_blank" rel="noreferrer" className="text-primary hover:underline font-semibold">Google Cloud Console</a> API 및 서비스 &gt; 사용자 인증 정보에서 OAuth 2.0 클라이언트 ID를 생성한 후 관련 정보를 설정합니다.
                 </p>
               </div>
             </div>

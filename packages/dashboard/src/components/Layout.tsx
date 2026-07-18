@@ -1,10 +1,10 @@
-import { Bell, History, LayoutDashboard, Menu, RefreshCw, Settings, Sparkles, X, LucideIcon, BarChart3, Database, ClipboardList, Sliders, Compass, Home } from "lucide-react";
+import { Bell, History, LayoutDashboard, Menu, RefreshCw, Settings, Sparkles, X, LucideIcon, BarChart3, Database, ClipboardList, Sliders, Compass, Home, LogOut, UserCheck } from "lucide-react";
 import { useState } from "react";
 import { classNames } from "../lib/format";
 import { useBreakpoint } from "../useBreakpoint";
 import packageJson from "../../package.json";
 
-export type View = "dashboard" | "rules" | "explore" | "settings" | "analytics" | "dbAdmin" | "collect" | "nearby";
+export type View = "dashboard" | "rules" | "explore" | "settings" | "analytics" | "dbAdmin" | "collect" | "nearby" | "allowedAccounts";
 
 const copy = {
   ko: {
@@ -16,6 +16,7 @@ const copy = {
     collect: "수집 현황",
     dbAdmin: "데이터베이스",
     settings: "환경 설정",
+    allowedAccounts: "승인 계정",
     dataConstraint: "데이터 제약",
     dataConstraintDesc: "실거래가/단지정보 기준이며 호가 정보는 포함되지 않습니다.",
     serviceName: "아파트 실거래 자동 알림 서비스",
@@ -35,6 +36,7 @@ const copy = {
     collect: "Collection Stats",
     dbAdmin: "Database",
     settings: "Settings",
+    allowedAccounts: "Allowed Accounts",
     dataConstraint: "Data Constraints",
     dataConstraintDesc: "Based on real transaction prices and complex details. Asking prices not included.",
     serviceName: "Apartment Real Transaction Alert Service",
@@ -58,6 +60,7 @@ const navItems: Array<{ view: View; icon: LucideIcon; labelKey: keyof typeof cop
   { view: "nearby", icon: Compass, labelKey: "nearby" },
   { view: "collect", icon: ClipboardList, labelKey: "collect" },
   { view: "dbAdmin", icon: Database, labelKey: "dbAdmin" },
+  { view: "allowedAccounts", icon: UserCheck, labelKey: "allowedAccounts" },
   { view: "settings", icon: Settings, labelKey: "settings" }
 ];
 
@@ -77,6 +80,7 @@ const mobileNavItems: Array<
     subItems: [
       { view: "collect", label: "수집 현황", icon: ClipboardList },
       { view: "dbAdmin", label: "데이터베이스", icon: Database },
+      { view: "allowedAccounts", label: "승인 계정", icon: UserCheck },
       { view: "settings", label: "환경 설정", icon: Settings },
     ]
   }
@@ -87,7 +91,7 @@ interface NavGroup {
   items: Array<{
     view: View;
     icon: LucideIcon;
-    labelKey: "dashboard" | "rules" | "explore" | "analytics" | "collect" | "dbAdmin" | "settings" | "nearby";
+    labelKey: "dashboard" | "rules" | "explore" | "analytics" | "collect" | "dbAdmin" | "settings" | "nearby" | "allowedAccounts";
   }>;
 }
 
@@ -116,7 +120,8 @@ const navGroups: NavGroup[] = [
     groupKey: "groupAdmin",
     items: [
       { view: "collect", icon: ClipboardList, labelKey: "collect" },
-      { view: "dbAdmin", icon: Database, labelKey: "dbAdmin" }
+      { view: "dbAdmin", icon: Database, labelKey: "dbAdmin" },
+      { view: "allowedAccounts", icon: UserCheck, labelKey: "allowedAccounts" }
     ]
   },
   {
@@ -131,69 +136,151 @@ function NavItem({
   icon: Icon,
   label,
   active,
-  onClick
+  onClick,
+  collapsed = false
 }: {
   icon: LucideIcon;
   label: string;
   active: boolean;
   onClick: () => void;
+  collapsed?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       className={classNames(
-        "w-full text-left flex items-center gap-3 px-4 py-3 rounded-xl transition-all",
+        "w-full flex items-center rounded-xl transition-all",
+        collapsed ? "justify-center p-3" : "text-left gap-3 px-4 py-3",
         active ? "bg-primary text-white font-bold shadow-md shadow-primary/20" : "text-neutral hover:bg-alternative hover:text-strong"
       )}
+      title={collapsed ? label : undefined}
     >
-      <Icon className="h-5 w-5" />
-      <span className="text-[15px]">{label}</span>
+      <Icon className="h-5 w-5 flex-shrink-0" />
+      {!collapsed && <span className="text-[15px] whitespace-nowrap">{label}</span>}
     </button>
   );
 }
 
-export function Layout({ view, onNavigate, children }: { view: View; onNavigate: (view: View) => void; children: React.ReactNode }) {
+export function Layout({
+  view,
+  onNavigate,
+  onLogout,
+  isAdmin = false,
+  children
+}: {
+  view: View;
+  onNavigate: (view: View) => void;
+  onLogout?: () => void;
+  isAdmin?: boolean;
+  children: React.ReactNode;
+}) {
   const { isMobile } = useBreakpoint();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [adminMenuOpen, setAdminMenuOpen] = useState(false);
+  const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(true);
 
   return (
     <div className="min-h-screen bg-alternative flex text-strong font-body">
       {/* Desktop Sidebar */}
       {!isMobile && (
-        <aside className="w-64 border-r border-normal bg-elevated sticky top-0 h-screen flex flex-col p-5">
-          <div className="px-4 py-6 flex items-center gap-2.5">
-            <Home className="h-6 w-6 text-primary flex-shrink-0" />
-            <div>
-              <h1 className="text-xl font-black text-primary tracking-tight leading-none">MY HOME</h1>
-              <p className="text-[10px] text-neutral font-bold tracking-widest uppercase mt-1">Apartment Alert</p>
-            </div>
-          </div>
-          <nav className="mt-4 space-y-5 flex-1 overflow-y-auto">
-            {navGroups.map((group) => (
-              <div key={group.groupKey} className="space-y-1.5">
-                <span className="text-[10px] font-bold tracking-wider text-neutral/50 uppercase px-4 block">
-                  {t[group.groupKey]}
-                </span>
-                <div className="space-y-0.5">
-                  {group.items.map((item) => (
-                    <NavItem
-                      key={item.view}
-                      icon={item.icon}
-                      label={t[item.labelKey]}
-                      active={view === item.view}
-                      onClick={() => onNavigate(item.view)}
-                    />
-                  ))}
-                </div>
+        <aside
+          className={classNames(
+            "bg-elevated sticky top-0 h-screen flex flex-col transition-all duration-300 ease-in-out overflow-hidden",
+            desktopSidebarOpen ? "w-64 border-r border-normal p-5" : "w-20 border-r border-normal p-4"
+          )}
+        >
+          <div className="flex flex-col h-full justify-between w-full">
+            <div className="flex-1 flex flex-col min-h-0">
+              <div className={classNames(
+                "py-6 flex items-center gap-2.5",
+                desktopSidebarOpen ? "justify-between px-4" : "justify-center"
+              )}>
+                {desktopSidebarOpen ? (
+                  <>
+                    <div className="flex items-center gap-2.5">
+                      <Home className="h-6 w-6 text-primary flex-shrink-0" />
+                      <div>
+                        <h1 className="text-xl font-black text-primary tracking-tight leading-none">MY HOME</h1>
+                        <p className="text-[10px] text-neutral font-bold tracking-widest uppercase mt-1">Apartment Alert</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setDesktopSidebarOpen(false)}
+                      className="p-1.5 text-neutral hover:text-strong hover:bg-alternative rounded-lg transition-colors"
+                      aria-label="Collapse sidebar"
+                    >
+                      <Menu className="h-5 w-5" />
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setDesktopSidebarOpen(true)}
+                    className="p-2 text-primary hover:text-strong hover:bg-alternative rounded-xl transition-all shadow-sm shadow-primary/10 hover:scale-105"
+                    aria-label="Expand sidebar"
+                  >
+                    <Menu className="h-5 w-5" />
+                  </button>
+                )}
               </div>
-            ))}
-          </nav>
-          <div className="pt-6 border-t border-normal/50">
-            <div className="bg-alternative rounded-xl p-4">
-              <p className="text-xs text-neutral font-medium">{t.dataConstraint}</p>
-              <p className="mt-1 text-[11px] leading-relaxed text-neutral/70">{t.dataConstraintDesc}</p>
+              <nav className="mt-4 space-y-5 flex-1 overflow-y-auto">
+                {navGroups.filter((g) => {
+                  if (g.groupKey === "groupAdmin" || g.groupKey === "groupSettings") {
+                    return isAdmin;
+                  }
+                  return true;
+                }).map((group, idx) => (
+                  <div key={group.groupKey} className="space-y-1.5">
+                    {desktopSidebarOpen ? (
+                      <span className="text-[10px] font-bold tracking-wider text-neutral/50 uppercase px-4 block">
+                        {t[group.groupKey]}
+                      </span>
+                    ) : (
+                      idx > 0 && <div className="border-t border-normal/30 my-2 mx-1" />
+                    )}
+                    <div className="space-y-0.5">
+                      {group.items.map((item) => (
+                        <NavItem
+                          key={item.view}
+                          icon={item.icon}
+                          label={t[item.labelKey]}
+                          active={view === item.view}
+                          onClick={() => onNavigate(item.view)}
+                          collapsed={!desktopSidebarOpen}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </nav>
+            </div>
+            <div>
+              {onLogout && (
+                <div className="mb-2">
+                  <button
+                    type="button"
+                    onClick={onLogout}
+                    className={classNames(
+                      "w-full flex items-center text-neutral hover:bg-rose-500/10 hover:text-rose-600 rounded-xl transition-all font-semibold",
+                      desktopSidebarOpen ? "gap-3 px-4 py-2.5 text-sm" : "justify-center p-3"
+                    )}
+                    title={!desktopSidebarOpen ? "로그아웃" : undefined}
+                  >
+                    <LogOut className={classNames("flex-shrink-0", desktopSidebarOpen ? "h-4 w-4" : "h-5 w-5")} />
+                    {desktopSidebarOpen && <span>로그아웃</span>}
+                  </button>
+                </div>
+              )}
+              {desktopSidebarOpen && (
+                <div className="pt-6 border-t border-normal/50">
+                  <div className="bg-alternative rounded-xl p-4">
+                    <p className="text-xs text-neutral font-medium">{t.dataConstraint}</p>
+                    <p className="mt-1 text-[11px] leading-relaxed text-neutral/70">{t.dataConstraintDesc}</p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </aside>
@@ -222,7 +309,12 @@ export function Layout({ view, onNavigate, children }: { view: View; onNavigate:
               </button>
             </div>
             <nav className="mt-4 space-y-5 flex-1 overflow-y-auto">
-              {navGroups.map((group) => (
+              {navGroups.filter((g) => {
+                if (g.groupKey === "groupAdmin" || g.groupKey === "groupSettings") {
+                  return isAdmin;
+                }
+                return true;
+              }).map((group) => (
                 <div key={group.groupKey} className="space-y-1.5">
                   <span className="text-[10px] font-bold tracking-wider text-neutral/50 uppercase px-4 block">
                     {t[group.groupKey]}
@@ -244,6 +336,21 @@ export function Layout({ view, onNavigate, children }: { view: View; onNavigate:
                 </div>
               ))}
             </nav>
+            {onLogout && (
+              <div className="mb-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onLogout();
+                    setSidebarOpen(false);
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-neutral hover:bg-rose-500/10 hover:text-rose-600 rounded-xl transition-all text-sm font-semibold"
+                >
+                  <LogOut className="h-4 w-4" />
+                  <span>로그아웃</span>
+                </button>
+              </div>
+            )}
             <div className="pt-6 border-t border-normal/50">
               <div className="bg-alternative rounded-xl p-4">
                 <p className="text-xs text-neutral font-medium">{t.dataConstraint}</p>
@@ -268,7 +375,10 @@ export function Layout({ view, onNavigate, children }: { view: View; onNavigate:
           </header>
         )}
 
-        <main className={classNames("flex-1 overflow-auto", isMobile ? "p-4 pb-24" : "p-8 max-w-6xl mx-auto w-full")}>
+        <main className={classNames(
+          "flex-1 overflow-auto",
+          isMobile ? "p-4 pb-24" : "p-8 max-w-6xl mx-auto w-full"
+        )}>
           {children}
         </main>
 
@@ -312,7 +422,12 @@ export function Layout({ view, onNavigate, children }: { view: View; onNavigate:
             )}
 
             {/* Mobile Bottom Tabs */}
-            {mobileNavItems.map((item) => {
+            {mobileNavItems.filter((item) => {
+              if (item.type === "menu" && item.key === "admin") {
+                return isAdmin;
+              }
+              return true;
+            }).map((item) => {
               if (item.type === "link") {
                 const Icon = item.icon;
                 const isActive = view === item.view;

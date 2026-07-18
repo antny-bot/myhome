@@ -211,7 +211,27 @@ export const copy = {
     settingsSubtitle: "데이터 소스, 외부 API 키 및 실시간 알림 채널 연동 상태를 관리하세요.",
     systemStatusTitle: "시스템 연동 상태",
     settingsSaved: "시스템 설정이 성공적으로 저장 및 적용되었습니다.",
-    settingsSaveFailed: "설정 저장 실패"
+    settingsSaveFailed: "설정 저장 실패",
+
+    // Allowed Accounts
+    allowedAccounts: "승인 계정 관리",
+    allowedAccountsTitle: "승인 계정 관리",
+    allowedAccountsSubtitle: "구글 OAuth 로그인을 통해 대시보드에 접근할 수 있는 승인된 이메일 계정 목록을 관리합니다.",
+    allowedAccountsListTitle: "승인된 이메일 목록",
+    addAccount: "계정 추가",
+    emailPlaceholder: "이메일 주소 입력 (예: user@gmail.com)",
+    deleteAccountConfirm: "이 계정을 승인 목록에서 삭제하시겠습니까?",
+    addSuccess: "계정이 성공적으로 추가되었습니다.",
+    deleteSuccess: "계정이 성공적으로 삭제되었습니다.",
+    invalidEmail: "올바른 이메일 형식이 아닙니다.",
+    alreadyExists: "이미 등록된 이메일입니다.",
+    noAllowedAccounts: "등록된 승인 계정이 없습니다. 모든 사용자의 로그인이 제한될 수 있습니다.",
+    role: "권한",
+    userRoleNormal: "일반 사용자",
+    userRoleAdmin: "관리자",
+    toggleAdminSuccess: "권한이 성공적으로 변경되었습니다.",
+    cantRemoveSelfAdmin: "본인의 관리자 권한은 해제할 수 없습니다.",
+    atLeastOneAdmin: "최소 한 명 이상의 관리자가 존재해야 합니다."
   },
   en: {
     // Navigation / Breadcrumb Parents
@@ -425,7 +445,27 @@ export const copy = {
     settingsSubtitle: "Manage data sources, external API keys, and real-time alert channel integrations.",
     systemStatusTitle: "System Integration Status",
     settingsSaved: "System settings successfully saved and applied.",
-    settingsSaveFailed: "Failed to save settings."
+    settingsSaveFailed: "Failed to save settings.",
+
+    // Allowed Accounts
+    allowedAccounts: "Allowed Accounts",
+    allowedAccountsTitle: "Allowed Accounts",
+    allowedAccountsSubtitle: "Manage the list of approved Google email accounts that can access the dashboard via Google OAuth.",
+    allowedAccountsListTitle: "Approved Email List",
+    addAccount: "Add Account",
+    emailPlaceholder: "Enter email address (e.g. user@gmail.com)",
+    deleteAccountConfirm: "Are you sure you want to remove this account from the approved list?",
+    addSuccess: "Account added successfully.",
+    deleteSuccess: "Account deleted successfully.",
+    invalidEmail: "Invalid email format.",
+    alreadyExists: "This email is already registered.",
+    noAllowedAccounts: "No allowed accounts registered. Access may be restricted for all users.",
+    role: "Role",
+    userRoleNormal: "User",
+    userRoleAdmin: "Admin",
+    toggleAdminSuccess: "Role updated successfully.",
+    cantRemoveSelfAdmin: "You cannot remove your own admin privileges.",
+    atLeastOneAdmin: "At least one admin must exist."
   }
 } as const;
 

@@ -10,6 +10,7 @@ export function getDb(): DatabaseSync {
   const dbPath = process.env.SQLITE_DB_PATH ?? join(process.cwd(), "data", "myhome.db");
   _db = new DatabaseSync(dbPath);
   _db.exec("PRAGMA journal_mode = WAL"); // WAL 모드 활성화로 동시성 개선
+  _db.exec("PRAGMA foreign_keys = ON");  // 외래키 제약조건 활성화
   return _db;
 }
 
@@ -60,6 +61,84 @@ export function initDb(): void {
     CREATE INDEX IF NOT EXISTS idx_transactions_complex_id ON transactions(complex_id);
     CREATE INDEX IF NOT EXISTS idx_complexes_lawd_code ON complexes(lawd_code);
     CREATE INDEX IF NOT EXISTS idx_region_apartment_cache_lawd_code ON region_apartment_cache(lawd_code);
+
+    CREATE TABLE IF NOT EXISTS sessions (
+      id TEXT PRIMARY KEY,
+      email TEXT NOT NULL,
+      expires_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS user_settings (
+      email TEXT PRIMARY KEY,
+      telegram_bot_token TEXT,
+      telegram_chat_id TEXT,
+      kakao_rest_api_key TEXT,
+      alerted_dedupe_keys TEXT DEFAULT '[]',
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS rules (
+      id TEXT PRIMARY KEY,
+      user_email TEXT NOT NULL,
+      name TEXT NOT NULL,
+      region_name TEXT NOT NULL,
+      region_code TEXT,
+      apartment_keywords TEXT,
+      min_price_eok REAL,
+      max_price_eok REAL,
+      min_area REAL,
+      max_area REAL,
+      comparison_criteria TEXT NOT NULL,
+      interval_minutes INTEGER NOT NULL,
+      channels TEXT NOT NULL,
+      enabled INTEGER DEFAULT 1,
+      last_checked_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (user_email) REFERENCES user_settings(email) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS graph_presets (
+      id TEXT PRIMARY KEY,
+      user_email TEXT NOT NULL,
+      name TEXT NOT NULL,
+      filter_data TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (user_email) REFERENCES user_settings(email) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS check_runs (
+      id TEXT PRIMARY KEY,
+      user_email TEXT NOT NULL,
+      rule_id TEXT NOT NULL,
+      rule_name TEXT NOT NULL,
+      matched INTEGER NOT NULL,
+      summary TEXT NOT NULL,
+      matches_data TEXT NOT NULL,
+      source_limit_notice TEXT NOT NULL,
+      error TEXT,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (user_email) REFERENCES user_settings(email) ON DELETE CASCADE,
+      FOREIGN KEY (rule_id) REFERENCES rules(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS notifications (
+      id TEXT PRIMARY KEY,
+      user_email TEXT NOT NULL,
+      rule_id TEXT NOT NULL,
+      channel TEXT NOT NULL,
+      status TEXT NOT NULL,
+      message TEXT NOT NULL,
+      dedupe_keys TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (user_email) REFERENCES user_settings(email) ON DELETE CASCADE,
+      FOREIGN KEY (rule_id) REFERENCES rules(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS system_config (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
   `);
 
   // -- complexes 테이블 주소·좌표 컬럼 마이그레이션 (기존 DB 호환)
@@ -969,3 +1048,479 @@ export function getGeocodeStats(): { total: number; geocoded: number; pending: n
   const geocoded = (db.prepare('SELECT COUNT(*) AS c FROM complexes WHERE lat IS NOT NULL').get() as any).c;
   return { total, geocoded, pending: total - geocoded };
 }
+
+/**
+ * 세션 저장
+ */
+export function saveSession(id: string, email: string, expiresAt: number): void {
+  const db = getDb();
+  db.prepare(`
+    INSERT INTO sessions (id, email, expires_at)
+    VALUES (?, ?, ?)
+  `).run(id, email, expiresAt);
+}
+
+/**
+ * 세션 조회
+ */
+export function getSession(id: string): { email: string; expiresAt: number } | null {
+  const db = getDb();
+  const row = db.prepare(`
+    SELECT email, expires_at AS expiresAt
+    FROM sessions
+    WHERE id = ?
+  `).get(id) as { email: string; expiresAt: number } | undefined;
+  
+  if (!row) return null;
+  return row;
+}
+
+/**
+ * 세션 삭제
+ */
+export function deleteSession(id: string): void {
+  const db = getDb();
+  db.prepare("DELETE FROM sessions WHERE id = ?").run(id);
+}
+
+/**
+ * 만료된 세션 삭제
+ */
+export function cleanExpiredSessions(): void {
+  const db = getDb();
+  const now = Math.floor(Date.now() / 1000);
+  db.prepare("DELETE FROM sessions WHERE expires_at < ?").run(now);
+}
+
+/**
+ * ----------------------------------------------------
+ * 다중 사용자(계정 격리) 관련 Helper 함수군
+ * ----------------------------------------------------
+ */
+
+export type UserSettings = {
+  email: string;
+  telegramBotToken: string | null;
+  telegramChatId: string | null;
+  kakaoRestApiKey: string | null;
+  alertedDedupeKeys: string[];
+};
+
+export function getUserSettings(email: string): UserSettings | null {
+  const db = getDb();
+  const row = db.prepare(`
+    SELECT email, telegram_bot_token AS telegramBotToken, telegram_chat_id AS telegramChatId,
+           kakao_rest_api_key AS kakaoRestApiKey, alerted_dedupe_keys AS alertedDedupeKeys
+    FROM user_settings
+    WHERE email = ?
+  `).get(email) as any | undefined;
+
+  if (!row) return null;
+
+  let alertedDedupeKeys: string[] = [];
+  try {
+    alertedDedupeKeys = JSON.parse(row.alertedDedupeKeys || "[]");
+  } catch {
+    alertedDedupeKeys = [];
+  }
+
+  return {
+    email: row.email,
+    telegramBotToken: row.telegramBotToken,
+    telegramChatId: row.telegramChatId,
+    kakaoRestApiKey: row.kakaoRestApiKey,
+    alertedDedupeKeys,
+  };
+}
+
+export function saveUserSettings(
+  email: string,
+  settings: {
+    telegramBotToken?: string | null;
+    telegramChatId?: string | null;
+    kakaoRestApiKey?: string | null;
+    alertedDedupeKeys?: string[];
+  }
+): void {
+  const db = getDb();
+  const now = new Date().toISOString();
+  const existing = getUserSettings(email);
+
+  const updatedToken = settings.telegramBotToken !== undefined ? settings.telegramBotToken : (existing?.telegramBotToken ?? null);
+  const updatedChatId = settings.telegramChatId !== undefined ? settings.telegramChatId : (existing?.telegramChatId ?? null);
+  const updatedKakaoKey = settings.kakaoRestApiKey !== undefined ? settings.kakaoRestApiKey : (existing?.kakaoRestApiKey ?? null);
+  const alertedKeysStr = settings.alertedDedupeKeys !== undefined ? JSON.stringify(settings.alertedDedupeKeys) : (existing ? JSON.stringify(existing.alertedDedupeKeys) : "[]");
+
+  db.prepare(`
+    INSERT INTO user_settings (email, telegram_bot_token, telegram_chat_id, kakao_rest_api_key, alerted_dedupe_keys, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(email) DO UPDATE SET
+      telegram_bot_token = excluded.telegram_bot_token,
+      telegram_chat_id = excluded.telegram_chat_id,
+      kakao_rest_api_key = excluded.kakao_rest_api_key,
+      alerted_dedupe_keys = excluded.alerted_dedupe_keys,
+      updated_at = excluded.updated_at
+  `).run(email, updatedToken, updatedChatId, updatedKakaoKey, alertedKeysStr, now);
+}
+
+function parseRuleRow(row: any) {
+  let keywords: string[] = [];
+  try {
+    keywords = JSON.parse(row.apartment_keywords || "[]");
+  } catch {
+    keywords = [];
+  }
+
+  let channels: string[] = [];
+  try {
+    channels = row.channels ? row.channels.split(",") : [];
+  } catch {
+    channels = [];
+  }
+
+  return {
+    id: row.id,
+    userEmail: row.user_email,
+    name: row.name,
+    regionName: row.region_name,
+    regionCode: row.region_code || undefined,
+    apartmentKeywords: keywords,
+    minPriceEok: row.min_price_eok !== null ? row.min_price_eok : undefined,
+    maxPriceEok: row.max_price_eok !== null ? row.max_price_eok : undefined,
+    minArea: row.min_area !== null ? row.min_area : undefined,
+    maxArea: row.max_area !== null ? row.max_area : undefined,
+    comparisonCriteria: row.comparison_criteria,
+    intervalMinutes: row.interval_minutes,
+    channels: channels,
+    enabled: Boolean(row.enabled),
+    lastCheckedAt: row.last_checked_at || undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function getRulesByEmail(email: string): any[] {
+  const db = getDb();
+  const rows = db.prepare(`
+    SELECT * FROM rules WHERE user_email = ? ORDER BY created_at DESC
+  `).all(email) as any[];
+
+  return rows.map(parseRuleRow);
+}
+
+export function getAllRules(): any[] {
+  const db = getDb();
+  const rows = db.prepare(`
+    SELECT * FROM rules ORDER BY created_at DESC
+  `).all() as any[];
+
+  return rows.map(parseRuleRow);
+}
+
+export function upsertRuleDb(email: string, rule: any): void {
+  const db = getDb();
+  const now = new Date().toISOString();
+  
+  // 외래키 무결성을 위해 우선 user_settings 레코드 확보
+  const user = getUserSettings(email);
+  if (!user) {
+    saveUserSettings(email, {});
+  }
+
+  const keywordsStr = JSON.stringify(rule.apartmentKeywords || []);
+  const channelsStr = (rule.channels || []).join(",");
+
+  db.prepare(`
+    INSERT INTO rules (
+      id, user_email, name, region_name, region_code, apartment_keywords,
+      min_price_eok, max_price_eok, min_area, max_area, comparison_criteria,
+      interval_minutes, channels, enabled, last_checked_at, created_at, updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      name = excluded.name,
+      region_name = excluded.region_name,
+      region_code = excluded.region_code,
+      apartment_keywords = excluded.apartment_keywords,
+      min_price_eok = excluded.min_price_eok,
+      max_price_eok = excluded.max_price_eok,
+      min_area = excluded.min_area,
+      max_area = excluded.max_area,
+      comparison_criteria = excluded.comparison_criteria,
+      interval_minutes = excluded.interval_minutes,
+      channels = excluded.channels,
+      enabled = excluded.enabled,
+      last_checked_at = COALESCE(excluded.last_checked_at, rules.last_checked_at),
+      updated_at = excluded.updated_at
+  `).run(
+    rule.id,
+    email,
+    rule.name,
+    rule.regionName,
+    rule.regionCode || null,
+    keywordsStr,
+    rule.minPriceEok !== undefined ? rule.minPriceEok : null,
+    rule.maxPriceEok !== undefined ? rule.maxPriceEok : null,
+    rule.minArea !== undefined ? rule.minArea : null,
+    rule.maxArea !== undefined ? rule.maxArea : null,
+    rule.comparisonCriteria,
+    rule.intervalMinutes,
+    channelsStr,
+    rule.enabled ? 1 : 0,
+    rule.lastCheckedAt || null,
+    rule.createdAt || now,
+    now
+  );
+}
+
+export function deleteRuleDb(email: string, id: string): boolean {
+  const db = getDb();
+  const info = db.prepare("DELETE FROM rules WHERE id = ? AND user_email = ?").run(id, email);
+  return info.changes > 0;
+}
+
+export function getPresetsByEmail(email: string): any[] {
+  const db = getDb();
+  const rows = db.prepare(`
+    SELECT id, name, filter_data AS filter, created_at AS createdAt
+    FROM graph_presets
+    WHERE user_email = ?
+    ORDER BY created_at DESC
+  `).all(email) as any[];
+
+  return rows.map(r => {
+    let filter = {};
+    try {
+      filter = JSON.parse(r.filter);
+    } catch {
+      filter = {};
+    }
+    return {
+      id: r.id,
+      name: r.name,
+      filter,
+      createdAt: r.createdAt,
+    };
+  });
+}
+
+export function savePresetDb(email: string, preset: any): void {
+  const db = getDb();
+  const now = new Date().toISOString();
+  
+  const user = getUserSettings(email);
+  if (!user) {
+    saveUserSettings(email, {});
+  }
+
+  const filterStr = JSON.stringify(preset.filter || {});
+
+  db.prepare(`
+    INSERT INTO graph_presets (id, user_email, name, filter_data, created_at)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      name = excluded.name,
+      filter_data = excluded.filter_data
+  `).run(preset.id, email, preset.name, filterStr, preset.createdAt || now);
+}
+
+export function deletePresetDb(email: string, id: string): boolean {
+  const db = getDb();
+  const info = db.prepare("DELETE FROM graph_presets WHERE id = ? AND user_email = ?").run(id, email);
+  return info.changes > 0;
+}
+
+export function getCheckRunsByEmail(email: string): any[] {
+  const db = getDb();
+  const rows = db.prepare(`
+    SELECT id, rule_id AS ruleId, rule_name AS ruleName, matched, summary,
+           matches_data AS matches, source_limit_notice AS sourceLimitNotice,
+           error, created_at AS createdAt
+    FROM check_runs
+    WHERE user_email = ?
+    ORDER BY created_at DESC
+    LIMIT 100
+  `).all(email) as any[];
+
+  return rows.map(r => {
+    let matches = [];
+    try {
+      matches = JSON.parse(r.matches || "[]");
+    } catch {
+      matches = [];
+    }
+    return {
+      id: r.id,
+      ruleId: r.ruleId,
+      ruleName: r.ruleName,
+      matched: Boolean(r.matched),
+      summary: r.summary,
+      matches,
+      sourceLimitNotice: r.sourceLimitNotice,
+      error: r.error || undefined,
+      createdAt: r.createdAt,
+    };
+  });
+}
+
+export function appendCheckRunDb(email: string, run: any, alertedDedupeKeys: string[]): void {
+  const db = getDb();
+  const user = getUserSettings(email);
+  if (!user) {
+    saveUserSettings(email, {});
+  }
+
+  const existingKeys = user?.alertedDedupeKeys ?? [];
+  const mergedKeys = Array.from(new Set([...existingKeys, ...alertedDedupeKeys])).slice(-1000);
+  
+  db.exec("BEGIN TRANSACTION");
+  try {
+    // 1. check_run 삽입
+    const matchesStr = JSON.stringify(run.matches || []);
+    db.prepare(`
+      INSERT INTO check_runs (id, user_email, rule_id, rule_name, matched, summary, matches_data, source_limit_notice, error, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      run.id,
+      email,
+      run.ruleId,
+      run.ruleName,
+      run.matched ? 1 : 0,
+      run.summary,
+      matchesStr,
+      run.sourceLimitNotice,
+      run.error || null,
+      run.createdAt
+    );
+
+    // 2. 룰의 lastCheckedAt 및 updatedAt 갱신
+    db.prepare(`
+      UPDATE rules SET last_checked_at = ?, updated_at = ? WHERE id = ?
+    `).run(run.createdAt, run.createdAt, run.ruleId);
+
+    // 3. user_settings의 alerted_dedupe_keys 갱신
+    db.prepare(`
+      UPDATE user_settings SET alerted_dedupe_keys = ? WHERE email = ?
+    `).run(JSON.stringify(mergedKeys), email);
+
+    // 4. 오래된 check_runs 삭제 (최근 100개 유지)
+    db.prepare(`
+      DELETE FROM check_runs
+      WHERE user_email = ? AND id NOT IN (
+        SELECT id FROM check_runs WHERE user_email = ? ORDER BY created_at DESC LIMIT 100
+      )
+    `).run(email, email);
+
+    db.exec("COMMIT");
+  } catch (err) {
+    db.exec("ROLLBACK");
+    throw err;
+  }
+}
+
+export function deleteCheckRunDb(email: string, id: string): boolean {
+  const db = getDb();
+  const info = db.prepare("DELETE FROM check_runs WHERE id = ? AND user_email = ?").run(id, email);
+  return info.changes > 0;
+}
+
+export function getNotificationsByEmail(email: string): any[] {
+  const db = getDb();
+  const rows = db.prepare(`
+    SELECT id, rule_id AS ruleId, channel, status, message,
+           dedupe_keys AS dedupeKeys, created_at AS createdAt
+    FROM notifications
+    WHERE user_email = ?
+    ORDER BY created_at DESC
+    LIMIT 100
+  `).all(email) as any[];
+
+  return rows.map(r => {
+    let dedupeKeys = [];
+    try {
+      dedupeKeys = JSON.parse(r.dedupeKeys || "[]");
+    } catch {
+      dedupeKeys = [];
+    }
+    return {
+      id: r.id,
+      ruleId: r.ruleId,
+      channel: r.channel,
+      status: r.status,
+      message: r.message,
+      dedupeKeys,
+      createdAt: r.createdAt,
+    };
+  });
+}
+
+export function appendNotificationDb(email: string, record: any): void {
+  const db = getDb();
+  const user = getUserSettings(email);
+  if (!user) {
+    saveUserSettings(email, {});
+  }
+
+  db.exec("BEGIN TRANSACTION");
+  try {
+    const dedupeKeysStr = JSON.stringify(record.dedupeKeys || []);
+    db.prepare(`
+      INSERT INTO notifications (id, user_email, rule_id, channel, status, message, dedupe_keys, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      record.id,
+      email,
+      record.ruleId,
+      record.channel,
+      record.status,
+      record.message,
+      dedupeKeysStr,
+      record.createdAt
+    );
+
+    // 오래된 알림 삭제 (100개 유지)
+    db.prepare(`
+      DELETE FROM notifications
+      WHERE user_email = ? AND id NOT IN (
+        SELECT id FROM notifications WHERE user_email = ? ORDER BY created_at DESC LIMIT 100
+      )
+    `).run(email, email);
+
+    db.exec("COMMIT");
+  } catch (err) {
+    db.exec("ROLLBACK");
+    throw err;
+  }
+}
+
+export function getSystemConfigDb(): Record<string, string> {
+  const db = getDb();
+  const rows = db.prepare("SELECT key, value FROM system_config").all() as { key: string; value: string }[];
+  const config: Record<string, string> = {};
+  for (const row of rows) {
+    config[row.key] = row.value;
+  }
+  return config;
+}
+
+export function saveSystemConfigDb(config: Record<string, string>): void {
+  const db = getDb();
+  db.exec("BEGIN TRANSACTION");
+  try {
+    const stmt = db.prepare(`
+      INSERT INTO system_config (key, value)
+      VALUES (?, ?)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value
+    `);
+    for (const [key, value] of Object.entries(config)) {
+      if (value !== undefined && value !== null) {
+        stmt.run(key, String(value));
+      }
+    }
+    db.exec("COMMIT");
+  } catch (err) {
+    db.exec("ROLLBACK");
+    throw err;
+  }
+}
+

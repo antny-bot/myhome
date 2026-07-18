@@ -34,6 +34,11 @@ export type SystemConfig = {
   dataGoKrApiKey?: string;
   kakaoJavascriptKey?: string;
   kakaoNativeAppKey?: string;
+  googleClientId?: string;
+  googleClientSecret?: string;
+  googleRedirectUri?: string;
+  allowedEmails?: string;
+  adminEmails?: string;
 };
 
 export type AppState = {

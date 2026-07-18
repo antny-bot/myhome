@@ -1,6 +1,6 @@
 import { promises as fs, existsSync } from "node:fs";
 import { join } from "node:path";
-import { upsertTransaction, makeGraphDedupeKey } from "@myhome/shared";
+import { upsertTransaction, makeGraphDedupeKey, getAllRules, initDb } from "@myhome/shared";
 import { fetchApartmentPricesDirect } from "./fetcher.js";
 
 import { dirname } from "node:path";
@@ -69,6 +69,28 @@ async function loadConfig(): Promise<ConfigData> {
 }
 
 async function fetchRulesFromDashboard(dashboardUrl: string): Promise<CollectTarget[]> {
+  // 1. 로컬 SQLite DB 직접 조회 시도 (모노레포 로컬 실행 안정성)
+  try {
+    initDb();
+    const rules = getAllRules();
+    if (rules && rules.length > 0) {
+      console.log(`[Collector] 로컬 SQLite DB에서 ${rules.length}개의 알림 규칙을 직접 조회했습니다.`);
+      const map = new Map<string, string>();
+      rules.forEach((r) => {
+        if (r.enabled && r.regionCode && r.regionName) {
+          map.set(r.regionCode, r.regionName);
+        }
+      });
+      return Array.from(map.entries()).map(([code, name]) => ({
+        lawdCode: code,
+        displayName: name,
+      }));
+    }
+  } catch (dbErr: any) {
+    console.warn(`[Collector] 로컬 DB 직접 조회 실패 (대시보드 API로 Fallback 진행): ${dbErr.message}`);
+  }
+
+  // 2. Fallback: 대시보드 API 호출
   try {
     const res = await fetch(`${dashboardUrl}/api/rules`, { signal: AbortSignal.timeout(5000) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);

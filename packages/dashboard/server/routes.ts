@@ -2,12 +2,13 @@ import express from "express";
 import { z } from "zod";
 import { isTelegramConfigured, sendNotifications } from "./notifications.js";
 import { getSourceLimitNotice, runRuleCheck } from "./ruleEngine.js";
-import { deleteCheckRun, deleteRule, readState, updateRulePatch, upsertRule, getSystemConfig, saveSystemConfig } from "./storage.js";
+import { deleteCheckRun, deleteRule, readState, readStateForUser, updateRulePatch, upsertRule, getSystemConfig, saveSystemConfig } from "./storage.js";
 import { getApartmentList, getApartmentPrices } from "./mcpClient.js";
 import { isKakaoConfigured, searchAddresses } from "./addressSearch.js";
 import { getMonthsInRange, normalizeTransaction } from "./transactions.js";
 import type { ComparisonCriteria, RuleInput, SystemConfig } from "./types.js";
-import { upsertTransaction, makeGraphDedupeKey, getCachedApartments, saveCachedApartments, searchDbRegions, getLocalTransactionsCount, getLocalApartmentPrices } from "@myhome/shared";
+import { upsertTransaction, makeGraphDedupeKey, getCachedApartments, saveCachedApartments, searchDbRegions, getLocalTransactionsCount, getLocalApartmentPrices, getUserSettings, saveUserSettings } from "@myhome/shared";
+import { adminRequired } from "./authRoutes.js";
 
 const comparisonValues: ComparisonCriteria[] = ["none", "parking", "large_complex", "transit", "newer", "livability"];
 
@@ -65,7 +66,7 @@ export function createRouter() {
     });
   });
 
-  router.get("/system-config", async (_req, res, next) => {
+  router.get("/system-config", adminRequired, async (_req, res, next) => {
     try {
       const config = await getSystemConfig();
       res.json({
@@ -75,14 +76,19 @@ export function createRouter() {
         jusoConfmKey: config.jusoConfmKey ? "●●●●●●●●" : (process.env.JUSO_CONFM_KEY ? "●●●●●●●●" : ""),
         dataGoKrApiKey: config.dataGoKrApiKey ? "●●●●●●●●" : (process.env.DATA_GO_KR_API_KEY ? "●●●●●●●●" : ""),
         kakaoJavascriptKey: config.kakaoJavascriptKey ? "●●●●●●●●" : (process.env.KAKAO_JAVASCRIPT_KEY ? "●●●●●●●●" : ""),
-        kakaoNativeAppKey: config.kakaoNativeAppKey ? "●●●●●●●●" : (process.env.KAKAO_NATIVE_APP_KEY ? "●●●●●●●●" : "")
+        kakaoNativeAppKey: config.kakaoNativeAppKey ? "●●●●●●●●" : (process.env.KAKAO_NATIVE_APP_KEY ? "●●●●●●●●" : ""),
+        googleClientId: config.googleClientId || (process.env.GOOGLE_CLIENT_ID || ""),
+        googleClientSecret: config.googleClientSecret ? "●●●●●●●●" : (process.env.GOOGLE_CLIENT_SECRET ? "●●●●●●●●" : ""),
+        googleRedirectUri: config.googleRedirectUri || (process.env.GOOGLE_REDIRECT_URI || ""),
+        allowedEmails: config.allowedEmails || (process.env.ALLOWED_EMAILS || ""),
+        adminEmails: config.adminEmails || (process.env.ADMIN_EMAILS || "")
       });
     } catch (err) {
       next(err);
     }
   });
 
-  router.post("/system-config", async (req, res, next) => {
+  router.post("/system-config", adminRequired, async (req, res, next) => {
     try {
       const body = req.body;
       const update: SystemConfig = {};
@@ -107,6 +113,21 @@ export function createRouter() {
       }
       if (body.kakaoNativeAppKey !== undefined && body.kakaoNativeAppKey !== "●●●●●●●●") {
         update.kakaoNativeAppKey = body.kakaoNativeAppKey;
+      }
+      if (body.googleClientId !== undefined) {
+        update.googleClientId = body.googleClientId;
+      }
+      if (body.googleClientSecret !== undefined && body.googleClientSecret !== "●●●●●●●●") {
+        update.googleClientSecret = body.googleClientSecret;
+      }
+      if (body.googleRedirectUri !== undefined) {
+        update.googleRedirectUri = body.googleRedirectUri;
+      }
+      if (body.allowedEmails !== undefined) {
+        update.allowedEmails = body.allowedEmails;
+      }
+      if (body.adminEmails !== undefined) {
+        update.adminEmails = body.adminEmails;
       }
 
       await saveSystemConfig(update);
@@ -266,9 +287,10 @@ export function createRouter() {
     }
   });
 
-  router.get("/rules", async (_req, res, next) => {
+  router.get("/rules", async (req, res, next) => {
     try {
-      const state = await readState();
+      const email = req.user?.email || "bootstrap-admin@myhome.local";
+      const state = await readStateForUser(email);
       res.json(state.rules);
     } catch (error) {
       next(error);
@@ -277,8 +299,9 @@ export function createRouter() {
 
   router.post("/rules", async (req, res, next) => {
     try {
+      const email = req.user?.email || "bootstrap-admin@myhome.local";
       const input = ruleSchema.parse(req.body) satisfies RuleInput;
-      const rule = await upsertRule(input);
+      const rule = await upsertRule(input, undefined, email);
       res.status(201).json(rule);
     } catch (error) {
       next(error);
@@ -287,8 +310,9 @@ export function createRouter() {
 
   router.patch("/rules/:id", async (req, res, next) => {
     try {
+      const email = req.user?.email || "bootstrap-admin@myhome.local";
       const parsedBody = ruleSchema.partial().parse(req.body);
-      const rule = await updateRulePatch(req.params.id, parsedBody);
+      const rule = await updateRulePatch(req.params.id, parsedBody, email);
       if (!rule) {
         res.status(404).json({ error: "Rule not found" });
         return;
@@ -301,7 +325,8 @@ export function createRouter() {
 
   router.delete("/rules/:id", async (req, res, next) => {
     try {
-      const deleted = await deleteRule(req.params.id);
+      const email = req.user?.email || "bootstrap-admin@myhome.local";
+      const deleted = await deleteRule(req.params.id, email);
       if (!deleted) {
         res.status(404).json({ error: "Rule not found" });
         return;
@@ -314,23 +339,25 @@ export function createRouter() {
 
   router.post("/rules/:id/run", async (req, res, next) => {
     try {
-      const state = await readState();
+      const email = req.user?.email || "bootstrap-admin@myhome.local";
+      const state = await readStateForUser(email);
       const rule = state.rules.find((item) => item.id === req.params.id);
       if (!rule) {
         res.status(404).json({ error: "Rule not found" });
         return;
       }
       const outcome = await runRuleCheck(rule);
-      const notifications = await sendNotifications(rule, outcome.newMatches);
+      const notifications = await sendNotifications(rule, outcome.newMatches, email);
       res.json({ ...outcome, notifications });
     } catch (error) {
       next(error);
     }
   });
 
-  router.get("/check-runs", async (_req, res, next) => {
+  router.get("/check-runs", async (req, res, next) => {
     try {
-      const state = await readState();
+      const email = req.user?.email || "bootstrap-admin@myhome.local";
+      const state = await readStateForUser(email);
       res.json(state.checkRuns);
     } catch (error) {
       next(error);
@@ -339,7 +366,8 @@ export function createRouter() {
 
   router.delete("/check-runs/:id", async (req, res, next) => {
     try {
-      const deleted = await deleteCheckRun(req.params.id);
+      const email = req.user?.email || "bootstrap-admin@myhome.local";
+      const deleted = await deleteCheckRun(req.params.id, email);
       if (!deleted) {
         res.status(404).json({ error: "Check run not found" });
         return;
@@ -350,10 +378,48 @@ export function createRouter() {
     }
   });
 
-  router.get("/notifications", async (_req, res, next) => {
+  router.get("/notifications", async (req, res, next) => {
     try {
-      const state = await readState();
+      const email = req.user?.email || "bootstrap-admin@myhome.local";
+      const state = await readStateForUser(email);
       res.json(state.notifications);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/user-config", async (req, res, next) => {
+    try {
+      const email = req.user?.email || "bootstrap-admin@myhome.local";
+      const settings = getUserSettings(email);
+      res.json({
+        telegramBotToken: settings?.telegramBotToken ? "●●●●●●●●" : "",
+        telegramChatId: settings?.telegramChatId ? "●●●●●●●●" : "",
+        kakaoRestApiKey: settings?.kakaoRestApiKey ? "●●●●●●●●" : "",
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/user-config", async (req, res, next) => {
+    try {
+      const email = req.user?.email || "bootstrap-admin@myhome.local";
+      const body = req.body;
+      const update: { telegramBotToken?: string | null; telegramChatId?: string | null; kakaoRestApiKey?: string | null } = {};
+
+      if (body.telegramBotToken !== undefined && body.telegramBotToken !== "●●●●●●●●") {
+        update.telegramBotToken = body.telegramBotToken;
+      }
+      if (body.telegramChatId !== undefined && body.telegramChatId !== "●●●●●●●●") {
+        update.telegramChatId = body.telegramChatId;
+      }
+      if (body.kakaoRestApiKey !== undefined && body.kakaoRestApiKey !== "●●●●●●●●") {
+        update.kakaoRestApiKey = body.kakaoRestApiKey;
+      }
+
+      saveUserSettings(email, update);
+      res.json({ ok: true });
     } catch (error) {
       next(error);
     }

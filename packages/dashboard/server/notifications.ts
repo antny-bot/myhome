@@ -2,6 +2,7 @@ import { nanoid } from "nanoid";
 import { appendNotification } from "./storage.js";
 import type { AlertChannel, NotificationRecord, TransactionMatch, WatchRule } from "./types.js";
 import { SOURCE_LIMIT_NOTICE } from "./constants.js";
+import { getUserSettings } from "@myhome/shared";
 
 type SendResult = {
   channel: AlertChannel;
@@ -31,11 +32,12 @@ function formatAlert(rule: WatchRule, matches: TransactionMatch[]) {
   return lines.join("\n");
 }
 
-async function sendTelegram(rule: WatchRule, matches: TransactionMatch[]): Promise<SendResult> {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  const chatId = process.env.TELEGRAM_CHAT_ID;
+async function sendTelegram(rule: WatchRule, matches: TransactionMatch[], email: string): Promise<SendResult> {
+  const settings = getUserSettings(email);
+  const token = settings?.telegramBotToken || process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = settings?.telegramChatId || process.env.TELEGRAM_CHAT_ID;
   if (!token || !chatId) {
-    return { channel: "telegram", status: "skipped", message: "Telegram env vars are not configured." };
+    return { channel: "telegram", status: "skipped", message: "Telegram credentials are not configured for this user." };
   }
 
   const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
@@ -60,12 +62,12 @@ async function sendKakao(): Promise<SendResult> {
   return { channel: "kakao", status: "skipped", message: "Kakao send-to-me is reserved for phase 2." };
 }
 
-export async function sendNotifications(rule: WatchRule, matches: TransactionMatch[]) {
+export async function sendNotifications(rule: WatchRule, matches: TransactionMatch[], email: string = "bootstrap-admin@myhome.local") {
   if (matches.length === 0) return [];
 
   const results: NotificationRecord[] = [];
   for (const channel of rule.channels) {
-    const result = channel === "telegram" ? await sendTelegram(rule, matches) : await sendKakao();
+    const result = channel === "telegram" ? await sendTelegram(rule, matches, email) : await sendKakao();
     const record: NotificationRecord = {
       id: nanoid(),
       ruleId: rule.id,
@@ -75,7 +77,7 @@ export async function sendNotifications(rule: WatchRule, matches: TransactionMat
       dedupeKeys: matches.map((match) => match.dedupeKey),
       createdAt: new Date().toISOString()
     };
-    await appendNotification(record);
+    await appendNotification(record, email);
     results.push(record);
   }
   return results;

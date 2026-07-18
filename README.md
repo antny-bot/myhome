@@ -41,6 +41,14 @@
 
 ---
 
+## 🔐 보안 및 로그인 (Google OAuth)
+
+서비스 보안 및 외부 무단 접근을 방지하기 위해 Google OAuth 2.0 기반의 로그인 인증 체계가 구축되어 있습니다.
+* **접근 제한 (Whitelist)**: 이메일 화이트리스트(`ALLOWED_EMAILS`) 제어가 포함되어 있습니다. 이 리스트가 비어있거나, 목록에 등록되지 않은 구글 계정으로 로그인할 경우 대시보드 접근이 전면 거부됩니다.
+* **최초 구동 시 필수 조치**: 최초 서버를 띄우기 전 반드시 `.env` 파일에 `ALLOWED_EMAILS`를 최소 1개 이상 기입해 두어야 대시보드에 정상적으로 첫 진입을 할 수 있습니다.
+
+---
+
 ## 📋 사전 준비
 
 다음 환경 변수 및 사전 설정이 필요합니다.
@@ -75,6 +83,13 @@ TELEGRAM_CHAT_ID=YOUR_TELEGRAM_CHAT_ID
 
 # SQLite 적재 스위치
 GRAPH_DB_ENABLED=true
+
+# Google OAuth 2.0 로그인 설정 (보안 필수)
+GOOGLE_CLIENT_ID=YOUR_GOOGLE_CLIENT_ID
+GOOGLE_CLIENT_SECRET=YOUR_GOOGLE_CLIENT_SECRET
+GOOGLE_REDIRECT_URI=http://localhost:4174/api/auth/google/callback
+# 대시보드 접근을 허용할 구글 이메일 목록 (쉼표로 구분하여 기재, 빈칸일 시 로그인 불가)
+ALLOWED_EMAILS=user1@gmail.com,user2@gmail.com
 ```
 
 ### 2. YAML 설정 파일 (`config.yaml`)
@@ -147,6 +162,14 @@ docker-compose up -d
 ---
 
 ## 📊 주요 API 라우팅
+
+### 인증 및 보안 (Google OAuth)
+| Method | Path | 설명 |
+|---|---|---|
+| `GET` | `/api/auth/google` | Google 로그인 페이지로 리디렉션 |
+| `GET` | `/api/auth/google/callback` | Google OAuth 콜백 처리 및 세션 발급 |
+| `GET` | `/api/auth/me` | 현재 사용자 세션 및 로그인 정보 조회 |
+| `POST` | `/api/auth/logout` | 사용자 세션 만료 및 로그아웃 |
 
 ### 기본 규칙 및 모니터링 API
 | Method | Path | 설명 |

@@ -1,11 +1,11 @@
 import { nanoid } from "nanoid";
 import { getApartmentPrices } from "./mcpClient.js";
 import { searchAddresses } from "./addressSearch.js";
-import { appendCheckRun, readState, updateRulePatch } from "./storage.js";
+import { appendCheckRun, updateRulePatch } from "./storage.js";
 import { normalizeTransaction, recentMonths } from "./transactions.js";
 import type { RuleCheckOutcome, TransactionMatch, WatchRule } from "./types.js";
 import { SOURCE_LIMIT_NOTICE } from "./constants.js";
-import { upsertTransaction, makeGraphDedupeKey } from "@myhome/shared";
+import { upsertTransaction, makeGraphDedupeKey, getUserSettings } from "@myhome/shared";
 
 /** 실거래 신고는 계약 후 최대 한달까지 지연될 수 있어 이번달+지난달을 같이 확인한다. */
 const TRACKED_MONTHS = 2;
@@ -38,7 +38,8 @@ function summarize(rule: WatchRule, matches: TransactionMatch[]) {
 }
 
 export async function runRuleCheck(rule: WatchRule): Promise<RuleCheckOutcome> {
-  const state = await readState();
+  const email = (rule as any).userEmail || "bootstrap-admin@myhome.local";
+  const settings = getUserSettings(email);
   let region: { lawdCode: string; displayName: string; raw: null };
   if (rule.regionCode) {
     region = { lawdCode: rule.regionCode, displayName: rule.regionName, raw: null };
@@ -51,7 +52,7 @@ export async function runRuleCheck(rule: WatchRule): Promise<RuleCheckOutcome> {
   }
 
   if (!rule.regionCode || rule.regionCode !== region.lawdCode) {
-    await updateRulePatch(rule.id, { regionCode: region.lawdCode });
+    await updateRulePatch(rule.id, { regionCode: region.lawdCode }, email);
   }
 
   const targetMonths = recentMonths(TRACKED_MONTHS);
@@ -65,7 +66,7 @@ export async function runRuleCheck(rule: WatchRule): Promise<RuleCheckOutcome> {
     }
   }
 
-  const alertedSet = new Set(state.alertedDedupeKeys);
+  const alertedSet = new Set(settings?.alertedDedupeKeys ?? []);
   const newMatches = matches.filter((match) => !alertedSet.has(match.dedupeKey));
   const now = new Date().toISOString();
   const run = {
@@ -79,7 +80,7 @@ export async function runRuleCheck(rule: WatchRule): Promise<RuleCheckOutcome> {
     createdAt: now
   };
 
-  await appendCheckRun(run, newMatches.map((match) => match.dedupeKey));
+  await appendCheckRun(run, newMatches.map((match) => match.dedupeKey), email);
 
   // 그래프 DB 적재 — GRAPH_DB_ENABLED=true일 때만, 오류가 나도 기존 흐름에 영향 없음
   if (process.env.GRAPH_DB_ENABLED === "true") {

@@ -1,7 +1,7 @@
 import { runRuleCheck } from "./ruleEngine.js";
-import { readState } from "./storage.js";
 import { sendNotifications } from "./notifications.js";
 import { runCollector } from "@myhome/collector";
+import { getAllRules } from "@myhome/shared";
 
 
 function isDue(lastCheckedAt: string | undefined, intervalMinutes: number) {
@@ -40,13 +40,14 @@ export async function runDueRules() {
   }
   running = true;
   try {
-    const state = await readState();
-    const dueRules = state.rules.filter((rule) => rule.enabled && isDue(rule.lastCheckedAt, rule.intervalMinutes));
+    const rules = getAllRules();
+    const dueRules = rules.filter((rule) => rule.enabled && isDue(rule.lastCheckedAt, rule.intervalMinutes));
 
     for (const rule of dueRules) {
       try {
         const outcome = await runRuleCheck(rule);
-        await sendNotifications(rule, outcome.newMatches);
+        const email = (rule as any).userEmail || "bootstrap-admin@myhome.local";
+        await sendNotifications(rule, outcome.newMatches, email);
       } catch (error) {
         console.error(`Scheduled check failed for ${rule.name}:`, error);
       }

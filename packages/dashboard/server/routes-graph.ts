@@ -249,9 +249,10 @@ export function createGraphRouter(): Router {
   });
 
   // 조회 조건 프리셋 라우트
-  router.get("/presets", async (_req, res) => {
+  router.get("/presets", async (req, res) => {
     try {
-      const presets = await readPresets();
+      const email = req.user?.email || "bootstrap-admin@myhome.local";
+      const presets = await readPresets(email);
       res.json(presets);
     } catch (err: any) {
       res.status(500).json({ error: err?.message ?? "내부 오류" });
@@ -260,12 +261,13 @@ export function createGraphRouter(): Router {
 
   router.post("/presets", async (req, res) => {
     try {
+      const email = req.user?.email || "bootstrap-admin@myhome.local";
       const { name, filter } = req.body;
       if (!name || !filter) {
         res.status(400).json({ error: "name 또는 filter가 누락되었습니다." });
         return;
       }
-      const newPreset = await savePreset({ name, filter });
+      const newPreset = await savePreset({ name, filter }, email);
       res.status(201).json(newPreset);
     } catch (err: any) {
       res.status(500).json({ error: err?.message ?? "내부 오류" });
@@ -274,8 +276,9 @@ export function createGraphRouter(): Router {
 
   router.delete("/presets/:id", async (req, res) => {
     try {
+      const email = req.user?.email || "bootstrap-admin@myhome.local";
       const { id } = req.params;
-      const success = await deletePreset(id);
+      const success = await deletePreset(id, email);
       if (success) {
         res.json({ success: true });
       } else {
