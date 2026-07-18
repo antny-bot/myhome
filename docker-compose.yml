@@ -8,7 +8,7 @@ services:
     image: ghcr.io/your-github-username/myhome-app:latest
     restart: unless-stopped
     ports:
-      - "4174:4174"
+      - "${PORT:-4174}:4174"
     volumes:
       # SQLite 데이터베이스 등 영구 데이터 저장을 위한 볼륨 매핑
       - ./data:/app/data
