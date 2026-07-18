@@ -4,62 +4,67 @@
 
 ---
 
-## 1. 모바일 퍼스트 레이아웃 및 브레이크포인트
+## 1. 반응형 레이아웃 및 브레이크포인트 (md: 768px)
 
-모든 페이지는 모바일 환경(390px)을 기본으로 설계하며, 화면 크기에 따라 데스크톱 레이아웃으로 유연하게 확장되도록 구현합니다.
+모바일 환경을 최우선으로 설계(Mobile-First)하며, 단일 브레이크포인트 **`md:` (768px)**를 기준으로 모바일과 데스크톱 레이아웃 분기를 수행합니다. 
 
-- **브레이크포인트**: `useBreakpoint()` 훅의 반환값을 사용하며, 절대로 `window.innerWidth`를 직접 체크하지 않습니다.
-  - `isMobile`: `window.innerWidth < 768px` (모바일/태블릿 UX 패턴 전환 기준)
-  - `isNarrow`: `window.innerWidth < 480px` (단일 컬럼 레이아웃 강제 기준)
-
+- **브레이크포인트 검증**: `useBreakpoint()` 훅의 반환값을 사용하며, 절대로 `window.innerWidth`를 직접 체크하지 않습니다.
+  - `isMobile`: `window.innerWidth < 768px` (모바일/데스크톱 레이아웃 스위칭 기준)
+  
 ### 레이아웃 구성 요약
 - **데스크톱 (>= 768px)**:
-  - 좌측 고정 사이드바 (`w-64 border-r border-normal bg-elevated`)
-  - 글로벌 상단 헤더 없음 (콘텐츠 뷰포트 극대화를 위해 제거됨)
-  - 메인 콘텐츠 영역 (`p-8 max-w-6xl mx-auto w-full overflow-auto`)
+  - **좌측 접이식 사이드바 (Sidebar)**: `w-56`(기본) 또는 `w-16`(축소) 상태를 가집니다. 축소 상태는 `localStorage`(`myhome_sidebar_collapsed`)에 영구 저장됩니다. 사이드바는 전체 네비게이션과 설정/테마/로그아웃 팝업 레이어의 단일 소스입니다.
+  - **콘텐츠 뷰포트**: 글로벌 상단 헤더가 배제되어 콘텐츠 공간이 극대화됩니다. (`px-6 py-5 max-w-screen-xl mx-auto w-full`)
 - **모바일 (< 768px)**:
-  - 상단 툴바 (`h-14 px-4 bg-elevated border-b`, 햄버거 메뉴 포함)
-  - 하단 탭바 네비게이션 (`h-14 bg-elevated border-t fixed bottom-0 left-0 right-0 z-40`)
-  - 메인 콘텐츠 영역 (`p-4 pb-24 overflow-auto`)
+  - **상단 툴바 (TopBar)**: 로고와 테마 토글, 로그아웃 숏컷이 노출됩니다. (`h-14 bg-white/80 dark:bg-slate-900/80 backdrop-blur border-b sticky top-0`)
+  - **하단 탭바 (BottomNav)**: 최대 5개의 핀 고정 메뉴와 우측 끝에 "전체" 메뉴 버튼을 포함합니다.
+  - **전체 메뉴 드로어 (AllMenuDrawer)**: "전체" 클릭 시 하단에서 슬라이드업되는 풀 바텀시트 메뉴입니다. 사용자는 별표(★)를 터치하여 대시보드 진입 시의 기본 시작 페이지를 `localStorage`에 지정할 수 있습니다.
 
 ---
 
-## 2. 공통 페이지 구조 및 헤더 규격
+## 2. 공통 페이지 구조 및 헤더 규격 (`PageHeader`)
 
-모든 대시보드 페이지의 루트 요소는 `space-y-6 flex flex-col min-h-0` 클래스를 지닌 컨테이너 구조로 통일하여 정돈된 상하단 여백을 제공합니다.
+모든 페이지 수준의 대제목 렌더링 시 아드혹 H1/H2 태그를 사용하거나 카드형 내부에 타이틀을 밀어 넣는 행위는 금지되며, 반드시 **`PageHeader` 공통 컴포넌트**를 사용해야 합니다.
 
-### 표준 헤더 마크업
-모든 페이지는 데스크톱 뷰포트에서 최상단에 대표 Lucide 아이콘이 포함된 H2 타이틀과 설명글로 이루어진 플랫 헤더 구조를 가져야 합니다. (카드형 헤더 래핑 금지, Breadcrumb 경로 표시는 완전히 배제함)
-또한, **모바일 뷰포트(`isMobile`이 true)**에서는 세로 공간을 극대화하고 반복 노출되는 불필요한 스크롤을 방지하기 위해 **설명글은 생략하되, 메인 정체성이 드러나는 대제목은 콤팩트 크기(`text-xl`)로 축소하여 노출합니다 (`<h2 className="text-xl md:text-2xl ...">...</h2>`)**.
+### PageHeader 표준 인터페이스
+`PageHeader`는 페이지 메인 정체성을 상징하는 Lucide 아이콘, 대제목, 설명글 및 우측의 필터/액션 슬롯을 반응형으로 일관되게 정렬합니다.
 
 ```tsx
-import { LucideIcon } from "lucide-react";
+import { PageHeader } from "../components/PageHeader";
+import { BarChart3 } from "lucide-react";
 
-<header className="flex flex-col gap-1">
-  {/* 1. 대제목 (H2) - 필수 Lucide 아이콘 동반 */}
-  <h2 className="text-2xl font-black text-strong tracking-tight mt-1 flex items-center gap-2">
-    <Icon className="text-primary h-6 w-6" />
-    {t.pageTitle}
-  </h2>
-  
-  {/* 2. 설명글 */}
-  <p className="text-sm text-neutral">{t.pageSubtitle}</p>
-</header>
+<PageHeader
+  title="실거래 분석"
+  subtitle="로컬 SQLite 실거래 적재 데이터를 다차원 시계열 차트로 분석합니다."
+  icon={BarChart3}
+  actions={<MyFilterComponent />}
+/>
 ```
+
+- **반응형 폰트 리사이징**: 헤더의 글자 크기는 모바일 환경에서 자동으로 `.text-app-title` 스케일로 축소 조정되어 불필요한 줄바꿈과 뷰포트 낭비를 유발하지 않습니다.
 
 ---
 
-## 3. 모바일 레이아웃 준수 사항 및 금지 패턴
+## 3. 반응형 2-mode 탭 스트립 디자인
 
-### 고정 폭 SVG 사용 금지
-모바일 가로폭을 초과하여 화면 깨짐이 발생하지 않도록, 모든 SVG 또는 시각 요소는 반응형 컨테이너 내에서 `viewBox`와 `width="100%"`를 사용해야 합니다.
-```tsx
-// ❌ 금지
-<svg width={560} height={160}>
+다중 탭 구조를 가지는 페이지(`GraphDashboard`, `Settings` 등)는 가독성과 공간 사용 효율화를 위해 768px 분기에 따라 완전히 상이한 2가지 스타일 모드로 렌더링해야 합니다.
 
-// ✅ 올바른 방법
-<svg width="100%" viewBox="0 0 560 160" style={{ display: 'block' }}>
-```
+- **데스크톱 (>= 768px - Underline 탭)**:
+  - 밑줄 형태의 탭 링크 구조를 갖습니다 (`border-b-2 -mb-px`). 
+  - 활성 상태: `border-primary-600 text-primary-600 dark:border-primary-400 dark:text-primary-400 font-semibold`
+- **모바일 (< 768px - Scrollable Pill 탭)**:
+  - 가로 슬라이드가 가능하고 둥근 캡슐 형태의 알약 버튼 탭 스트립을 구성합니다.
+  - 컨테이너에 `overflow-x-auto scrollbar-none snap-x snap-mandatory flex flex-nowrap`을 선언하여 가로 스크롤을 활성화하고 스크롤바를 숨겨야 합니다.
+  - 활성 상태: `bg-primary-600 text-white dark:bg-primary-500 rounded-full`
+
+---
+
+## 4. 모바일 레이아웃 준수 사항 및 금지 패턴
+
+- **고정 폭 SVG 사용 금지**: 모든 SVG 차트/시각물은 `ResponsiveContainer` 혹은 `viewBox`와 `width="100%"`를 선언해 모바일 가로폭을 초과하지 않도록 해야 합니다.
+- **텍스트 두 줄 개행 및 줄바꿈 방지**: 클릭 탭이나 액션 단추 내부 텍스트에는 `whitespace-nowrap`을 적용하고 모바일 가로 공간 부족 시 부모에 스크롤을 적용해 접히지 않도록 합니다.
+- **Flex 레이아웃 엘리먼트 절삭**: 아파트 이름 등이 길어져 그리드가 깨질 때, 유연한 엘리먼트에 `min-w-0`과 `truncate`를 선언해 말줄임표 처리합니다.
+- **수치 데이터 자릿수 정렬**: 날짜, 평수, 가격 등 숫자는 `tabular-nums` 클래스를 지정하고 우측 정렬(`text-right`)을 원칙으로 삼습니다.
 
 ### 절대 위치 드롭다운 뷰포트 초과 방지
 버튼의 화면 내 정렬 방향에 따라 드롭다운의 시작 위치를 좌우로 맞추고 가로폭 한계를 지정합니다.

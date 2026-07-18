@@ -11,52 +11,41 @@
 ### 주요 색상 토큰
 | CSS 변수명 | Tailwind 클래스 | 용도 |
 |---|---|---|
-| `--color-semantic-background-normal-normal` | `.bg-normal` | 기본 배경 (흰색/다크그레이) |
-| `--color-semantic-background-normal-alternative` | `.bg-alternative` | 대체 배경 (연회색/매우 어두운 배경) |
-| `--color-semantic-background-elevated-normal` | `.bg-elevated` | 카드, 팝오버, 드롭다운 등 elevated 요소 배경 |
-| `--color-semantic-label-strong` | `.text-strong` | 주요 헤더 및 강한 강조 텍스트 |
-| `--color-semantic-label-neutral` | `.text-neutral` | 본문 및 일반 설명 텍스트 |
-| `--color-semantic-label-assistive` | `.text-assistive` | 부연 설명, 배지, 비활성 텍스트 |
-| `--color-semantic-primary-normal` | `.text-primary` / `.bg-primary` | 브랜드 테마 컬러 (#0066FF / 다크모드 시 라이트블루) |
+| `--color-semantic-background-normal-normal` | `.bg-normal` | 기본 배경 (라이트: 흰색 / 다크: `#0f172a` slate-900) |
+| `--color-semantic-background-normal-alternative` | `.bg-alternative` | 레이아웃/대체 배경 (라이트: 연회색 / 다크: `#020617` slate-950) |
+| `--color-semantic-background-elevated-normal` | `.bg-elevated` | 카드, 팝오버, 드롭다운 배경 (라이트: 흰색 / 다크: `#1e293b` slate-800) |
+| `--color-semantic-label-strong` | `.text-strong` | 주요 헤더 및 강한 강조 텍스트 (라이트: `#1f2933` / 다크: `#f8fafc`) |
+| `--color-semantic-label-neutral` | `.text-neutral` | 본문 및 일반 설명 텍스트 (라이트: `#64748b` / 다크: `#cbd5e1`) |
+| `--color-semantic-label-assistive` | `.text-assistive` | 부연 설명, 배지, 비활성 텍스트 (라이트: `#94a3b8` / 다크: `#64748b`) |
+| `--color-semantic-primary-normal` | `.text-primary` / `.bg-primary` | 브랜드 테마 컬러 (동적 Accent Color 바인딩) |
 | `--color-semantic-status-positive` | `.text-signal` | 성공, 상승, 긍정 상태 |
 | `--color-semantic-status-negative` | `.text-warn` | 오류, 하락, 심각한 실패 상태 |
 | `--color-semantic-status-warning` | `.text-warning` / `.bg-warning` | 보조 경고, 대기, 건너뜀(Skipped) 상태 |
-| `--color-semantic-line-normal-normal` | `.border-normal` | 경계선 및 디바이더 컬러 |
+| `--color-semantic-line-normal-normal` | `.border-normal` | 경계선 및 디바이더 컬러 (라이트: `#d7dee8` / 다크: `#334155` slate-700) |
 
-### 시각화 및 차트 전용 토큰
-| CSS 변수명 | 용도 (시계열 분석 매핑) |
-|---|---|
-| `--color-chart-primary` | 차트 메인 주선 / 평균 가격선 / 거래량 바 배경 |
-| `--color-chart-max` | 최고가선 (상한선) |
-| `--color-chart-min` | 최저가선 (하한선) |
-| `--color-chart-median` | 중위값 가격선 |
-| `--color-chart-accent` | 보조 통계 차트 / 거래 횟수 강조 바 |
-| `--color-chart-floor` | 층별 분포 선 / 보조 지표선 |
-
-### 타이포그래피 토큰
-- `--font-display`: Wanted Sans Variable (숫자 강조, 카드 제목)
-- `--font-body`: Pretendard JP Variable (본문 텍스트)
-- `--font-mono`: SF Mono (금액 및 코드성 수치 전용)
+### 동적 환경설정 데이터셋
+- **테마 주조색 (`html[data-accent="blue|violet|green"]`)**: WDS Blue, Violet, Green을 지원하며 로컬스토리지에 의해 실시간 갱신됩니다.
+- **서체종류 (`html[data-font-family="noto-sans-kr|noto-serif-kr"]`)**: Noto Sans KR(혹은 Pretendard)과 Noto Serif KR 서체 전환을 지원합니다.
+- **글자 크기 (`--app-font-size`)**: 기본 `16px`에서 `12px~22px`로 실시간 슬라이딩 크기 조절이 가능합니다.
 
 ---
 
 ## 2. 타이포그래피 및 폰트 크기 표준
 
-가독성 확보와 일관된 계층을 위해 폰트 스타일을 다음과 같이 통일합니다.
+글자 크기 일괄 제어 유틸리티(`.font-app-ui`)와 시맨틱 타이포 클래스를 활용하여 가독성과 텍스트 위계를 보장합니다.
 
-- **페이지 대제목 (H2)**: `text-2xl font-black text-strong tracking-tight` (헤더 영역)
-- **섹션/카드 제목 (H3)**: `text-lg font-bold text-strong` (카드 내부 제목)
-- **리스트/서브텍스트 제목**: `text-sm font-bold text-strong` 또는 `text-xs font-bold`
-- **본문 텍스트**: `text-sm text-strong`
-- **일반 설명 및 서브텍스트**: `text-sm text-neutral` 또는 `text-xs text-neutral`
-- **초소형 캡션 및 부연 정보**: `text-[10px] text-assistive`
-- **수치, 가격 데이터**: `font-mono` 패밀리 사용 및 우측 정렬 권장
-- **숫자 천 단위 콤마 표기**: 모든 수치 데이터(건수, 가격 등)는 가독성을 위해 반드시 천 단위 콤마(`.toLocaleString("ko-KR")` 또는 `lib/format.ts` 내의 `formatNumber` 유틸리티 함수)를 적용해야 합니다.
-- **금액 소수점 표기**: 억 단위 금액(Price/Eok)을 표기할 때는 만원 단위(0.01억 = 100만원)까지 정확하게 전달하기 위해 소수점 2자리(`.toFixed(2)`) 표기를 표준으로 통일합니다. (단, 평수 환산이나 백분율(%) 등은 소수점 1자리 표기 유지)
-- **내비게이션 그룹 타이틀**: `text-[10px] font-bold text-neutral/50 uppercase tracking-wider` (사이드바 메뉴 대분류 타이틀)
+| 용도 | CSS 클래스 (Tailwind) | 용도 및 의미 |
+|---|---|---|
+| Page title | `.text-app-title font-bold` | 페이지의 최상위 대제목 |
+| Subtitle | `.text-app-body-sm text-slate-500` | 페이지의 부제 및 조작 설명글 |
+| Card title | `.text-app-body font-semibold` | 개별 카드 컴포넌트의 내부 제목 |
+| Body text | `.text-app-body` | 일반 본문 텍스트 |
+| Labels / Table headers | `.text-app-label` | 입력 폼 레이블, 테이블의 컬럼 헤더 |
+| Metadata / Badges | `.text-app-caption` | 소형 태그, 서브 정보 및 메타데이터 |
+| Metric Value | `.text-app-metric font-mono` | 차트 KPI 및 대형 통계 금액 수치 |
 
-
-
+- **숫자 천 단위 콤마 표기**: 모든 수치 데이터는 가독성을 위해 반드시 천 단위 콤마(`.toLocaleString("ko-KR")` 등)를 적용합니다.
+- **금액 소수점 표기**: 억 단위 금액(Price/Eok)을 표기할 때는 만원 단위(0.01억 = 100만원)를 반영하기 위해 소수점 2자리(`.toFixed(2)`) 표기를 표준으로 삼습니다.
 
 ---
 
@@ -69,22 +58,23 @@
 - **그리드 간격 (Gap)**:
   - KPI 카드 및 미니 통계 그리드: `gap-4`
   - 레이아웃 분할 및 메인 섹션 그리드: `gap-6`
-- **컨트롤 패딩**:
-  - 입력창 및 버튼: 세로 높이 `h-10` 또는 `h-[42px]` 기준, 가로 패딩 `px-4`, 세로 패딩 `py-2` 또는 `py-2.5`
 
 ---
 
 ## 4. 공통 컴포넌트 디자인 가이드
 
-### SectionCard (표준 카드)
-- 스타일: `rounded-xl border border-normal bg-elevated shadow-sm` (반지름 12px)
-- 카드 헤더: 하단에 디바이더 `border-b border-normal px-5 py-4`가 적용되며, 타이틀은 `text-lg font-bold text-strong` 사용.
+- **`SectionCard` (표준 카드)**: 스타일 `rounded-xl border border-normal bg-elevated shadow-sm`을 지니며, 헤더 하단에는 디바이더 `border-b border-normal px-5 py-4`를 부여합니다.
+- **`StatCard` (통계 요약 카드)**: 스타일 `rounded-xl border border-normal bg-elevated p-4 shadow-sm`을 따르며 상태 톤에 맞춰 아이콘 컬러를 분기합니다.
+- **입력창 및 버튼**: 기본 세로 높이 `h-10`을 기준으로 둥근 모서리 `rounded-lg`와 `focus:ring-primary`를 통해 통일된 포커스 링을 유지합니다.
 
-### StatCard (통계 요약 카드)
-- 스타일: `rounded-xl border border-normal bg-elevated p-4 shadow-sm`
-- 톤에 따른 아이콘 색상 분기:
-  - `default`: `.text-neutral`
-  - `good`: `.text-signal` (성공/정상)
+---
+
+## 5. Recharts 차트 스타일 표준
+
+- **디자인 토큰 연동 의무화**: 차트 선(`stroke`), 바/면(`fill`), 범례 불릿 배경 등에 HEX 색상 값을 하드코딩해서는 안 되며, CSS 변수 토큰(`var(--color-chart-*)`)을 직접 바인딩해야 합니다.
+- **디바이스 대응**: `ResponsiveContainer`로 래핑하여 `width="100%"`와 고정 `height`를 지정합니다.
+- **축 및 그리드**: 폰트 스타일 `stroke="#64748b" fontSize={11} tickLine={false}`를 부여하고 Y축에는 수치 잘림 방지를 위해 `width={52}` 고정을 적용합니다.
+xt-signal` (성공/정상)
   - `warn`: `.text-warn` (오류/점검/경고)
 
 ### 입력창 및 셀렉트 박스 (Inputs & Selects)
