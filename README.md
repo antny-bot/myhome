@@ -92,6 +92,17 @@ GOOGLE_REDIRECT_URI=http://localhost:4174/api/auth/google/callback
 ALLOWED_EMAILS=user1@gmail.com,user2@gmail.com
 ```
 
+#### 🔑 주요 환경 변수 상세 설명
+
+| 환경 변수 | 필수 여부 | 설명 |
+| :--- | :---: | :--- |
+| **`DATA_GO_KR_API_KEY`** | **필수** | **국토교통부 아파트매매 실거래가 API 일반인증키**<br>· 공공데이터포털(data.go.kr)에서 발급받습니다.<br>· 실제 아파트 가격 정보(거래 금액, 면적, 층, 날짜 등)를 긁어오기 위한 대체 불가능한 필수 키입니다. |
+| **`KAKAO_REST_API_KEY`** | **선택** | **카카오 로컬 API REST 키** (Kakao Developers 발급)<br>· 지역명(예: 강남구) 검색 시 5자리 지역코드(`LAWD_CD`)로 변환하기 위해 활용됩니다.<br>· 이 키가 있으면 아래 행안부 주소 키는 설정하지 않아도 무방합니다. |
+| **`JUSO_CONFM_KEY`** | **선택** | **행정안전부 도로명주소 오픈 API 승인키** (business.juso.go.kr 발급)<br>· 카카오 API 키와 역할이 동일합니다(지역코드 매핑 용도).<br>· `KAKAO_REST_API_KEY`가 이미 입력되어 있다면 빈칸으로 두셔도 동작합니다. |
+
+#### 🔌 포트 충돌 방지 및 배포 팁
+* **포트 변경 방법**: 다른 서비스와 포트가 충돌하는 경우, `.env` 파일의 `PORT` 값을 원하는 포트(예: `PORT=8080`)로 변경하면 됩니다.<br>[docker-compose.yml](file:///e:/apps/myhome/docker-compose.yml) 파일에서 호스트 노출 포트를 `${PORT:-4174}` 변수로 참조하고 있으므로, 별도의 yml 파일 수정 없이 `.env` 파일 변경만으로 호스트 외부 접속 포트를 편리하게 바꿀 수 있습니다.
+
 ### 2. YAML 설정 파일 (`config.yaml`)
 포트 지정을 위해 `.env` 파일 외에도 루트 디렉토리의 `config.yaml` (또는 `config.yml`, `app.yaml`, `app.yml`)을 사용할 수 있습니다.
 ```yaml
