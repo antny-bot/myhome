@@ -230,33 +230,63 @@ export function createRouter() {
       const currentYm = now.getFullYear() * 100 + (now.getMonth() + 1); // YYYYMM
       let isCacheHitOnly = true;
 
+      // 1. 캐시 히트와 API 호출 대상을 분류
+      const cacheHitMonths: string[] = [];
+      const apiFetchMonths: string[] = [];
+
       for (const month of months) {
         const targetYm = parseInt(month);
         const diffMonths = (Math.floor(currentYm / 100) - Math.floor(targetYm / 100)) * 12 
                          + (currentYm % 100 - targetYm % 100);
-        
         const localCount = getLocalTransactionsCount(lawdCode, month);
-        
-        // 3개월 초과 과거 데이터이고 로컬 적재 데이터가 있으면 캐시 히트 사용
+
         if (diffMonths > 3 && localCount > 0) {
-          const localRecords = getLocalApartmentPrices(lawdCode, month);
-          records.push(...localRecords);
-          console.log(`[Cache Hit] ${lawdCode}/${month} - 로컬 DB 적재 데이터 서빙 (건수: ${localCount})`);
+          cacheHitMonths.push(month);
         } else {
-          // 최근 3개월 데이터이거나 로컬 데이터가 없는 경우 국토부 API 호출
-          isCacheHitOnly = false;
-          const prices = await getApartmentPrices(lawdCode, month);
-          const apiRecords = [];
-          for (const item of prices.transactions) {
-            const normalized = normalizeTransaction(item, month);
-            if (normalized) {
-              records.push(normalized);
-              apiRecords.push(normalized);
-            }
-          }
-          console.log(`[Cache Miss/Refresh] ${lawdCode}/${month} - 국토부 API 호출 (반환: ${apiRecords.length}건)`);
+          apiFetchMonths.push(month);
         }
       }
+
+      // 2. 캐시 히트 데이터 즉시 로드
+      for (const month of cacheHitMonths) {
+        const localRecords = getLocalApartmentPrices(lawdCode, month);
+        records.push(...localRecords);
+        console.log(`[Cache Hit] ${lawdCode}/${month} - 로컬 DB 적재 데이터 서빙 (건수: ${localRecords.length})`);
+      }
+
+      // 3. 캐시 미스 데이터 병렬 처리 (동시성 제한: 5)
+      if (apiFetchMonths.length > 0) {
+        isCacheHitOnly = false;
+        const concurrencyLimit = 5;
+        for (let i = 0; i < apiFetchMonths.length; i += concurrencyLimit) {
+          const chunk = apiFetchMonths.slice(i, i + concurrencyLimit);
+          const chunkResults = await Promise.all(
+            chunk.map(async (month) => {
+              try {
+                const prices = await getApartmentPrices(lawdCode, month);
+                return { month, transactions: prices.transactions, success: true };
+              } catch (err: any) {
+                console.error(`❌ [API Error] ${lawdCode}/${month} 호출 실패:`, err.message);
+                return { month, transactions: [], success: false };
+              }
+            })
+          );
+
+          for (const resObj of chunkResults) {
+            if (!resObj.success) continue;
+            const apiRecords = [];
+            for (const item of resObj.transactions) {
+              const normalized = normalizeTransaction(item, resObj.month);
+              if (normalized) {
+                records.push(normalized);
+                apiRecords.push(normalized);
+              }
+            }
+            console.log(`[Cache Miss/Refresh] ${lawdCode}/${resObj.month} - 국토부 API 호출 (반환: ${apiRecords.length}건)`);
+          }
+        }
+      }
+
       res.json(records);
 
       // 그래프 DB 적재 — 캐시 히트만으로 충족된 경우는 중복 적재 스킵
