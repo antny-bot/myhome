@@ -2,10 +2,10 @@ version: '3.8'
 
 services:
   myhome:
-    container_name: myhome-app
+    container_name: myhome
     # GitHub Container Registry(GHCR)에 푸시된 이미지를 지정합니다. 
     # 본인의 GitHub 사용자명 또는 리포지토리 설정에 맞춰 변경해 주세요.
-    image: ghcr.io/antny-bot/myhome-app:latest
+    image: ghcr.io/antny-bot/myhome:latest
     restart: unless-stopped
     ports:
       - "${PORT:-4174}:4174"
