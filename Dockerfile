@@ -1,5 +1,5 @@
 # 1단계: 빌드 스테이지
-FROM node:24-alpine AS builder
+FROM node:22-alpine AS builder
 
 WORKDIR /usr/src/app
 
@@ -22,7 +22,7 @@ RUN npm run build
 RUN npm prune --omit=dev
 
 # 2단계: 실행 스테이지 (용량 최소화)
-FROM node:24-alpine AS runner
+FROM node:22-alpine AS runner
 
 WORKDIR /app
 
