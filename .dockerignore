@@ -1,0 +1,11 @@
+node_modules
+dist
+.git
+.github
+*.tsbuildinfo
+data/*.db
+data/*.db-journal
+tmp
+packages/dashboard/dist
+packages/shared/dist
+packages/collector/dist

@@ -1,0 +1,19 @@
+{
+  "name": "myhome-monorepo",
+  "private": true,
+  "workspaces": [
+    "packages/shared",
+    "packages/collector",
+    "packages/dashboard"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=packages/dashboard",
+    "build:shared": "npm run build --workspace=packages/shared",
+    "build:collector": "npm run build --workspace=packages/collector",
+    "build:dashboard": "npm run build --workspace=packages/dashboard",
+    "build": "npm run build:shared && npm run build:collector && npm run build:dashboard"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

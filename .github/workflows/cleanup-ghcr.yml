@@ -1,0 +1,98 @@
+name: Cleanup Older GHCR Package Versions
+
+on:
+  schedule:
+    # 매주 월요일 새벽 3시 KST (UTC 일요일 18:00)에 실행
+    - cron: '0 18 * * 0'
+  workflow_dispatch: # 수동 실행 지원
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+
+    steps:
+      - name: Delete older package versions
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const packageName = context.repo.repo.toLowerCase();
+
+            console.log(`Target Owner: ${owner}`);
+            console.log(`Target Package: ${packageName}`);
+
+            // 사용자 타입 확인 (Organization vs User)
+            const { data: ownerInfo } = await github.rest.users.getByUsername({ username: owner });
+            const isOrg = ownerInfo.type === 'Organization';
+            console.log(`Is Organization? ${isOrg}`);
+
+            let versions = [];
+            try {
+              if (isOrg) {
+                const response = await github.rest.packages.getAllPackageVersionsForPackageOwnedByOrg({
+                  org: owner,
+                  package_type: 'container',
+                  package_name: packageName,
+                  per_page: 100
+                });
+                versions = response.data;
+              } else {
+                const response = await github.rest.packages.getAllPackageVersionsForPackageOwnedByUser({
+                  username: owner,
+                  package_type: 'container',
+                  package_name: packageName,
+                  per_page: 100
+                });
+                versions = response.data;
+              }
+            } catch (err) {
+              console.error(`Failed to fetch package versions: ${err.message}`);
+              return;
+            }
+
+            console.log(`Total versions found: ${versions.length}`);
+
+            // 최신 순으로 정렬 (created_at 내림차순)
+            versions.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+            const keepCount = 10;
+            if (versions.length > keepCount) {
+              // 최신 10개를 유지하고 나머지를 삭제 대상 후보로 선정
+              const toDelete = versions.slice(keepCount);
+
+              for (const version of toDelete) {
+                const tags = version.metadata?.container?.tags || [];
+                
+                // 'latest' 태그가 지정된 버전은 절대로 지우지 않음
+                if (tags.includes('latest')) {
+                  console.log(`Skipping version ${version.id} (Tags: ${tags.join(', ')}) because it has 'latest' tag.`);
+                  continue;
+                }
+
+                console.log(`Deleting version ${version.id} (Tags: ${tags.join(', ')}, Created: ${version.created_at})`);
+                try {
+                  if (isOrg) {
+                    await github.rest.packages.deletePackageVersionForOrg({
+                      org: owner,
+                      package_type: 'container',
+                      package_name: packageName,
+                      package_version_id: version.id
+                    });
+                  } else {
+                    await github.rest.packages.deletePackageVersionForUser({
+                      username: owner,
+                      package_type: 'container',
+                      package_name: packageName,
+                      package_version_id: version.id
+                    });
+                  }
+                  console.log(`Successfully deleted version ${version.id}`);
+                } catch (delErr) {
+                  console.error(`Error deleting version ${version.id}: ${delErr.message}`);
+                }
+              }
+            } else {
+              console.log(`Package version count (${versions.length}) is within limits (<= ${keepCount}). No cleanup needed.`);
+            }

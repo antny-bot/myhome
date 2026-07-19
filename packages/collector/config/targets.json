@@ -1,0 +1,8 @@
+{
+  "targets": [
+    { "lawdCode": "11680", "displayName": "서울특별시 강남구" },
+    { "lawdCode": "11650", "displayName": "서울특별시 서초구" }
+  ],
+  "fetchFromDashboard": true,
+  "dashboardUrl": "http://127.0.0.1:4174"
+}
