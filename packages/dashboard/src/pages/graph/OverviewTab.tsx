@@ -727,7 +727,7 @@ export default function OverviewTab({
   }, [sizeCategories]);
 
   const floorIdxMap = React.useMemo(() => {
-    return new Map(floorCategories.map((cat, idx) => [cat, idx]));
+    return new Map<string, number>(floorCategories.map((cat, idx) => [cat, idx]));
   }, [floorCategories]);
 
   const regionBubbleData = React.useMemo(() => {
