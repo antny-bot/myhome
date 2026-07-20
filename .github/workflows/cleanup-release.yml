@@ -1,0 +1,206 @@
+name: Cleanup Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '삭제할 버전 태그 (예: v1.0.4)'
+        required: true
+        type: string
+      delete_latest:
+        description: 'Docker latest 태그도 삭제'
+        required: false
+        default: true
+        type: boolean
+      dry_run:
+        description: 'Dry-run (시뮬레이션만, 실제 삭제 없음)'
+        required: false
+        default: true
+        type: boolean
+  release:
+    types: [labeled]
+
+permissions:
+  contents: write
+  actions: write
+  packages: write
+
+jobs:
+  cleanup:
+    name: Cleanup Release Resources
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'cleanup'
+
+    env:
+      VERSION: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.version }}
+      DELETE_LATEST: ${{ github.event_name == 'release' && 'true' || inputs.delete_latest }}
+      DRY_RUN: ${{ github.event_name == 'release' && 'false' || inputs.dry_run }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: 파라미터 출력
+        run: |
+          echo "========================================"
+          echo "  Release Cleanup"
+          echo "========================================"
+          echo "  Version      : $VERSION"
+          echo "  Delete latest: $DELETE_LATEST"
+          echo "  Dry-run      : $DRY_RUN"
+          echo "========================================"
+
+      - name: GHCR 패키지 버전 및 태그 삭제
+        uses: actions/github-script@v7
+        env:
+          VERSION: ${{ env.VERSION }}
+          DELETE_LATEST: ${{ env.DELETE_LATEST }}
+          DRY_RUN: ${{ env.DRY_RUN }}
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const packageName = context.repo.repo.toLowerCase();
+            const versionTag = process.env.VERSION;
+            const deleteLatest = process.env.DELETE_LATEST === 'true';
+            const dryRun = process.env.DRY_RUN === 'true';
+
+            // 사용자 타입 확인 (Organization vs User)
+            const { data: ownerInfo } = await github.rest.users.getByUsername({ username: owner });
+            const isOrg = ownerInfo.type === 'Organization';
+            console.log(`Target: ${owner}/${packageName} (Org: ${isOrg}), Tag to delete: ${versionTag}, Dry-run: ${dryRun}`);
+
+            let versions = [];
+            try {
+              if (isOrg) {
+                const response = await github.rest.packages.getAllPackageVersionsForPackageOwnedByOrg({
+                  org: owner,
+                  package_type: 'container',
+                  package_name: packageName,
+                  per_page: 100
+                });
+                versions = response.data;
+              } else {
+                const response = await github.rest.packages.getAllPackageVersionsForPackageOwnedByUser({
+                  username: owner,
+                  package_type: 'container',
+                  package_name: packageName,
+                  per_page: 100
+                });
+                versions = response.data;
+              }
+            } catch (err) {
+              console.error(`Failed to fetch package versions: ${err.message}`);
+              return;
+            }
+
+            let targetVersions = [];
+            for (const version of versions) {
+              const tags = version.metadata?.container?.tags || [];
+              let shouldDelete = false;
+              
+              if (tags.includes(versionTag)) {
+                console.log(`Found version matching tag '${versionTag}': ID ${version.id} (Tags: ${tags.join(', ')})`);
+                shouldDelete = true;
+              } else if (deleteLatest && tags.includes('latest')) {
+                console.log(`Found version matching 'latest' tag: ID ${version.id} (Tags: ${tags.join(', ')})`);
+                shouldDelete = true;
+              }
+              
+              if (shouldDelete) {
+                targetVersions.push({ id: version.id, tags });
+              }
+            }
+
+            if (targetVersions.length === 0) {
+              console.log(`No package versions found for tag: ${versionTag} (Delete Latest: ${deleteLatest})`);
+            }
+
+            for (const target of targetVersions) {
+              if (dryRun) {
+                console.log(`[DRY-RUN] Will delete package version ${target.id} with tags: ${target.tags.join(', ')}`);
+              } else {
+                console.log(`Deleting package version ${target.id} (Tags: ${target.tags.join(', ')})`);
+                try {
+                  if (isOrg) {
+                    await github.rest.packages.deletePackageVersionForOrg({
+                      org: owner,
+                      package_type: 'container',
+                      package_name: packageName,
+                      package_version_id: target.id
+                    });
+                  } else {
+                    await github.rest.packages.deletePackageVersionForUser({
+                      username: owner,
+                      package_type: 'container',
+                      package_name: packageName,
+                      package_version_id: target.id
+                    });
+                  }
+                  console.log(`Successfully deleted package version ${target.id}`);
+                } catch (err) {
+                  console.error(`Error deleting package version ${target.id}: ${err.message}`);
+                }
+              }
+            }
+
+      - name: GitHub Release 삭제
+        run: |
+          RELEASE_ID=$(gh api "repos/${{ github.repository }}/releases/tags/$VERSION" \
+            -q '.id' 2>/dev/null || echo "")
+          if [ -z "$RELEASE_ID" ]; then
+            echo "⚠️  GitHub Release 없음: $VERSION"
+          elif [ "$DRY_RUN" = "true" ]; then
+            echo "[DRY-RUN] 삭제 예정 Release ID: $RELEASE_ID ($VERSION)"
+          else
+            gh api -X DELETE "repos/${{ github.repository }}/releases/$RELEASE_ID"
+            echo "✅ GitHub Release 삭제 완료: $VERSION (ID: $RELEASE_ID)"
+          fi
+
+      - name: GitHub Tag 삭제
+        run: |
+          TAG_REF=$(gh api "repos/${{ github.repository }}/git/refs/tags/$VERSION" -q '.ref' 2>/dev/null || echo "")
+          if [ -z "$TAG_REF" ]; then
+            echo "⚠️  GitHub Tag 없음: $VERSION"
+          elif [ "$DRY_RUN" = "true" ]; then
+            echo "[DRY-RUN] 삭제 예정 Tag: $VERSION"
+          else
+            gh api -X DELETE "repos/${{ github.repository }}/git/refs/tags/$VERSION"
+            echo "✅ GitHub Tag 삭제 완료: $VERSION"
+          fi
+
+      - name: GitHub Actions Run 내역 삭제
+        run: |
+          RUN_IDS=$(gh api "repos/${{ github.repository }}/actions/runs" \
+            --paginate \
+            -q ".workflow_runs[] | select(.head_branch==\"$VERSION\") | .id" \
+            2>/dev/null || echo "")
+          if [ -z "$RUN_IDS" ]; then
+            echo "⚠️  삭제할 Workflow Run 없음 (branch: $VERSION)"
+          elif [ "$DRY_RUN" = "true" ]; then
+            COUNT=$(echo "$RUN_IDS" | wc -l | tr -d ' ')
+            echo "[DRY-RUN] 삭제 예정 Workflow Run: $COUNT 개"
+            echo "$RUN_IDS" | while read -r RUN_ID; do
+              echo "  - Run ID: $RUN_ID"
+            done
+          else
+            COUNT=$(echo "$RUN_IDS" | wc -l | tr -d ' ')
+            echo "$RUN_IDS" | while read -r RUN_ID; do
+              gh api -X DELETE "repos/${{ github.repository }}/actions/runs/$RUN_ID" 2>/dev/null && \
+                echo "  ✅ Run $RUN_ID 삭제" || \
+                echo "  ⚠️  Run $RUN_ID 삭제 실패"
+            done
+            echo "✅ Workflow Run 삭제 완료: $COUNT 개"
+          fi
+
+      - name: 결과 요약
+        if: always()
+        run: |
+          echo "========================================"
+          echo "  Cleanup 완료: $VERSION"
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "  모드: DRY-RUN (실제 삭제 없음)"
+            echo ""
+            echo "  실제 삭제하려면:"
+            echo "  → workflow_dispatch에서 dry_run=false로 재실행"
+          else
+            echo "  모드: 실제 삭제"
+          fi
+          echo "========================================"
