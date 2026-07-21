@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { RegionSearchInput } from "../../components/RegionSearchInput";
 import { GraphFilter, GraphPreset } from "@myhome/shared";
-import { loadPresets, savePreset, deletePreset, searchComplexNames as searchComplexNamesApi } from "../../api";
+import { loadPresets, savePreset, deletePreset, searchComplexNames as searchComplexNamesApi, fetchComplexesByRegion } from "../../api";
 import { Play, Save, RotateCcw, X, ChevronDown, ChevronUp } from "lucide-react";
 import { useBreakpoint } from "../../useBreakpoint";
 import type { RegionSearchResult } from "../../types";
@@ -33,27 +33,79 @@ export default function FilterPanel({
   const [maxArea, setMaxArea] = useState(filter.maxArea !== undefined ? String(filter.maxArea) : "");
 
   // 글로벌 단지 검색 자동완성
-  const [filteredSuggestions, setFilteredSuggestions] = useState<Array<{ name: string; lawdCode: string; regionName: string }>>([]);
+  const [globalSuggestions, setGlobalSuggestions] = useState<Array<{ name: string; lawdCode: string; regionName: string }>>([]);
+  const [apartments, setApartments] = useState<string[]>([]);
+  const [searchingComplexes, setSearchingComplexes] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const complexInputRef = useRef<HTMLInputElement>(null);
 
-  // 단지 검색 디바운스
+  // lawdCode 확정 시 해당 지역 아파트 목록 미리 로드 (제한 없이 전체 로드)
   useEffect(() => {
+    if (!filter.lawdCode) {
+      setApartments([]);
+      return;
+    }
+    let cancelled = false;
+    setSearchingComplexes(true);
+    setApartments([]);
+
+    (async () => {
+      try {
+        const result = await fetchComplexesByRegion(filter.lawdCode);
+        if (cancelled) return;
+        if (result && result.length > 0) {
+          setApartments(result);
+        }
+      } catch (err) {
+        console.error("Failed to load complex list for region", err);
+        if (!cancelled) setApartments([]);
+      } finally {
+        if (!cancelled) setSearchingComplexes(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [filter.lawdCode]);
+
+  // 로컬 필터링 및 글로벌 제안 결과 통합 계산
+  const filteredSuggestions = React.useMemo(() => {
+    const q = complexName.trim().toLowerCase();
+    if (filter.lawdCode) {
+      if (!q) {
+        return apartments.map((name) => ({ name, lawdCode: filter.lawdCode!, regionName: regionName }));
+      }
+      return apartments
+        .filter((name) => name.toLowerCase().includes(q))
+        .map((name) => ({ name, lawdCode: filter.lawdCode!, regionName: regionName }));
+    } else {
+      return globalSuggestions;
+    }
+  }, [apartments, complexName, filter.lawdCode, regionName, globalSuggestions]);
+
+  // 단지 검색 디바운스 (지역 코드가 없을 때만 글로벌 검색 동작)
+  useEffect(() => {
+    if (filter.lawdCode) {
+      setGlobalSuggestions([]);
+      return;
+    }
+
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
     const query = complexName.trim();
     if (!query) {
-      setFilteredSuggestions([]);
+      setGlobalSuggestions([]);
       setShowSuggestions(false);
       return;
     }
 
     debounceRef.current = setTimeout(async () => {
       try {
-        const results = await searchComplexNamesApi(query, filter.lawdCode);
-        setFilteredSuggestions(results);
+        const results = await searchComplexNamesApi(query);
+        setGlobalSuggestions(results);
         const isCurrentFocused = document.activeElement === complexInputRef.current;
         setShowSuggestions(results.length > 0 && isCurrentFocused);
         setActiveIndex(-1);
@@ -70,6 +122,10 @@ export default function FilterPanel({
   useEffect(() => {
     setRegionText(regionName || "");
   }, [regionName]);
+
+  useEffect(() => {
+    setComplexName(filter.complexName || "");
+  }, [filter.complexName]);
 
   // 평형 <-> ㎡ 단위 토글을 위한 상태
   const [usePyung, setUsePyung] = useState(false);
@@ -329,16 +385,29 @@ export default function FilterPanel({
             {/* 아파트명 — hideComplexSearch가 true이면 숨김 */}
             {!hideComplexSearch && (
               <div className="flex flex-col gap-1.5 relative">
-                <label className="text-xs font-semibold text-neutral">아파트 단지명</label>
+                <label className="text-xs font-semibold text-neutral">
+                  아파트 단지명 {searchingComplexes && <span className="text-[10px] text-neutral animate-pulse">(로딩 중...)</span>}
+                </label>
                 <input
                   ref={complexInputRef}
                   type="text"
                   value={complexName}
-                  onChange={(e) => setComplexName(e.target.value)}
+                  onChange={(e) => {
+                    setComplexName(e.target.value);
+                    if (filter.lawdCode) {
+                      setShowSuggestions(true);
+                    }
+                  }}
                   onKeyDown={handleKeyDown}
-                  onFocus={() => filteredSuggestions.length > 0 && setShowSuggestions(true)}
+                  onFocus={() => {
+                    if (filter.lawdCode) {
+                      setShowSuggestions(true);
+                    } else if (filteredSuggestions.length > 0) {
+                      setShowSuggestions(true);
+                    }
+                  }}
                   onBlur={() => setTimeout(() => { setShowSuggestions(false); setActiveIndex(-1); }, 150)}
-                  placeholder="단지명 키워드 (예: 자이)"
+                  placeholder={filter.lawdCode ? "단지명 검색 또는 선택" : "단지명 키워드 (예: 자이)"}
                   className="w-full bg-normal border border-normal rounded-lg px-3.5 py-2 text-sm text-strong placeholder-assistive focus:outline-none focus:ring-2 focus:ring-primary"
                   autoComplete="off"
                 />
@@ -356,9 +425,6 @@ export default function FilterPanel({
                           }`}
                         >
                           <span>{item.name}</span>
-                          {item.regionName && (
-                            <span className="ml-2 text-xs text-assistive">{item.regionName}</span>
-                          )}
                         </button>
                       </li>
                     ))}
