@@ -7,6 +7,7 @@ import { ExplorePage } from "./pages/Explore";
 import { RulesPage } from "./pages/Rules";
 import { SettingsPage } from "./pages/Settings";
 import GraphDashboard from "./pages/GraphDashboard";
+import ComplexAnalysisPage from "./pages/ComplexAnalysisPage";
 import NearbyStationTab from "./pages/graph/NearbyStationTab";
 import { DatabaseAdminPage } from "./pages/DatabaseAdmin";
 import { CollectPage } from "./pages/Collect";
@@ -19,7 +20,8 @@ function App() {
   const [error, setError] = useState("");
   const [view, setView] = useState<View>("dashboard");
   const [rulesInitData, setRulesInitData] = useState<{ regionName: string; regionCode?: string; apartmentKeywords: string[] } | null>(null);
-  const [analyticsInitData, setAnalyticsInitData] = useState<{ complexName: string; lawdCode?: string; activeTab?: "overview" | "complex" | "insight" } | null>(null);
+  const [complexAnalysisInitData, setComplexAnalysisInitData] = useState<{ complexName: string; lawdCode?: string } | null>(null);
+  const [drilldownFromOverview, setDrilldownFromOverview] = useState(false);
   
   const adminViews: View[] = ["collect", "dbAdmin", "allowedAccounts", "settings"];
   useEffect(() => {
@@ -66,6 +68,13 @@ function App() {
     setView("rules");
   };
 
+  /** 종합 현황 차트에서 단지 클릭 → 단지 분석 페이지로 드릴다운 */
+  const handleSelectComplex = (complexName: string, lawdCode?: string) => {
+    setComplexAnalysisInitData({ complexName, lawdCode });
+    setDrilldownFromOverview(true);
+    setView("complexAnalysis");
+  };
+
   if (auth === null) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-alternative text-neutral">
@@ -94,15 +103,26 @@ function App() {
       {view === "analytics" && (
         <GraphDashboard
           onNavigateToRules={handleNavigateToRules}
-          initData={analyticsInitData}
-          clearInitData={() => setAnalyticsInitData(null)}
+          onSelectComplex={handleSelectComplex}
+        />
+      )}
+      {view === "complexAnalysis" && (
+        <ComplexAnalysisPage
+          onNavigateToRules={handleNavigateToRules}
+          initData={complexAnalysisInitData}
+          clearInitData={() => setComplexAnalysisInitData(null)}
+          onBackToOverview={drilldownFromOverview ? () => {
+            setDrilldownFromOverview(false);
+            setView("analytics");
+          } : undefined}
         />
       )}
       {view === "nearby" && (
         <NearbyStationTab
           onSelectComplex={(complexName, lawdCode) => {
-            setAnalyticsInitData({ complexName, lawdCode, activeTab: "complex" });
-            setView("analytics");
+            setComplexAnalysisInitData({ complexName, lawdCode });
+            setDrilldownFromOverview(false);
+            setView("complexAnalysis");
           }}
           onNavigateToRules={handleNavigateToRules}
         />

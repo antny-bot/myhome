@@ -1,57 +1,57 @@
 import React, { useState, useEffect } from "react";
 import FilterPanel from "./graph/FilterPanel";
-import OverviewTab from "./graph/OverviewTab";
+import ComplexTab from "./graph/ComplexTab";
 import InsightTab from "./graph/InsightTab";
 import { GraphFilter } from "@myhome/shared";
-import { searchGraphTransactions } from "../api";
-import { BarChart3, Sparkles } from "lucide-react";
-import { copy } from "../locales/ko";
+import { Building2, Sparkles, ArrowLeft, Home } from "lucide-react";
 import { PageHeader } from "../components/PageHeader";
 import { classNames } from "../lib/format";
+import { copy } from "../locales/ko";
 
 const locale = "ko";
 const t = copy[locale];
 
 const tabs = [
-  { id: "overview" as const, label: "종합 현황", icon: BarChart3 },
+  { id: "complex" as const, label: t.analyticsTabComplex, icon: Building2 },
   { id: "insight" as const, label: t.analyticsTabInsight, icon: Sparkles },
 ];
 
-interface GraphDashboardProps {
+interface ComplexAnalysisPageProps {
   onNavigateToRules?: (initData: { regionName: string; regionCode?: string; apartmentKeywords: string[] }) => void;
-  /** 종합 현황에서 단지 클릭 시 단지 분석으로 이동하는 콜백 */
-  onSelectComplex?: (complexName: string, lawdCode?: string) => void;
+  /** 종합 현황에서 드릴다운 진입 시 초기 단지 정보 */
+  initData?: { complexName: string; lawdCode?: string } | null;
+  clearInitData?: () => void;
+  /** 종합 현황으로 돌아가기 콜백 */
+  onBackToOverview?: () => void;
 }
 
-export default function GraphDashboard({ onNavigateToRules, onSelectComplex }: GraphDashboardProps) {
-  const [activeTab, setActiveTab] = useState<"overview" | "insight">("overview");
+export default function ComplexAnalysisPage({
+  onNavigateToRules,
+  initData,
+  clearInitData,
+  onBackToOverview,
+}: ComplexAnalysisPageProps) {
+  const [activeTab, setActiveTab] = useState<"complex" | "insight">("complex");
+  const [areaUnit, setAreaUnit] = useState<"pyeong" | "m2">("pyeong");
 
   const [filter, setFilter] = useState<GraphFilter>({
     startDate: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().substring(0, 7),
     endDate: new Date().toISOString().substring(0, 7),
   });
   const [regionName, setRegionName] = useState("");
-  const [areaUnit, setAreaUnit] = useState<"pyeong" | "m2">("pyeong");
 
-  const [transactions, setTransactions] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  const fetchTransactions = async () => {
-    setLoading(true);
-    try {
-      const data = await searchGraphTransactions(filter);
-      setTransactions(data);
-    } catch (err) {
-      console.error("Failed to load transactions for overview", err);
-      setTransactions([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // 드릴다운 진입 시 단지명 자동 세팅
   useEffect(() => {
-    fetchTransactions();
-  }, []);
+    if (initData) {
+      setFilter((prev) => ({
+        ...prev,
+        complexName: initData.complexName,
+        lawdCode: initData.lawdCode ?? prev.lawdCode,
+      }));
+      setActiveTab("complex");
+      clearInitData?.();
+    }
+  }, [initData]);
 
   const handleFilterChange = (newFilter: GraphFilter, newRegionName: string) => {
     setFilter(newFilter);
@@ -59,32 +59,39 @@ export default function GraphDashboard({ onNavigateToRules, onSelectComplex }: G
   };
 
   const handleApply = () => {
-    fetchTransactions();
-  };
-
-  /** 종합 현황 차트에서 단지 클릭 → 단지 분석 페이지로 드릴다운 */
-  const handleSelectComplex = (complexName: string, lawdCode?: string) => {
-    if (onSelectComplex) {
-      onSelectComplex(complexName, lawdCode ?? filter.lawdCode);
-    }
+    // ComplexTab은 filter prop 변경 시 자동으로 다시 조회하므로 별도 fetch 불필요
   };
 
   return (
     <div className="space-y-6">
+      {/* 종합 현황에서 드릴다운 진입 시 뒤로가기 브레드크럼 */}
+      {onBackToOverview && (
+        <button
+          onClick={onBackToOverview}
+          className="inline-flex items-center gap-1.5 text-sm text-neutral hover:text-primary transition-colors group"
+        >
+          <ArrowLeft
+            size={15}
+            className="group-hover:-translate-x-0.5 transition-transform"
+          />
+          <span>종합 현황으로</span>
+        </button>
+      )}
+
       {/* Page Header */}
       <PageHeader
-        title="종합 현황"
-        subtitle="로컬 SQLite 실거래 적재 데이터를 지역·기간별로 거시 통계 분석합니다. 단지를 클릭하면 단지 분석으로 이동합니다."
-        icon={BarChart3}
+        title="단지 분석"
+        subtitle="특정 아파트 단지의 실거래 데이터를 심층 분석합니다. 단지명을 검색하거나, 종합 현황에서 단지를 클릭하면 자동으로 진입됩니다."
+        icon={Building2}
       />
 
-      {/* 지역·기간 필터만 표시 (단지명·평형 숨김) */}
+      {/* FilterPanel 전체 (단지명·평형 포함) */}
       <FilterPanel
         filter={filter}
         regionName={regionName}
         onFilterChange={handleFilterChange}
         onApply={handleApply}
-        hideComplexSearch={true}
+        hideComplexSearch={false}
       />
 
       {/* Tabs */}
@@ -135,8 +142,8 @@ export default function GraphDashboard({ onNavigateToRules, onSelectComplex }: G
           })}
         </div>
 
-        {/* 면적 단위 토글 버튼 */}
-        {activeTab === "overview" && (
+        {/* 면적 단위 토글 */}
+        {activeTab === "complex" && (
           <div className="flex items-center gap-0.5 rounded-lg border border-slate-200 dark:border-slate-800 p-0.5 bg-slate-50 dark:bg-slate-900 shrink-0 mr-1 mb-1">
             <button
               type="button"
@@ -167,23 +174,13 @@ export default function GraphDashboard({ onNavigateToRules, onSelectComplex }: G
       </div>
 
       <div>
-        {activeTab === "overview" && (
-          <>
-            {loading ? (
-              <div className="flex items-center justify-center py-24 bg-elevated border border-normal rounded-xl">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-              </div>
-            ) : (
-              <OverviewTab
-                data={transactions}
-                onSelectComplex={handleSelectComplex}
-                areaUnit={areaUnit}
-                locale={locale}
-              />
-            )}
-          </>
+        {activeTab === "complex" && (
+          <ComplexTab
+            initialComplexName={filter.complexName ?? ""}
+            lawdCode={filter.lawdCode}
+            areaUnit={areaUnit}
+          />
         )}
-
         {activeTab === "insight" && (
           <InsightTab filter={filter} regionName={regionName} />
         )}

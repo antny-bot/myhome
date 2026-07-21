@@ -1,11 +1,11 @@
-import { Bell, History, LayoutDashboard, Menu, X, LucideIcon, BarChart3, Database, ClipboardList, Compass, Home, LogOut, UserCheck, Sun, Moon, ShieldCheck, Star, Settings } from "lucide-react";
+import { Bell, History, LayoutDashboard, Menu, X, LucideIcon, BarChart3, Database, ClipboardList, Compass, Home, LogOut, UserCheck, Sun, Moon, ShieldCheck, Star, Settings, Building2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { classNames } from "../lib/format";
 import { useBreakpoint } from "../useBreakpoint";
 import { useTheme } from "../useTheme";
 import packageJson from "../../package.json";
 
-export type View = "dashboard" | "rules" | "explore" | "settings" | "analytics" | "dbAdmin" | "collect" | "nearby" | "allowedAccounts";
+export type View = "dashboard" | "rules" | "explore" | "settings" | "analytics" | "complexAnalysis" | "dbAdmin" | "collect" | "nearby" | "allowedAccounts";
 
 interface NavItemMeta {
   key: View;
@@ -18,7 +18,8 @@ interface NavItemMeta {
 const NAV_ITEMS: NavItemMeta[] = [
   { key: "dashboard", label: "대시보드", compactLabel: "대시보드", adminOnly: false, Icon: LayoutDashboard },
   { key: "explore", label: "실거래 탐색", compactLabel: "탐색", adminOnly: false, Icon: History },
-  { key: "analytics", label: "실거래 분석", compactLabel: "분석", adminOnly: false, Icon: BarChart3 },
+  { key: "analytics", label: "종합 현황", compactLabel: "현황", adminOnly: false, Icon: BarChart3 },
+  { key: "complexAnalysis", label: "단지 분석", compactLabel: "단지", adminOnly: false, Icon: Building2 },
   { key: "nearby", label: "역세권 분석", compactLabel: "역세권", adminOnly: false, Icon: Compass },
   { key: "rules", label: "알림 규칙", compactLabel: "알림", adminOnly: false, Icon: Bell },
   { key: "collect", label: "수집 현황", compactLabel: "수집", adminOnly: true, Icon: ClipboardList },
@@ -31,6 +32,7 @@ const DEFAULT_ORDER: View[] = [
   "dashboard",
   "explore",
   "analytics",
+  "complexAnalysis",
   "rules",
   "nearby",
   "collect",

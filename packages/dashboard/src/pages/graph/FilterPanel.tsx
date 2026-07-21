@@ -11,6 +11,8 @@ interface FilterPanelProps {
   regionName: string;
   onFilterChange: (filter: GraphFilter, regionName: string) => void;
   onApply: () => void;
+  /** true이면 단지명·평형 필터 UI 숨김 (종합 현황 모드) */
+  hideComplexSearch?: boolean;
 }
 
 export default function FilterPanel({
@@ -18,6 +20,7 @@ export default function FilterPanel({
   regionName,
   onFilterChange,
   onApply,
+  hideComplexSearch = false,
 }: FilterPanelProps) {
   const { isMobile } = useBreakpoint();
 
@@ -244,8 +247,8 @@ export default function FilterPanel({
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 border-b border-normal pb-4">
         <div className="flex items-center justify-between w-full md:w-auto">
           <div>
-            <h2 className="text-lg font-bold text-strong">📊 실거래 분석 필터</h2>
-            <p className="text-xs text-neutral mt-1">기간, 지역, 단지명, 평형 조건을 설정해 데이터를 탐색합니다.</p>
+            <h2 className="text-lg font-bold text-strong">📊 {hideComplexSearch ? "지역·기간 필터" : "실거래 분석 필터"}</h2>
+            <p className="text-xs text-neutral mt-1">{hideComplexSearch ? "기간과 지역을 설정해 거시 통계 데이터를 탐색합니다." : "기간, 지역, 단지명, 평형 조건을 설정해 데이터를 탐색합니다."}</p>
           </div>
           {isMobile && (
             <button
@@ -308,7 +311,7 @@ export default function FilterPanel({
             </div>
           )}
 
-          <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-2 md:grid-cols-4'} gap-4 mb-6`}>
+          <div className={`grid ${isMobile ? 'grid-cols-1' : hideComplexSearch ? 'grid-cols-2' : 'grid-cols-2 md:grid-cols-4'} gap-4 mb-6`}>
             {/* 지역 검색 */}
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-semibold text-neutral">지역</label>
@@ -323,44 +326,46 @@ export default function FilterPanel({
               />
             </div>
 
-            {/* 아파트명 */}
-            <div className="flex flex-col gap-1.5 relative">
-              <label className="text-xs font-semibold text-neutral">아파트 단지명</label>
-              <input
-                ref={complexInputRef}
-                type="text"
-                value={complexName}
-                onChange={(e) => setComplexName(e.target.value)}
-                onKeyDown={handleKeyDown}
-                onFocus={() => filteredSuggestions.length > 0 && setShowSuggestions(true)}
-                onBlur={() => setTimeout(() => { setShowSuggestions(false); setActiveIndex(-1); }, 150)}
-                placeholder="단지명 키워드 (예: 자이)"
-                className="w-full bg-normal border border-normal rounded-lg px-3.5 py-2 text-sm text-strong placeholder-assistive focus:outline-none focus:ring-2 focus:ring-primary"
-                autoComplete="off"
-              />
+            {/* 아파트명 — hideComplexSearch가 true이면 숨김 */}
+            {!hideComplexSearch && (
+              <div className="flex flex-col gap-1.5 relative">
+                <label className="text-xs font-semibold text-neutral">아파트 단지명</label>
+                <input
+                  ref={complexInputRef}
+                  type="text"
+                  value={complexName}
+                  onChange={(e) => setComplexName(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  onFocus={() => filteredSuggestions.length > 0 && setShowSuggestions(true)}
+                  onBlur={() => setTimeout(() => { setShowSuggestions(false); setActiveIndex(-1); }, 150)}
+                  placeholder="단지명 키워드 (예: 자이)"
+                  className="w-full bg-normal border border-normal rounded-lg px-3.5 py-2 text-sm text-strong placeholder-assistive focus:outline-none focus:ring-2 focus:ring-primary"
+                  autoComplete="off"
+                />
 
-              {showSuggestions && filteredSuggestions.length > 0 && (
-                <ul className="absolute z-30 left-0 right-0 top-full mt-1 max-h-60 overflow-auto rounded-lg border border-normal bg-elevated py-1 shadow-lg">
-                  {filteredSuggestions.map((item, index) => (
-                    <li key={`${item.name}-${item.lawdCode}`}>
-                      <button
-                        type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => selectSuggestion(item)}
-                        className={`w-full text-left px-4 py-2 text-sm text-strong transition-colors ${
-                          index === activeIndex ? "bg-primary text-white font-semibold" : "hover:bg-alternative"
-                        }`}
-                      >
-                        <span>{item.name}</span>
-                        {item.regionName && (
-                          <span className="ml-2 text-xs text-assistive">{item.regionName}</span>
-                        )}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+                {showSuggestions && filteredSuggestions.length > 0 && (
+                  <ul className="absolute z-30 left-0 right-0 top-full mt-1 max-h-60 overflow-auto rounded-lg border border-normal bg-elevated py-1 shadow-lg">
+                    {filteredSuggestions.map((item, index) => (
+                      <li key={`${item.name}-${item.lawdCode}`}>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => selectSuggestion(item)}
+                          className={`w-full text-left px-4 py-2 text-sm text-strong transition-colors ${
+                            index === activeIndex ? "bg-primary text-white font-semibold" : "hover:bg-alternative"
+                          }`}
+                        >
+                          <span>{item.name}</span>
+                          {item.regionName && (
+                            <span className="ml-2 text-xs text-assistive">{item.regionName}</span>
+                          )}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
 
             {/* 기간 선택 */}
             <div className="flex flex-col gap-1.5">
@@ -382,35 +387,37 @@ export default function FilterPanel({
               </div>
             </div>
 
-            {/* 면적(평수) */}
-            <div className="flex flex-col gap-1.5">
-              <div className="flex justify-between items-center">
-                <label className="text-xs font-semibold text-neutral">전용 면적</label>
-                <button
-                  onClick={() => setUsePyung(!usePyung)}
-                  className="text-[10px] text-primary hover:underline"
-                >
-                  {usePyung ? "㎡ 단위로 보기" : "평 단위로 보기"}
-                </button>
+            {/* 면적(평수) — hideComplexSearch가 true이면 숨김 */}
+            {!hideComplexSearch && (
+              <div className="flex flex-col gap-1.5">
+                <div className="flex justify-between items-center">
+                  <label className="text-xs font-semibold text-neutral">전용 면적</label>
+                  <button
+                    onClick={() => setUsePyung(!usePyung)}
+                    className="text-[10px] text-primary hover:underline"
+                  >
+                    {usePyung ? "㎡ 단위로 보기" : "평 단위로 보기"}
+                  </button>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="number"
+                    placeholder={usePyung ? "최소 평" : "최소 ㎡"}
+                    value={usePyung ? toPyung(minArea) : minArea}
+                    onChange={(e) => handleAreaChange(e.target.value, "min")}
+                    className="w-full bg-normal border border-normal rounded-lg px-3 py-1.5 text-sm text-strong focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                  <span className="text-assistive">~</span>
+                  <input
+                    type="number"
+                    placeholder={usePyung ? "최대 평" : "최대 ㎡"}
+                    value={usePyung ? toPyung(maxArea) : maxArea}
+                    onChange={(e) => handleAreaChange(e.target.value, "max")}
+                    className="w-full bg-normal border border-normal rounded-lg px-3 py-1.5 text-sm text-strong focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
               </div>
-              <div className="flex items-center gap-1.5">
-                <input
-                  type="number"
-                  placeholder={usePyung ? "최소 평" : "최소 ㎡"}
-                  value={usePyung ? toPyung(minArea) : minArea}
-                  onChange={(e) => handleAreaChange(e.target.value, "min")}
-                  className="w-full bg-normal border border-normal rounded-lg px-3 py-1.5 text-sm text-strong focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-                <span className="text-assistive">~</span>
-                <input
-                  type="number"
-                  placeholder={usePyung ? "최대 평" : "최대 ㎡"}
-                  value={usePyung ? toPyung(maxArea) : maxArea}
-                  onChange={(e) => handleAreaChange(e.target.value, "max")}
-                  className="w-full bg-normal border border-normal rounded-lg px-3 py-1.5 text-sm text-strong focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-            </div>
+            )}
           </div>
 
           <div className="flex justify-end gap-3 border-t border-normal pt-4">
