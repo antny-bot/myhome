@@ -1,4 +1,5 @@
 import express from "express";
+import rateLimit from "express-rate-limit";
 import { z } from "zod";
 import { isTelegramConfigured, sendNotifications } from "./notifications.js";
 import { getSourceLimitNotice, runRuleCheck } from "./ruleEngine.js";
@@ -27,11 +28,13 @@ const ruleSchema = z.object({
   enabled: z.boolean()
 });
 
+const ruleUpdateSchema = ruleSchema.partial();
+
 function cleanRegionDisplayName(displayName: string): string {
   const match = displayName.match(/\(([^)]+)\)/);
   let address = match ? match[1].trim() : displayName.trim();
 
-  const parts = address.split(/\s+/);
+  const parts = answer.split(/\s+/);
   if (parts.length >= 2) {
     if (parts[0].startsWith("세종")) {
       return "세종특별자치시";
@@ -44,8 +47,17 @@ function cleanRegionDisplayName(displayName: string): string {
   return address;
 }
 
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  message: "Too many requests from this IP, please try again later.",
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 export function createRouter() {
   const router = express.Router();
+  router.use(apiLimiter);
 
   router.get("/health", (_req, res) => {
     res.json({ ok: true });
@@ -149,7 +161,6 @@ export function createRouter() {
         const results = await searchAddresses(query);
         res.json(results);
       } else {
-        // 외부 주소 API 미설정 시 로컬 DB의 regions 테이블에서 검색
         const results = searchDbRegions(query);
         res.json(results);
       }
@@ -167,7 +178,6 @@ export function createRouter() {
         return;
       }
 
-      // 1. 강제 갱신이 아닌 경우 캐시 조회
       if (!forceRefresh) {
         const cached = getCachedApartments(lawdCode);
         if (cached.cachedAt && cached.apartments.length > 0) {
@@ -176,13 +186,8 @@ export function createRouter() {
         }
       }
 
-      // 2. 캐시가 없거나 강제 갱신인 경우 국토부 API 호출
       const list = await getApartmentList(lawdCode);
-      
-      // 3. DB 캐시 저장
       saveCachedApartments(lawdCode, list);
-
-      // 4. 저장한 결과(최신 갱신시각 포함)를 반환
       const fresh = getCachedApartments(lawdCode);
       res.json(fresh);
     } catch (error) {
@@ -227,10 +232,9 @@ export function createRouter() {
 
       const records = [];
       const now = new Date();
-      const currentYm = now.getFullYear() * 100 + (now.getMonth() + 1); // YYYYMM
+      const currentYm = now.getFullYear() * 100 + (now.getMonth() + 1);
       let isCacheHitOnly = true;
 
-      // 1. 캐시 히트와 API 호출 대상을 분류
       const cacheHitMonths: string[] = [];
       const apiFetchMonths: string[] = [];
 
@@ -247,14 +251,12 @@ export function createRouter() {
         }
       }
 
-      // 2. 캐시 히트 데이터 즉시 로드
       for (const month of cacheHitMonths) {
         const localRecords = getLocalApartmentPrices(lawdCode, month);
         records.push(...localRecords);
         console.log(`[Cache Hit] ${lawdCode}/${month} - 로컬 DB 적재 데이터 서빙 (건수: ${localRecords.length})`);
       }
 
-      // 3. 캐시 미스 데이터 병렬 처리 (동시성 제한: 5)
       if (apiFetchMonths.length > 0) {
         isCacheHitOnly = false;
         const concurrencyLimit = 5;
@@ -289,12 +291,10 @@ export function createRouter() {
 
       res.json(records);
 
-      // 그래프 DB 적재 — 캐시 히트만으로 충족된 경우는 중복 적재 스킵
       if (process.env.GRAPH_DB_ENABLED === "true" && records.length > 0 && !isCacheHitOnly) {
         const regionInfo = { lawdCode, displayName: regionDisplayName };
         for (const rec of records) {
           const graphKey = makeGraphDedupeKey(lawdCode, rec.apartmentName, rec.dealDate, rec.areaM2, rec.floor);
-          // 원본 데이터에서 주소 정보 추출 (국토부 API 직접 호출 or apiClient 정규화 결과)
           const rawObj = ((rec as any).raw && typeof (rec as any).raw === 'object') ? (rec as any).raw as Record<string, unknown> : {};
           const addrInfo = {
             dongName: (rawObj.dongName ?? rawObj.umdNm ?? undefined) as string | undefined,
@@ -303,15 +303,40 @@ export function createRouter() {
           };
           upsertTransaction(regionInfo, rec.apartmentName, {
             dedupeKey: graphKey,
-            dealDate:  rec.dealDate,
-            priceEok:  rec.priceEok,
-            areaM2:    rec.areaM2,
-            floor:     rec.floor,
+            dealDate: rec.dealDate,
+            priceEok: rec.priceEok,
+            areaM2: rec.areaM2,
+            floor: rec.floor,
           }, addrInfo).catch((err: any) =>
             console.error(`[graphDb] 탐색 upsert 실패 (${rec.apartmentName}):`, err)
           );
         }
       }
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/transactions/batch", async (req, res, next) => {
+    try {
+      const { lawdCode, startMonth, endMonth } = req.query as Record<string, string>;
+      
+      if (!lawdCode || !startMonth || !endMonth) {
+        return res.status(400).json({ error: 'lawd_cd, start_ymd, and end_ymd are required' });
+      }
+      
+      const monthPattern = /^\d{6}$/;
+      if (!monthPattern.test(startMonth) || !monthPattern.test(endMonth)) {
+        return res.status(400).json({ error: 'start_ymd and end_ymd must be in YYYYMM format' });
+      }
+
+      const months = getMonthsInRange(startMonth, endMonth);
+      const results = await Promise.all(
+        months.map((m) => getApartmentPrices(lawdCode, m))
+      );
+      const flattened = results.map((r) => r.transactions).flat();
+      
+      res.json({ ok: true, data: flattened });
     } catch (error) {
       next(error);
     }
@@ -341,7 +366,7 @@ export function createRouter() {
   router.patch("/rules/:id", async (req, res, next) => {
     try {
       const email = req.user?.email || "bootstrap-admin@myhome.local";
-      const parsedBody = ruleSchema.partial().parse(req.body);
+      const parsedBody = ruleUpdateSchema.parse(req.body);
       const rule = await updateRulePatch(req.params.id, parsedBody, email);
       if (!rule) {
         res.status(404).json({ error: "Rule not found" });

@@ -13,6 +13,9 @@
     "build:dashboard": "npm run build --workspace=packages/dashboard",
     "build": "npm run build:shared && npm run build:collector && npm run build:dashboard"
   },
+  "dependencies": {
+    "express-rate-limit": "^6.11.2"
+  },
   "devDependencies": {
     "typescript": "^5.9.3"
   }

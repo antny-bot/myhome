@@ -37,6 +37,7 @@ export function initDb(): void {
     CREATE TABLE IF NOT EXISTS transactions (
       dedupe_key TEXT PRIMARY KEY,
       complex_id TEXT NOT NULL,
+      lawd_code TEXT NOT NULL,
       deal_date TEXT NOT NULL,
       price_eok REAL NOT NULL,
       area_m2 REAL,
@@ -59,8 +60,10 @@ export function initDb(): void {
 
     CREATE INDEX IF NOT EXISTS idx_transactions_deal_date ON transactions(deal_date);
     CREATE INDEX IF NOT EXISTS idx_transactions_complex_id ON transactions(complex_id);
+    CREATE INDEX IF NOT EXISTS idx_transactions_lawd_code_deal_date ON transactions(lawd_code, deal_date);
     CREATE INDEX IF NOT EXISTS idx_complexes_lawd_code ON complexes(lawd_code);
     CREATE INDEX IF NOT EXISTS idx_region_apartment_cache_lawd_code ON region_apartment_cache(lawd_code);
+    // 복합 인덱스: lawd_code + deal_date 조회 최적화 (transactions 테이블에 lawd_code 컬럼 추가 필요)
 
     CREATE TABLE IF NOT EXISTS sessions (
       id TEXT PRIMARY KEY,
