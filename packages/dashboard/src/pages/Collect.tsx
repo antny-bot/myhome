@@ -29,7 +29,7 @@ const t = copy[locale];
 // 수 포맷 유틸
 const fmtCount = (v: number) => v.toLocaleString("ko-KR");
 const fmtPrice = (v: number) =>
-  v >= 10 ? `${v.toFixed(2)}억` : `${(v * 10000).toLocaleString("ko-KR")}만`;
+  v >= 10 ? `${v.toFixed(1)}억` : `${(v * 10000).toLocaleString("ko-KR")}만`;
 
 export function CollectPage() {
   const { isMobile } = useBreakpoint();
@@ -206,7 +206,7 @@ export function CollectPage() {
           <StatCard
             icon={TrendingUp}
             label={t.totalAvgPrice}
-            value={kpi.avgPrice > 0 ? `${kpi.avgPrice.toFixed(2)} ${t.unitDealWon}` : "-"}
+            value={kpi.avgPrice > 0 ? `${kpi.avgPrice.toFixed(1)} ${t.unitDealWon}` : "-"}
             tone="good"
           />
           <StatCard

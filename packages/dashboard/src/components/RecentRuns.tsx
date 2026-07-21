@@ -67,7 +67,7 @@ export function RecentRuns({ runs, onChanged }: { runs: CheckRun[]; onChanged?: 
                             <span className="ml-2 text-neutral">{m.floor ? `${m.floor}층` : ""} | {m.areaM2 ? `${m.areaM2}㎡` : ""}</span>
                           </div>
                           <div className="text-right">
-                            <p className="font-bold text-primary">{m.priceEok.toFixed(2)}억</p>
+                            <p className="font-bold text-primary">{m.priceEok.toFixed(1)}억</p>
                             <p className="text-[10px] text-assistive">{m.dealDate}</p>
                           </div>
                         </div>

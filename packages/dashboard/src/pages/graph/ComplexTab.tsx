@@ -418,7 +418,7 @@ export default function ComplexTab({ initialComplexName = "", lawdCode, areaUnit
                       <td className="px-4 py-3.5 text-primary font-bold text-right">
                         <span className="inline-flex items-center gap-0.5 justify-end">
                           <DollarSign size={13} />
-                          {tx.priceEok.toFixed(2)}{t("eokUnit")}
+                          {tx.priceEok.toFixed(1)}{t("eokUnit")}
                         </span>
                       </td>
                       <td className="px-4 py-3.5 text-right">

@@ -98,7 +98,7 @@ function DeltaTag({ value }: { value?: number }) {
   return (
     <span className={classNames("inline-flex items-center gap-1 font-bold text-[13px]", up ? "text-red-500" : "text-blue-500")}>
       <Icon className="h-3.5 w-3.5" />
-      {Math.abs(value).toFixed(2)}
+      {Math.abs(value).toFixed(1)}
       {t.unitDeal}
     </span>
   );
@@ -561,9 +561,9 @@ export function ExplorePage() {
       {/* KPI 카드 섹션 */}
       <section className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         <KpiCard label={t.recordCount} value={`${kpis.count}${t.unitCount}`} hint={t.searchScope} />
-        <KpiCard label={t.averagePrice} value={`${kpis.avgPrice.toFixed(2)}${t.unitDeal}`} hint={searchedRegion || t.prompt} />
+        <KpiCard label={t.averagePrice} value={`${kpis.avgPrice.toFixed(1)}${t.unitDeal}`} hint={searchedRegion || t.prompt} />
         <KpiCard label={t.averagePpy} value={kpis.avgPpy > 0 ? `${kpis.avgPpy.toLocaleString()}${t.unitPpy}` : "-"} hint={t.ppyHint} />
-        <KpiCard label={t.priceRange} value={kpis.count > 0 ? `${kpis.maxPrice.toFixed(2)} · ${kpis.minPrice.toFixed(2)}${t.unitDeal}` : "-"} hint={t.searchScope} />
+        <KpiCard label={t.priceRange} value={kpis.count > 0 ? `${kpis.maxPrice.toFixed(1)} · ${kpis.minPrice.toFixed(1)}${t.unitDeal}` : "-"} hint={t.searchScope} />
       </section>
 
       {/* 메인 결과 분할 뷰 영역 */}
@@ -694,7 +694,7 @@ export function ExplorePage() {
                               </td>
                               <td className="px-3 py-2.5 text-neutral">{formatArea(item, areaUnit)}</td>
                               <td className="px-3 py-2.5 text-right tabular-nums text-strong">{item.floor ? `${item.floor}층` : "-"}</td>
-                              <td className="px-3 py-2.5 text-right tabular-nums text-strong font-extrabold text-primary">{item.priceEok.toFixed(2)}{t.unitDeal}</td>
+                              <td className="px-3 py-2.5 text-right tabular-nums text-strong font-extrabold text-primary">{item.priceEok.toFixed(1)}{t.unitDeal}</td>
                               <td className="px-3 py-2.5 text-right tabular-nums text-neutral">{item.ppy > 0 ? `${item.ppy.toLocaleString()}` : "-"}</td>
                             </tr>
                           );

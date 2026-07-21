@@ -200,7 +200,7 @@ export function KakaoMap({
             <div class="px-2.5 py-1.5 rounded-xl text-white font-bold flex flex-col items-center text-center shadow-lg ${colorClass}">
               <span class="text-[10px] opacity-90 truncate max-w-[110px] leading-tight font-medium">${summary.apartmentName}</span>
               <div class="flex items-baseline gap-0.5 mt-0.5">
-                <span class="text-xs font-black tracking-tight">${summary.avgPrice.toFixed(2)}</span>
+                <span class="text-xs font-black tracking-tight">${summary.avgPrice.toFixed(1)}</span>
                 <span class="text-[10px] font-bold opacity-80">${t.unitDeal}</span>
               </div>
               <span class="text-[9px] mt-0.5 px-1 py-0.2 bg-black/20 rounded font-semibold">${summary.count}${t.unitCount}</span>

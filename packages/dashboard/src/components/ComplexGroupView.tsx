@@ -236,12 +236,12 @@ function ComplexGroupCard({
           </p>
         </div>
         <div className="text-right shrink-0">
-          <p className="font-bold text-primary">{t.recent} {latest.priceEok.toFixed(2)}{t.unitDeal}</p>
+          <p className="font-bold text-primary">{t.recent} {latest.priceEok.toFixed(1)}{t.unitDeal}</p>
           <p className={classNames("flex items-center justify-end gap-1 text-xs font-bold", trendTone)}>
             <TrendIcon className="h-3.5 w-3.5" />
             {activeArea.changeEok === 0
               ? t.noChange
-              : `${activeArea.changeEok > 0 ? "+" : ""}${activeArea.changeEok.toFixed(2)}${t.unitDeal}${
+              : `${activeArea.changeEok > 0 ? "+" : ""}${activeArea.changeEok.toFixed(1)}${t.unitDeal}${
                   activeArea.changePct !== undefined ? ` (${activeArea.changePct > 0 ? "+" : ""}${activeArea.changePct.toFixed(1)}%)` : ""
                 }`}
           </p>
@@ -253,15 +253,15 @@ function ComplexGroupCard({
         <div className="flex gap-4 text-xs">
           <div>
             <p className="text-assistive">{t.min}</p>
-            <p className="font-bold text-strong">{activeArea.minPrice.toFixed(2)}{t.unitDeal}</p>
+            <p className="font-bold text-strong">{activeArea.minPrice.toFixed(1)}{t.unitDeal}</p>
           </div>
           <div>
             <p className="text-assistive">{t.avg}</p>
-            <p className="font-bold text-strong">{activeArea.avgPrice.toFixed(2)}{t.unitDeal}</p>
+            <p className="font-bold text-strong">{activeArea.avgPrice.toFixed(1)}{t.unitDeal}</p>
           </div>
           <div>
             <p className="text-assistive">{t.max}</p>
-            <p className="font-bold text-strong">{activeArea.maxPrice.toFixed(2)}{t.unitDeal}</p>
+            <p className="font-bold text-strong">{activeArea.maxPrice.toFixed(1)}{t.unitDeal}</p>
           </div>
         </div>
       </div>
@@ -285,7 +285,7 @@ function ComplexGroupCard({
                 {item.dealDate}
                 {item.floor ? ` · ${item.floor}층` : ""}
               </span>
-              <span className="font-bold text-strong">{item.priceEok.toFixed(2)}{t.unitDeal}</span>
+              <span className="font-bold text-strong">{item.priceEok.toFixed(1)}{t.unitDeal}</span>
             </div>
           ))}
         </div>

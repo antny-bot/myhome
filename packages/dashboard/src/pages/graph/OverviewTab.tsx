@@ -11,9 +11,6 @@ import {
   CartesianGrid,
   Tooltip,
   BarChart,
-  ScatterChart,
-  Scatter,
-  ZAxis,
 } from "recharts";
 import { SectionCard } from "../../components/SectionCard";
 import { StatCard } from "../../components/StatCard";
@@ -90,36 +87,25 @@ const RenderBoxPlotAvg = (props: any) => {
   );
 };
 
-// 버블 차트용 커스텀 툴팁 컴포넌트
-const BubbleChartTooltip = ({ active, payload }: any) => {
-  if (active && payload && payload.length) {
-    const data = payload[0]?.payload;
-    if (!data) return null;
-
-    return (
-      <div className="rounded-xl border border-normal bg-elevated p-3.5 shadow-xl text-xs space-y-2 min-w-[200px] text-left">
-        <p className="font-black text-strong border-b border-normal pb-1.5 mb-1.5 text-[13px] text-primary">
-          [{data.region}] 실거래 정보
-        </p>
-        <div className="space-y-1.5 text-[11px]">
-          <div className="flex justify-between gap-3 text-neutral">
-            <span>구분 (평형/층수):</span>
-            <span className="font-semibold text-strong">{data.x} / {data.y}</span>
-          </div>
-          <div className="flex justify-between gap-3 border-t border-dashed border-normal pt-1.5 mt-1">
-            <span className="text-neutral font-medium">평균 거래가:</span>
-            <span className="font-black text-primary text-[12px]">{data.z}억 원</span>
-          </div>
-          <div className="flex justify-between gap-3">
-            <span className="text-neutral font-medium">거래 건수:</span>
-            <span className="font-bold text-strong">{data.count}건 거래</span>
-          </div>
-        </div>
-      </div>
-    );
+// ─── 히트맵: 가격 → 색상 보간 헬퍼 (파랑 → 빨강) ────────────────────────────
+function interpolateHeatColor(value: number, min: number, max: number): string {
+  if (max <= min) return "rgba(99,102,241,0.55)"; // 단색 fallback
+  const ratio = Math.max(0, Math.min(1, (value - min) / (max - min)));
+  // 파랑(#6366f1) → 보라(#a855f7) → 빨강(#ef4444)
+  let r: number, g: number, b: number;
+  if (ratio < 0.5) {
+    const t = ratio * 2;
+    r = Math.round(99 + t * (168 - 99));
+    g = Math.round(102 + t * (85 - 102));
+    b = Math.round(241 + t * (247 - 241));
+  } else {
+    const t = (ratio - 0.5) * 2;
+    r = Math.round(168 + t * (239 - 168));
+    g = Math.round(85 + t * (68 - 85));
+    b = Math.round(247 + t * (68 - 247));
   }
-  return null;
-};
+  return `rgba(${r},${g},${b},0.82)`;
+}
 
 // 박스 플롯용 커스텀 툴팁 컴포넌트
 const BoxPlotTooltip = ({ active, payload, label, t }: any) => {
@@ -146,7 +132,7 @@ const BoxPlotTooltip = ({ active, payload, label, t }: any) => {
           >
             <span>{t?.maxPriceLabel || "최고가"} (Max):</span>
             <span className="font-bold">
-              {max !== null && max !== undefined ? `${max.toFixed(2)} 억` : "-"}
+              {max !== null && max !== undefined ? `${max.toFixed(1)} 억` : "-"}
             </span>
           </p>
           <p
@@ -155,7 +141,7 @@ const BoxPlotTooltip = ({ active, payload, label, t }: any) => {
           >
             <span>Q3 (75%):</span>
             <span className="font-bold">
-              {q3 !== null && q3 !== undefined ? `${q3.toFixed(2)} 억` : "-"}
+              {q3 !== null && q3 !== undefined ? `${q3.toFixed(1)} 억` : "-"}
             </span>
           </p>
           <p
@@ -164,7 +150,7 @@ const BoxPlotTooltip = ({ active, payload, label, t }: any) => {
           >
             <span>{t?.avgPriceLabel || "평균가"} (Avg):</span>
             <span className="font-bold">
-              {avg !== null && avg !== undefined ? `${avg.toFixed(2)} 억` : "-"}
+              {avg !== null && avg !== undefined ? `${avg.toFixed(1)} 억` : "-"}
             </span>
           </p>
           <p
@@ -176,7 +162,7 @@ const BoxPlotTooltip = ({ active, payload, label, t }: any) => {
             </span>
             <span className="font-bold">
               {median !== null && median !== undefined
-                ? `${median.toFixed(2)} 억`
+                ? `${median.toFixed(1)} 억`
                 : "-"}
             </span>
           </p>
@@ -186,7 +172,7 @@ const BoxPlotTooltip = ({ active, payload, label, t }: any) => {
           >
             <span>Q1 (25%):</span>
             <span className="font-bold">
-              {q1 !== null && q1 !== undefined ? `${q1.toFixed(2)} 억` : "-"}
+              {q1 !== null && q1 !== undefined ? `${q1.toFixed(1)} 억` : "-"}
             </span>
           </p>
           <p
@@ -195,7 +181,7 @@ const BoxPlotTooltip = ({ active, payload, label, t }: any) => {
           >
             <span>최저가 (Min):</span>
             <span className="font-bold">
-              {min !== null && min !== undefined ? `${min.toFixed(2)} 억` : "-"}
+              {min !== null && min !== undefined ? `${min.toFixed(1)} 억` : "-"}
             </span>
           </p>
         </div>
@@ -241,7 +227,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
               style={{ color: "var(--color-chart-max)" }}
             >
               <span>최고가:</span>
-              <span className="font-bold">{maxVal.toFixed(2)} 억</span>
+              <span className="font-bold">{maxVal.toFixed(1)} 억</span>
             </p>
           )}
           {avgVal !== undefined && (
@@ -250,7 +236,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
               style={{ color: "var(--color-chart-primary)" }}
             >
               <span>평균가:</span>
-              <span className="font-bold">{avgVal.toFixed(2)} 억</span>
+              <span className="font-bold">{avgVal.toFixed(1)} 억</span>
             </p>
           )}
           {medVal !== undefined && (
@@ -259,7 +245,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
               style={{ color: "var(--color-chart-median)" }}
             >
               <span>중위값:</span>
-              <span className="font-bold">{medVal.toFixed(2)} 억</span>
+              <span className="font-bold">{medVal.toFixed(1)} 억</span>
             </p>
           )}
           {minVal !== undefined && (
@@ -268,7 +254,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
               style={{ color: "var(--color-chart-min)" }}
             >
               <span>최저가:</span>
-              <span className="font-bold">{minVal.toFixed(2)} 억</span>
+              <span className="font-bold">{minVal.toFixed(1)} 억</span>
             </p>
           )}
         </div>
@@ -288,31 +274,61 @@ export default function OverviewTab({
   const [sizeFilter, setSizeFilter] = React.useState<
     "all" | "under20" | "20s" | "30s" | "over40"
   >("all");
-  // 버블 차트 지역별 범례 가시성 상태 (localStorage 연동)
-  const [regionVisible, setRegionVisible] = React.useState<Record<string, boolean>>(() => {
-    try {
-      const saved = localStorage.getItem("myhome_bubble_regions_visible");
-      if (saved) {
-        return JSON.parse(saved);
-      }
-    } catch (e) {
-      console.error(e);
-    }
-    return {};
-  });
-
-  const getRegionVisibility = React.useCallback((rName: string) => {
-    return regionVisible[rName] !== false; // 기본값 true
-  }, [regionVisible]);
-
-  const toggleRegionVisibility = React.useCallback((rName: string) => {
-    const nextVal = !getRegionVisibility(rName);
-    const updated = { ...regionVisible, [rName]: nextVal };
-    setRegionVisible(updated);
-    localStorage.setItem("myhome_bubble_regions_visible", JSON.stringify(updated));
-  }, [regionVisible, getRegionVisibility]);
 
   const t = copy[locale];
+
+  const floorCategories = React.useMemo(() => {
+    return [t.floorLow, t.floorMid, t.floorHigh, t.floorSuper];
+  }, [t]);
+
+  const getSizeCategory = React.useCallback((areaM2: number) => {
+    const areaPyeong = areaM2 / 3.3058;
+    if (areaUnit === "pyeong") {
+      if (areaPyeong <= 20.5) return "20평 이하";
+      if (areaPyeong <= 25.5) return "21~25평";
+      if (areaPyeong <= 30.5) return "26~30평";
+      if (areaPyeong <= 35.5) return "31~35평";
+      if (areaPyeong <= 40.5) return "36~40평";
+      if (areaPyeong <= 45.5) return "41~45평";
+      if (areaPyeong <= 50.5) return "46~50평";
+      return "50평 초과";
+    } else {
+      if (areaM2 <= 66.5) return "66㎡ 이하";
+      if (areaM2 <= 83.5) return "67~83㎡";
+      if (areaM2 <= 99.5) return "84~99㎡";
+      if (areaM2 <= 116.5) return "100~116㎡";
+      if (areaM2 <= 132.5) return "117~132㎡";
+      if (areaM2 <= 149.5) return "133~149㎡";
+      if (areaM2 <= 165.5) return "150~165㎡";
+      return "165㎡ 초과";
+    }
+  }, [areaUnit]);
+
+  const getFloorCategory = React.useCallback((floorStr: string | number) => {
+    const floorNum = Number(floorStr);
+    if (isNaN(floorNum)) return "기타";
+    if (floorNum <= 5) return t.floorLow;
+    if (floorNum <= 15) return t.floorMid;
+    if (floorNum <= 25) return t.floorHigh;
+    return t.floorSuper;
+  }, [t]);
+
+  // 피벗 테이블 아코디언 지역 확장 상태
+  const [expandedRegions, setExpandedRegions] = React.useState<Set<string>>(
+    new Set(),
+  );
+
+  const toggleRegion = (region: string) => {
+    setExpandedRegions((prev) => {
+      const next = new Set(prev);
+      if (next.has(region)) {
+        next.delete(region);
+      } else {
+        next.add(region);
+      }
+      return next;
+    });
+  };
 
   // 피벗 매트릭스 툴팁 상태 (fixed 포지셔닝)
   const [pivotTooltip, setPivotTooltip] = React.useState<{
@@ -384,44 +400,6 @@ export default function OverviewTab({
           <span>{label}</span>
         </button>
       ))}
-    </div>
-  );
-
-  // 지역별 컬러 팔레트 (상위 7개 자치구 구별용)
-  const regionColors = React.useMemo(() => [
-    "var(--color-chart-primary)", // 기본 테마 컬러
-    "#3b82f6", // 파란색
-    "#10b981", // 초록색
-    "#f59e0b", // 주황색
-    "#ec4899", // 분홍색
-    "#8b5cf6", // 보라색
-    "#06b6d4", // 하늘색
-  ], []);
-
-  const renderBubbleLegendHeader = () => (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mb-3 select-none">
-      {activeRegions.map((region, idx) => {
-        const isVisible = getRegionVisibility(region);
-        const color = regionColors[idx % regionColors.length];
-        return (
-          <button
-            key={region}
-            type="button"
-            onClick={() => toggleRegionVisibility(region)}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-all text-[10px] ${
-              isVisible
-                ? "bg-slate-100 dark:bg-slate-800 text-strong font-bold"
-                : "opacity-35 text-neutral"
-            }`}
-          >
-            <span 
-              className="inline-block w-2.5 h-2.5 rounded-full" 
-              style={{ backgroundColor: color }} 
-            />
-            <span>{region}</span>
-          </button>
-        );
-      })}
     </div>
   );
 
@@ -501,17 +479,17 @@ export default function OverviewTab({
       return {
         name: month,
         volume: count,
-        min: Number(minVal.toFixed(2)),
-        q1: Number(q1Val.toFixed(2)),
-        median: Number(medVal.toFixed(2)),
-        q3: Number(q3Val.toFixed(2)),
-        max: Number(maxVal.toFixed(2)),
-        avg: Number(avgVal.toFixed(2)),
+        min: Number(minVal.toFixed(1)),
+        q1: Number(q1Val.toFixed(1)),
+        median: Number(medVal.toFixed(1)),
+        q3: Number(q3Val.toFixed(1)),
+        max: Number(maxVal.toFixed(1)),
+        avg: Number(avgVal.toFixed(1)),
         whiskerRange: [
-          Number(minVal.toFixed(2)),
-          Number(maxVal.toFixed(2)),
+          Number(minVal.toFixed(1)),
+          Number(maxVal.toFixed(1)),
         ] as [number, number],
-        boxRange: [Number(q1Val.toFixed(2)), Number(q3Val.toFixed(2))] as [
+        boxRange: [Number(q1Val.toFixed(1)), Number(q3Val.toFixed(1))] as [
           number,
           number,
         ],
@@ -523,13 +501,39 @@ export default function OverviewTab({
   const scatterData = filteredData
     .map((d) => ({
       x: d.dealDate.substring(0, 7),
-      y: Number(d.priceEok.toFixed(2)),
+      y: Number(d.priceEok.toFixed(1)),
       aptName: d.apartmentName,
       dealDate: d.dealDate,
       floor: d.floor,
       areaM2: d.areaM2,
     }))
     .sort((a, b) => a.x.localeCompare(b.x));
+
+  const sizeCategories = React.useMemo(() => {
+    if (areaUnit === "pyeong") {
+      return [
+        "20평 이하",
+        "21~25평",
+        "26~30평",
+        "31~35평",
+        "36~40평",
+        "41~45평",
+        "46~50평",
+        "50평 초과",
+      ];
+    } else {
+      return [
+        "66㎡ 이하",
+        "67~83㎡",
+        "84~99㎡",
+        "100~116㎡",
+        "117~132㎡",
+        "133~149㎡",
+        "150~165㎡",
+        "165㎡ 초과",
+      ];
+    }
+  }, [areaUnit]);
 
   // 3-2. 지역별 & 평형대별 실거래 피벗 매트릭스 데이터 가공
   const activeRegions = React.useMemo(() => {
@@ -559,13 +563,6 @@ export default function OverviewTab({
       .map((item) => item.name);
   }, [filteredData]);
 
-  const sizeRows = React.useMemo(() => [
-    { key: "under20", label: areaUnit === "pyeong" ? "20평 미만" : "50㎡ 미만" },
-    { key: "20s", label: areaUnit === "pyeong" ? "20평대" : "50㎡ ~ 80㎡" },
-    { key: "30s", label: areaUnit === "pyeong" ? "30평대" : "80㎡ ~ 110㎡" },
-    { key: "over40", label: areaUnit === "pyeong" ? "40평 이상" : "110㎡ 이상" },
-  ], [areaUnit]);
-
   const pivotData = React.useMemo(() => {
     const cellMap = new Map<string, {
       prices: number[];
@@ -577,11 +574,29 @@ export default function OverviewTab({
       if (!activeRegions.includes(colKey)) return;
 
       const areaVal = d.areaM2 || 0;
-      let rowKey = "under20";
-      if (areaVal >= 50 && areaVal < 80) rowKey = "20s";
-      else if (areaVal >= 80 && areaVal < 110) rowKey = "30s";
-      else if (areaVal >= 110) rowKey = "over40";
+      const areaPyeong = areaVal / 3.3058;
+      let rowKey: string;
+      if (areaUnit === "pyeong") {
+        if (areaPyeong <= 20.5)      rowKey = "20평 이하";
+        else if (areaPyeong <= 25.5) rowKey = "21~25평";
+        else if (areaPyeong <= 30.5) rowKey = "26~30평";
+        else if (areaPyeong <= 35.5) rowKey = "31~35평";
+        else if (areaPyeong <= 40.5) rowKey = "36~40평";
+        else if (areaPyeong <= 45.5) rowKey = "41~45평";
+        else if (areaPyeong <= 50.5) rowKey = "46~50평";
+        else                         rowKey = "50평 초과";
+      } else {
+        if (areaVal <= 66.5)       rowKey = "66㎡ 이하";
+        else if (areaVal <= 83.5)  rowKey = "67~83㎡";
+        else if (areaVal <= 99.5)  rowKey = "84~99㎡";
+        else if (areaVal <= 116.5) rowKey = "100~116㎡";
+        else if (areaVal <= 132.5) rowKey = "117~132㎡";
+        else if (areaVal <= 149.5) rowKey = "133~149㎡";
+        else if (areaVal <= 165.5) rowKey = "150~165㎡";
+        else                       rowKey = "165㎡ 초과";
+      }
 
+      // 1. 일반 지역별 집계
       const key = `${rowKey}|${colKey}`;
       const cell = cellMap.get(key) || { prices: [], complexes: new Set<string>() };
       cell.prices.push(d.priceEok);
@@ -589,6 +604,18 @@ export default function OverviewTab({
         cell.complexes.add(d.apartmentName);
       }
       cellMap.set(key, cell);
+
+      // 2. 지역의 층수별 상세 집계
+      const floorCat = getFloorCategory(d.floor);
+      if (floorCat !== "기타") {
+        const floorKey = `${rowKey}|${colKey}|${floorCat}`;
+        const floorCell = cellMap.get(floorKey) || { prices: [], complexes: new Set<string>() };
+        floorCell.prices.push(d.priceEok);
+        if (d.apartmentName) {
+          floorCell.complexes.add(d.apartmentName);
+        }
+        cellMap.set(floorKey, floorCell);
+      }
     });
 
     const data: Record<string, {
@@ -601,48 +628,89 @@ export default function OverviewTab({
     }> = {};
 
     let maxCount = 0;
+    let minAvg = Infinity;
+    let maxAvg = -Infinity;
 
     activeRegions.forEach((colKey) => {
-      sizeRows.forEach((row) => {
-        const key = `${row.key}|${colKey}`;
+      sizeCategories.forEach((cat) => {
+        // 일반 지역 집계 계산
+        const key = `${cat}|${colKey}`;
         const cell = cellMap.get(key);
         if (!cell || cell.prices.length === 0) {
           data[key] = { avg: 0, median: 0, min: 0, max: 0, count: 0, complexesSummary: "" };
-          return;
+        } else {
+          const pricesArr = cell.prices;
+          const count = pricesArr.length;
+          if (count > maxCount) maxCount = count;
+
+          const sum = pricesArr.reduce((s, p) => s + p, 0);
+          const avg = sum / count;
+          const median = getMedian(pricesArr);
+          const min = Math.min(...pricesArr);
+          const max = Math.max(...pricesArr);
+
+          if (avg < minAvg) minAvg = avg;
+          if (avg > maxAvg) maxAvg = avg;
+
+          const complexesArr = Array.from(cell.complexes);
+          const complexesSummary = complexesArr.slice(0, 2).join(", ") +
+            (complexesArr.length > 2 ? ` 외 ${complexesArr.length - 2}개` : "");
+
+          data[key] = {
+            avg: Number(avg.toFixed(1)),
+            median: Number(median.toFixed(1)),
+            min: Number(min.toFixed(1)),
+            max: Number(max.toFixed(1)),
+            count,
+            complexesSummary
+          };
         }
 
-        const pricesArr = cell.prices;
-        const count = pricesArr.length;
-        if (count > maxCount) {
-          maxCount = count;
-        }
+        // 층수 상세 집계 계산
+        floorCategories.forEach((floorCat) => {
+          const floorKey = `${cat}|${colKey}|${floorCat}`;
+          const floorCell = cellMap.get(floorKey);
+          if (!floorCell || floorCell.prices.length === 0) {
+            data[floorKey] = { avg: 0, median: 0, min: 0, max: 0, count: 0, complexesSummary: "" };
+          } else {
+            const pricesArr = floorCell.prices;
+            const count = pricesArr.length;
+            const sum = pricesArr.reduce((s, p) => s + p, 0);
+            const avg = sum / count;
+            const median = getMedian(pricesArr);
+            const min = Math.min(...pricesArr);
+            const max = Math.max(...pricesArr);
 
-        const sum = pricesArr.reduce((s, p) => s + p, 0);
-        const avg = sum / count;
-        const median = getMedian(pricesArr);
-        const min = Math.min(...pricesArr);
-        const max = Math.max(...pricesArr);
+            if (avg < minAvg) minAvg = avg;
+            if (avg > maxAvg) maxAvg = avg;
 
-        const complexesArr = Array.from(cell.complexes);
-        const complexesSummary = complexesArr.slice(0, 2).join(", ") + 
-          (complexesArr.length > 2 ? ` 외 ${complexesArr.length - 2}개` : "");
+            const complexesArr = Array.from(floorCell.complexes);
+            const complexesSummary = complexesArr.slice(0, 2).join(", ") +
+              (complexesArr.length > 2 ? ` 외 ${complexesArr.length - 2}개` : "");
 
-        data[key] = {
-          avg: Number(avg.toFixed(2)),
-          median: Number(median.toFixed(2)),
-          min: Number(min.toFixed(2)),
-          max: Number(max.toFixed(2)),
-          count,
-          complexesSummary
-        };
+            data[floorKey] = {
+              avg: Number(avg.toFixed(1)),
+              median: Number(median.toFixed(1)),
+              min: Number(min.toFixed(1)),
+              max: Number(max.toFixed(1)),
+              count,
+              complexesSummary
+            };
+          }
+        });
       });
     });
 
+    if (minAvg === Infinity) minAvg = 0;
+    if (maxAvg === -Infinity) maxAvg = 0;
+
     return {
       cells: data,
-      maxCount
+      maxCount,
+      minAvg,
+      maxAvg,
     };
-  }, [filteredData, activeRegions, sizeRows]);
+  }, [filteredData, activeRegions, areaUnit, getFloorCategory, floorCategories]);
 
   // 4. 단지별 거래량 순위 (상위 10개)
   const complexDataMap = new Map<string, number>();
@@ -660,67 +728,6 @@ export default function OverviewTab({
 
   // 5. 평형별 Box Plot 데이터 가공
   // 5. 평형×층수 버블 차트 데이터 가공
-  const sizeCategories = React.useMemo(() => {
-    if (areaUnit === "pyeong") {
-      return [
-        "20평 이하",
-        "21~25평",
-        "26~30평",
-        "31~35평",
-        "36~40평",
-        "41~45평",
-        "46~50평",
-        "50평 초과",
-      ];
-    } else {
-      return [
-        "66㎡ 이하",
-        "67~83㎡",
-        "84~99㎡",
-        "100~116㎡",
-        "117~132㎡",
-        "133~149㎡",
-        "150~165㎡",
-        "165㎡ 초과",
-      ];
-    }
-  }, [areaUnit]);
-
-  const floorCategories = React.useMemo(() => {
-    return [t.floorLow, t.floorMid, t.floorHigh, t.floorSuper];
-  }, [t]);
-
-  const getSizeCategory = React.useCallback((areaM2: number) => {
-    const areaPyeong = areaM2 / 3.3058;
-    if (areaUnit === "pyeong") {
-      if (areaPyeong <= 20.5) return "20평 이하";
-      if (areaPyeong <= 25.5) return "21~25평";
-      if (areaPyeong <= 30.5) return "26~30평";
-      if (areaPyeong <= 35.5) return "31~35평";
-      if (areaPyeong <= 40.5) return "36~40평";
-      if (areaPyeong <= 45.5) return "41~45평";
-      if (areaPyeong <= 50.5) return "46~50평";
-      return "50평 초과";
-    } else {
-      if (areaM2 <= 66.5) return "66㎡ 이하";
-      if (areaM2 <= 83.5) return "67~83㎡";
-      if (areaM2 <= 99.5) return "84~99㎡";
-      if (areaM2 <= 116.5) return "100~116㎡";
-      if (areaM2 <= 132.5) return "117~132㎡";
-      if (areaM2 <= 149.5) return "133~149㎡";
-      if (areaM2 <= 165.5) return "150~165㎡";
-      return "165㎡ 초과";
-    }
-  }, [areaUnit]);
-
-  const getFloorCategory = React.useCallback((floorStr: string | number) => {
-    const floorNum = Number(floorStr);
-    if (isNaN(floorNum)) return "기타";
-    if (floorNum <= 5) return t.floorLow;
-    if (floorNum <= 15) return t.floorMid;
-    if (floorNum <= 25) return t.floorHigh;
-    return t.floorSuper;
-  }, [t]);
 
   const sizeIdxMap = React.useMemo(() => {
     return new Map(sizeCategories.map((cat, idx) => [cat, idx]));
@@ -764,7 +771,7 @@ export default function OverviewTab({
           y: floorCat,
           xIdx,
           yIdx,
-          z: Number(avgPrice.toFixed(2)),
+          z: Number(avgPrice.toFixed(1)),
           count: val.count,
           region: rName,
         });
@@ -876,67 +883,7 @@ export default function OverviewTab({
         </div>
       </SectionCard>
 
-      {/* 평형별 & 층별 박스 플롯 차트 */}
-      {/* 실거래가 분포 & 거래량 통합 차트 */}
-      <SectionCard 
-        title="📦 평형·층별 평균 실거래가 분포 (버블 차트)"
-        subtitle="* 원의 크기가 클수록 평균 거래가격(억원)이 높으며, 작은 버블이 위에 얹혀 모두 노출됩니다. (가로: 평형대, 세로: 층수대)"
-        right={renderBubbleLegendHeader()}
-      >
-        <div className="h-80 w-full mt-2">
-          <ResponsiveContainer width="100%" height="100%">
-            <ScatterChart
-              margin={{ top: 20, right: 20, left: -10, bottom: 0 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-              <XAxis 
-                type="number" 
-                dataKey="xIdx" 
-                name="평형" 
-                domain={[0, 7]}
-                ticks={[0, 1, 2, 3, 4, 5, 6, 7]}
-                tickFormatter={(idx) => sizeCategories[idx] || ""}
-                stroke="#64748b" 
-                fontSize={11} 
-                tickLine={false} 
-              />
-              <YAxis 
-                type="number" 
-                dataKey="yIdx" 
-                name="층수" 
-                domain={[-0.5, 3.5]}
-                ticks={[0, 1, 2, 3]}
-                tickFormatter={(idx) => floorCategories[idx] || ""}
-                width={110}
-                stroke="#64748b" 
-                fontSize={11} 
-                tickLine={false} 
-              />
-              <ZAxis 
-                type="number" 
-                dataKey="z" 
-                range={[80, 800]} 
-                name="평균 거래가" 
-                unit="억" 
-              />
-              <Tooltip 
-                cursor={{ strokeDasharray: "3 3" }} 
-                content={<BubbleChartTooltip />} 
-              />
-              {activeRegions.map((region, idx) => (
-                <Scatter 
-                  key={region}
-                  name={region}
-                  data={regionBubbleData.get(region) || []} 
-                  fill={regionColors[idx % regionColors.length]} 
-                  fillOpacity={0.75} 
-                  hide={!getRegionVisibility(region)}
-                />
-              ))}
-            </ScatterChart>
-          </ResponsiveContainer>
-        </div>
-      </SectionCard>
+
 
       {/* 지역별·평형대별 실거래 요약 매트릭스 (피벗 시트) */}
       <SectionCard 
@@ -944,86 +891,170 @@ export default function OverviewTab({
         subtitle={t.pivotTableLegend}
       >
         <div className="w-full overflow-x-auto scrollbar-thin mt-4">
-          <div className="min-w-[800px] p-1">
-            {/* 헤더 행 */}
-            <div 
-              className="grid gap-2 mb-2 items-center text-center font-bold text-xs text-neutral"
-              style={{ gridTemplateColumns: `150px repeat(${sizeRows.length}, 1fr)` }}
-            >
-              <div className="text-left pl-2">지역 \ 평형대</div>
-              {sizeRows.map((row) => (
-                <div key={row.key} className="py-2 bg-alternative rounded-lg border border-normal truncate px-1">
-                  {row.label}
-                </div>
-              ))}
+          <div
+            className="grid min-w-[800px] p-1.5"
+            style={{
+              gridTemplateColumns: `auto repeat(${sizeCategories.length}, minmax(0, 1fr))`,
+              gap: "4px",
+            }}
+          >
+            {/* 좌상단 코너: 구분 텍스트 */}
+            <div className="flex items-end justify-start pl-3 pb-1.5">
+              <span className="text-[10px] font-bold text-assistive">지역 / 평형</span>
             </div>
+            {/* 헤더 컬럼들 */}
+            {sizeCategories.map((cat) => (
+              <div
+                key={cat}
+                className="text-center text-[9px] md:text-[10px] font-bold text-neutral pb-1.5 leading-tight flex items-end justify-center"
+              >
+                {cat.replace("평 이하", "이하").replace("평 초과", "초과")}
+              </div>
+            ))}
 
-            {/* 데이터 행들 */}
-            <div className="space-y-2">
-              {activeRegions.map((regionKey) => (
-                <div 
-                  key={regionKey}
-                  className="grid gap-2 items-center text-center"
-                  style={{ gridTemplateColumns: `150px repeat(${sizeRows.length}, 1fr)` }}
-                >
+            {/* 데이터 행들 (단일 그리드 내부 형제로 나열) */}
+            {activeRegions.map((regionKey) => {
+              const isExpanded = expandedRegions.has(regionKey);
+              return (
+                <React.Fragment key={regionKey}>
                   {/* 행 라벨 (지역명) */}
-                  <div className="text-left font-bold text-xs text-strong pl-2 truncate">
-                    {regionKey}
+                  <div
+                    className="flex items-center justify-start pl-3 py-1 cursor-pointer hover:text-primary transition-colors group select-none"
+                    onClick={() => toggleRegion(regionKey)}
+                  >
+                    <span className={`inline-block mr-1.5 transition-transform duration-200 ${isExpanded ? "rotate-90" : ""}`}>
+                      <svg className="w-3 h-3 text-assistive group-hover:text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                      </svg>
+                    </span>
+                    <span className="text-[10px] md:text-[11px] font-extrabold text-strong whitespace-nowrap">
+                      {regionKey}
+                    </span>
                   </div>
 
                   {/* 평형대별 셀 */}
-                  {sizeRows.map((row) => {
-                    const cellKey = `${row.key}|${regionKey}`;
+                  {sizeCategories.map((sizeCat) => {
+                    const cellKey = `${sizeCat}|${regionKey}`;
                     const cell = pivotData.cells[cellKey];
-                    const hasData = cell && cell.count > 0;
-                    
-                    if (!hasData) {
-                      return (
-                        <div 
-                          key={row.key}
-                          className="h-20 flex items-center justify-center rounded-lg border border-dashed border-slate-200 dark:border-slate-800/20 text-slate-400 dark:text-slate-600 text-xs"
-                        >
-                          -
-                        </div>
-                      );
-                    }
+                    const isEmpty = !cell || cell.count === 0;
+                    const tooltipLabel = `${regionKey} (${sizeCat})`;
 
-                    // 거래량 비례 투명도 계산 (최대 거래량 대비 백분율, 최소 10% ~ 최대 100%)
-                    const percent = Math.min(100, Math.max(10, Math.round((cell.count / pivotData.maxCount) * 100)));
-                    const tooltipLabel = `${regionKey} (${row.label})`;
+                    const bgColor = isEmpty
+                      ? "rgba(100,116,139,0.08)"
+                      : interpolateHeatColor(cell.avg, pivotData.minAvg, pivotData.maxAvg);
+                    const textColor = isEmpty
+                      ? "var(--color-semantic-label-assistive)"
+                      : "#fff";
 
                     return (
-                      <div 
-                        key={row.key}
-                        className="flex flex-col justify-center items-center h-20 p-2 rounded-lg border border-normal transition-all hover:scale-[1.02] hover:shadow-md cursor-help select-none"
-                        style={{ 
-                          backgroundColor: `color-mix(in srgb, var(--color-chart-primary) ${percent}%, transparent)` 
+                      <div
+                        key={sizeCat}
+                        className={`relative rounded-lg flex flex-col items-center justify-center py-2 px-1 transition-transform hover:scale-105 hover:z-10 ${isEmpty ? "cursor-default" : "cursor-help select-none"}`}
+                        style={{
+                          backgroundColor: bgColor,
+                          minHeight: "56px",
+                          border: isEmpty
+                            ? "1px dashed rgba(100,116,139,0.2)"
+                            : "1px solid transparent",
                         }}
-                        onMouseEnter={(e) => handleCellMouseEnter(e, cell, tooltipLabel)}
-                        onMouseLeave={handleCellMouseLeave}
+                        onMouseEnter={isEmpty ? undefined : (e) => handleCellMouseEnter(e, cell, tooltipLabel)}
+                        onMouseLeave={isEmpty ? undefined : handleCellMouseLeave}
                       >
-                        {/* 평균 거래가격 */}
-                        <span className="text-sm font-extrabold text-strong">
-                          {cell.avg}억
-                        </span>
-                        {/* 거래 건수 */}
-                        <span className="text-[10px] text-neutral mt-0.5 font-medium">
-                          {cell.count}건 거래
-                        </span>
+                        {isEmpty ? (
+                          <span className="text-[9px]" style={{ color: textColor }}>-</span>
+                        ) : (
+                          <>
+                            <span
+                              className="text-[11px] md:text-[12px] font-black leading-none"
+                              style={{ color: textColor, textShadow: "0 1px 3px rgba(0,0,0,0.4)" }}
+                            >
+                              {cell.avg}억
+                            </span>
+                            <span
+                              className="text-[9px] mt-0.5 font-medium leading-none"
+                              style={{ color: textColor, opacity: 0.8 }}
+                            >
+                              {cell.count}건
+                            </span>
+                          </>
+                        )}
                       </div>
                     );
                   })}
-                </div>
-              ))}
-            </div>
+
+                  {/* 층수 상세 아코디언 행들 */}
+                  {isExpanded && [...floorCategories].reverse().map((floorCat) => (
+                    <React.Fragment key={`${regionKey}|${floorCat}`}>
+                      {/* 하위 행 라벨 (층수) */}
+                      <div className="flex items-center justify-start pl-6 py-1 select-none">
+                        <span className="text-[9px] text-assistive mr-1 font-bold">└</span>
+                        <span className="text-[10px] font-bold text-neutral whitespace-nowrap">
+                          {floorCat}
+                        </span>
+                      </div>
+
+                      {/* 하위 행 평형대별 셀 */}
+                      {sizeCategories.map((sizeCat) => {
+                        const cellKey = `${sizeCat}|${regionKey}|${floorCat}`;
+                        const cell = pivotData.cells[cellKey];
+                        const isEmpty = !cell || cell.count === 0;
+                        const tooltipLabel = `${regionKey} (${floorCat}) - ${sizeCat}`;
+
+                        const bgColor = isEmpty
+                          ? "rgba(100,116,139,0.08)"
+                          : interpolateHeatColor(cell.avg, pivotData.minAvg, pivotData.maxAvg);
+                        const textColor = isEmpty
+                          ? "var(--color-semantic-label-assistive)"
+                          : "#fff";
+
+                        return (
+                          <div
+                            key={sizeCat}
+                            className={`relative rounded-lg flex flex-col items-center justify-center py-2 px-1 transition-transform hover:scale-105 hover:z-10 ${isEmpty ? "cursor-default" : "cursor-help select-none"}`}
+                            style={{
+                              backgroundColor: bgColor,
+                              minHeight: "56px",
+                              border: isEmpty
+                                ? "1px dashed rgba(100,116,139,0.2)"
+                                : "1px solid transparent",
+                            }}
+                            onMouseEnter={isEmpty ? undefined : (e) => handleCellMouseEnter(e, cell, tooltipLabel)}
+                            onMouseLeave={isEmpty ? undefined : handleCellMouseLeave}
+                          >
+                            {isEmpty ? (
+                              <span className="text-[9px]" style={{ color: textColor }}>-</span>
+                            ) : (
+                              <>
+                                <span
+                                  className="text-[11px] md:text-[12px] font-black leading-none"
+                                  style={{ color: textColor, textShadow: "0 1px 3px rgba(0,0,0,0.4)" }}
+                                >
+                                  {cell.avg}억
+                                </span>
+                                <span
+                                  className="text-[9px] mt-0.5 font-medium leading-none"
+                                  style={{ color: textColor, opacity: 0.8 }}
+                                >
+                                  {cell.count}건
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </React.Fragment>
+                  ))}
+                </React.Fragment>
+              );
+            })}
           </div>
         </div>
       </SectionCard>
 
-      {/* 피벗 툴팁 (fixed, viewport 기준 React Portal 렌더링) */}
+      {/* 피벗/히트맵 공용 툴팁 (fixed, viewport 기준 React Portal 렌더링) */}
       {pivotTooltip?.visible && createPortal(
         <div
-          className="fixed z-[9999] w-52 p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-normal shadow-2xl text-left text-[11px] space-y-1.5 pointer-events-none opacity-100"
+          className="fixed z-[9999] min-w-[180px] max-w-[240px] p-3.5 rounded-xl border border-normal bg-elevated shadow-xl text-left text-xs space-y-2 pointer-events-none opacity-100"
           style={{
             left: Math.max(110, Math.min(pivotTooltip.x, window.innerWidth - 110)),
             top: pivotTooltip.direction === "down" ? pivotTooltip.y : undefined,
@@ -1031,20 +1062,34 @@ export default function OverviewTab({
             transform: "translateX(-50%)",
           }}
         >
-          <p className="font-extrabold text-strong text-center border-b border-normal pb-1.5 mb-1 text-[12px] truncate">
+          <p className="font-black text-strong border-b border-normal pb-1.5 mb-1.5 text-[13px] truncate text-center">
             {pivotTooltip.label}
           </p>
-          <div className="flex justify-between gap-3">
-            <span className="text-neutral">평균 가격:</span>
-            <span className="font-bold text-primary">{pivotTooltip.cell.avg}억 원</span>
-          </div>
-          <div className="flex justify-between gap-3">
-            <span className="text-neutral">중위 가격:</span>
-            <span className="font-bold text-strong">{pivotTooltip.cell.median}억 원</span>
-          </div>
-          <div className="flex justify-between gap-3">
-            <span className="text-neutral">실거래 범위:</span>
-            <span className="font-bold text-strong">{pivotTooltip.cell.min}억 ~ {pivotTooltip.cell.max}억</span>
+          <div className="space-y-1.5">
+            <p className="text-neutral flex justify-between gap-4">
+              <span>총 거래량:</span>
+              <span className="font-bold text-strong">{pivotTooltip.cell.count} 건</span>
+            </p>
+            <p className="flex justify-between gap-4" style={{ color: "var(--color-chart-primary)" }}>
+              <span>평균가:</span>
+              <span className="font-bold">{pivotTooltip.cell.avg} 억</span>
+            </p>
+            <p className="flex justify-between gap-4" style={{ color: "var(--color-chart-median)" }}>
+              <span>중위값:</span>
+              <span className="font-bold">{pivotTooltip.cell.median} 억</span>
+            </p>
+            {pivotTooltip.cell.min !== undefined && pivotTooltip.cell.max !== undefined && (
+              <div className="space-y-1.5">
+                <p className="flex justify-between gap-4" style={{ color: "var(--color-chart-min)" }}>
+                  <span>최저가:</span>
+                  <span className="font-bold">{pivotTooltip.cell.min} 억</span>
+                </p>
+                <p className="flex justify-between gap-4" style={{ color: "var(--color-chart-max)" }}>
+                  <span>최고가:</span>
+                  <span className="font-bold">{pivotTooltip.cell.max} 억</span>
+                </p>
+              </div>
+            )}
           </div>
           {pivotTooltip.cell.complexesSummary && (
             <div className="border-t border-normal pt-1.5 mt-1 text-[10px]">
