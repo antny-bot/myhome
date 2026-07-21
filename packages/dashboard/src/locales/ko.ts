@@ -170,13 +170,13 @@ export const copy = {
     nearbyRadius1000m: "1km (도보 15분)",
     nearbyRadius1500m: "1.5km (도보 20분)",
     nearbyRadius2000m: "2km (도보 30분)",
-    boxPlotTitleArea: "📦 평형별 거래가 분포 & 거래량",
-    boxPlotTitleFloor: "🏢 층별 거래가 분포 & 거래량",
-    boxPlotTitleRegion: "🏘️ 주요 지역별 거래가 분포 & 거래량",
-    boxPlotTitleUnion: "📦 실거래가 분포 & 거래량",
+    boxPlotTitleArea: "평형별 거래가 분포 & 거래량",
+    boxPlotTitleFloor: "층별 거래가 분포 & 거래량",
+    boxPlotTitleRegion: "주요 지역별 거래가 분포 & 거래량",
+    boxPlotTitleUnion: "실거래가 분포 & 거래량",
     dimensionArea: "평형별",
     dimensionFloor: "층별",
-    pivotTableTitle: "🏢 지역별·평형대별 실거래 요약",
+    pivotTableTitle: "지역별·평형대별 실거래 요약",
     pivotTableLegend: "* 셀에 마우스를 올리면 상세 실거래 정보를 확인할 수 있습니다.",
     xaxisPyeong: "평형 (평)",
     xaxisM2: "전용면적 (㎡)",
@@ -189,6 +189,7 @@ export const copy = {
     floorMid: "중층 (6~15층)",
     floorHigh: "고층 (16~25층)",
     floorSuper: "초고층 (26층 이상)",
+    allRegions: "전체 지역",
 
     // Collect Stats
     collectReportTitle: "수집 일단위 리포트",
@@ -250,7 +251,30 @@ export const copy = {
     userRoleAdmin: "관리자",
     toggleAdminSuccess: "권한이 성공적으로 변경되었습니다.",
     cantRemoveSelfAdmin: "본인의 관리자 권한은 해제할 수 없습니다.",
-    atLeastOneAdmin: "최소 한 명 이상의 관리자가 존재해야 합니다."
+    atLeastOneAdmin: "최소 한 명 이상의 관리자가 존재해야 합니다.",
+
+    // Nearby Station Search
+    nearbyStationTitle: "역세권 아파트 검색",
+    nearbyStationSubtitle: "지하철역 주변 관심 반경 내의 아파트 단지 정보와 위치를 검색합니다.",
+    stationPlaceholder: "예: 판교역, 강남역",
+    nearbyComplexesTitle: "반경 내 단지 정보",
+    clickComplexToAnalyze: "단지 위치를 클릭하면 단지 상세 분석으로 이동합니다.",
+    centerToStation: "지하철역 중심으로",
+    geocodeStatsBtn: "좌표 캐싱 설정",
+    geocodeStatsTitle: "Geocoding 좌표 캐싱 관리",
+    noNearbyComplexes: "반경 이내에 등록된 아파트 단지가 없습니다.",
+    geocodePercentageOfTotal: "좌표 데이터 현황",
+    geocodeRequiredDesc: "현재 DB에 등록된 아파트 중 {pending}개 단지의 위도·경도 좌표가 없습니다. 검색 속도 향상을 위해 국토부 지번 주소 기반으로 카카오 Geocoding 일괄 수집을 실행할 수 있습니다.",
+    runGeocodeBatchBtn: "좌표 미확보 단지 일괄 수집",
+    batchGeocodeCompleted: "Geocoding 수집 배치 완료",
+    batchGeocodeCountInfo: "대상: {total}건 / 성공: {success}건 / 실패: {failed}건",
+    allComplexAlertRegister: "전체 단지 알림 등록",
+    alertRegisterTip: "반경 내 모든 단지를 관심 조건 알림 규칙으로 등록합니다.",
+    complexAnalysisLink: "단지 분석으로 이동",
+    alertRegisterBtn: "알림 규칙 등록",
+    stationSearchFailed: "지하철역 조회에 실패했습니다.",
+    geocodeBatchFailed: "Geocoding 배치 실행에 실패했습니다.",
+    distance: "거리"
   },
   en: {
     // Navigation / Breadcrumb Parents
@@ -423,13 +447,13 @@ export const copy = {
     nearbyRadius1000m: "1km (15 min walk)",
     nearbyRadius1500m: "1.5km (20 min walk)",
     nearbyRadius2000m: "2km (30 min walk)",
-    boxPlotTitleArea: "📦 Deal Price Distribution & Volume by Size",
-    boxPlotTitleFloor: "🏢 Deal Price Distribution & Volume by Floor",
-    boxPlotTitleRegion: "🏘️ Deal Price Distribution & Volume by Region",
-    boxPlotTitleUnion: "📦 Deal Price Distribution & Volume",
+    boxPlotTitleArea: "Deal Price Distribution & Volume by Size",
+    boxPlotTitleFloor: "Deal Price Distribution & Volume by Floor",
+    boxPlotTitleRegion: "Deal Price Distribution & Volume by Region",
+    boxPlotTitleUnion: "Deal Price Distribution & Volume",
     dimensionArea: "by Size",
     dimensionFloor: "by Floor",
-    pivotTableTitle: "🏢 Regional/Size-wise Real Estate Summary",
+    pivotTableTitle: "Regional/Size-wise Real Estate Summary",
     pivotTableLegend: "* Hover over cells to view detailed real estate transaction information.",
     xaxisPyeong: "Size (Pyeong)",
     xaxisM2: "Size (㎡)",
@@ -442,6 +466,7 @@ export const copy = {
     floorMid: "Mid (6~15F)",
     floorHigh: "High (16~25F)",
     floorSuper: "Super High (26F+)",
+    allRegions: "All Regions",
 
     // Collect Stats
     collectReportTitle: "Daily Collection Report",
@@ -503,7 +528,30 @@ export const copy = {
     userRoleAdmin: "Admin",
     toggleAdminSuccess: "Role updated successfully.",
     cantRemoveSelfAdmin: "You cannot remove your own admin privileges.",
-    atLeastOneAdmin: "At least one admin must exist."
+    atLeastOneAdmin: "At least one admin must exist.",
+
+    // Nearby Station Search
+    nearbyStationTitle: "Search Near Station",
+    nearbyStationSubtitle: "Search apartment complexes and positions within a target radius from a subway station.",
+    stationPlaceholder: "e.g. Pangyo Station, Gangnam Station",
+    nearbyComplexesTitle: "Complexes within Radius",
+    clickComplexToAnalyze: "Click a complex location to navigate to detailed analysis.",
+    centerToStation: "Center to Station",
+    geocodeStatsBtn: "Coordinate Cache Settings",
+    geocodeStatsTitle: "Geocoding Cache Administration",
+    noNearbyComplexes: "No registered apartment complexes within this radius.",
+    geocodePercentageOfTotal: "Coordinate Data Status",
+    geocodeRequiredDesc: "Currently, there are no latitude/longitude coordinates for {pending} complexes among the apartments registered in the DB. To improve search speed, you can execute Kakao Geocoding batch collection based on land lot addresses.",
+    runGeocodeBatchBtn: "Batch Collect Coordinates for Pending Complexes",
+    batchGeocodeCompleted: "Geocoding Batch Collection Completed",
+    batchGeocodeCountInfo: "Target: {total} / Success: {success} / Failed: {failed}",
+    allComplexAlertRegister: "Register Alerts for All Complexes",
+    alertRegisterTip: "Registers all complexes within the radius as interest notification rules.",
+    complexAnalysisLink: "Go to Complex Analysis",
+    alertRegisterBtn: "Register Alert Rule",
+    stationSearchFailed: "Failed to query subway station.",
+    geocodeBatchFailed: "Failed to execute Geocoding batch.",
+    distance: "Distance"
   }
 } as const;
 

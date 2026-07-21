@@ -47,10 +47,12 @@ function cleanRegionDisplayName(displayName: string): string {
   return address;
 }
 
+const isDev = process.env.NODE_ENV !== "production";
+
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
-  message: "Too many requests from this IP, please try again later.",
+  max: isDev ? 10000 : 100, // 개발 환경에서는 요청 한도를 10,000회로 대폭 늘려 HMR 및 새로고침으로 인한 429 에러 방지
+  message: "요청이 너무 많습니다. 잠시 후 다시 시도해주세요. (Too many requests from this IP, please try again later.)",
   standardHeaders: true,
   legacyHeaders: false,
 });

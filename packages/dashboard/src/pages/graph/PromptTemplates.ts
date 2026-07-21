@@ -7,7 +7,7 @@ export type PromptTemplate = {
 export const promptTemplates: PromptTemplate[] = [
   {
     id: "price-trend",
-    name: "📈 가격 추세 분석",
+    name: "가격 추세 분석",
     template: `당신은 대한민국 부동산 시장 분석 전문가입니다.
 제시된 실거래 데이터를 분석하고, 최근 가격 변동 추세를 상세히 설명해 주세요.
 
@@ -23,7 +23,7 @@ export const promptTemplates: PromptTemplate[] = [
   },
   {
     id: "investment-eval",
-    name: "💡 투자 적정성 평가",
+    name: "투자 적정성 평가",
     template: `당신은 부동산 전문 자산 관리자 및 투자 분석가입니다.
 제시된 실거래 데이터를 바탕으로 해당 지역/단지의 투자 가치를 객관적으로 평가해 주세요.
 
@@ -39,7 +39,7 @@ export const promptTemplates: PromptTemplate[] = [
   },
   {
     id: "abnormal-detect",
-    name: "⚠️ 이상 거래 탐지",
+    name: "이상 거래 탐지",
     template: `당신은 부동산 실거래 감시기관의 분석관입니다.
 제시된 실거래 데이터 중 통계적으로 또는 정황상 '특이거래' 또는 '이상거래'로 의심될 수 있는 패턴을 식별하고 경고 리포트를 작성해 주세요.
 

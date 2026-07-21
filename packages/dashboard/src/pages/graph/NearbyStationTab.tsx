@@ -2,8 +2,9 @@ import React, { useState, useEffect, useRef } from "react";
 import { useKakaoMap } from "../../useKakaoMap";
 import { SectionCard } from "../../components/SectionCard";
 import { StatCard } from "../../components/StatCard";
+import { PageHeader } from "../../components/PageHeader";
 import { loadNearbyStation, triggerGeocodeBatch, loadGeocodeStats } from "../../api";
-import { MapPin, Search, Map, Compass, Play, RefreshCw, AlertTriangle, ArrowRight, Bell } from "lucide-react";
+import { MapPin, Search, Map, Compass, Play, RefreshCw, AlertTriangle, ArrowRight, Bell, Settings, CheckCircle2 } from "lucide-react";
 import { copy } from "../../locales/ko";
 
 interface NearbyComplex {
@@ -26,7 +27,7 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
   const locale = "ko";
   const t = copy[locale];
   const { loaded: mapLoaded, error: mapError } = useKakaoMap();
-  const [stationName, setStationName] = useState("판교역");
+  const [stationName, setStationName] = useState("");
   const [radiusM, setRadiusM] = useState(500);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
@@ -85,17 +86,12 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
         setGeocodeStats(result.geocodeStats);
       }
     } catch (err: any) {
-      setErrorMsg(err.message || "지하철역 조회에 실패했습니다.");
+      setErrorMsg(err.message || t.stationSearchFailed || "지하철역 조회에 실패했습니다.");
       setSearchResult(null);
     } finally {
       setLoading(false);
     }
   };
-
-  // 초기 로드 시 판교역 500m 자동 검색
-  useEffect(() => {
-    handleSearch();
-  }, []);
 
   // 3. 일괄 Geocoding 실행
   const handleGeocodeBatch = async () => {
@@ -109,7 +105,7 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
       // 검색 결과도 갱신하여 새로운 좌표 단지 반영
       await handleSearch();
     } catch (err: any) {
-      setErrorMsg(err.message || "Geocoding 배치 실행에 실패했습니다.");
+      setErrorMsg(err.message || t.geocodeBatchFailed || "Geocoding 배치 실행에 실패했습니다.");
     } finally {
       setBatchLoading(false);
     }
@@ -257,12 +253,19 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
 
   return (
     <div className="space-y-6">
+      {/* Page Header */}
+      <PageHeader
+        title={t.nearbyStationTitle || "역세권 아파트 검색"}
+        subtitle={t.nearbyStationSubtitle || "지하철역 주변 관심 반경 내의 아파트 단지 정보와 위치를 검색합니다."}
+        icon={Compass}
+      />
+
       {/* 검색 & 정보 패널 */}
       <div className="space-y-6">
         {/* 역세권 검색 카드 */}
         <div>
           <SectionCard
-            title="🚇 역세권 아파트 검색"
+            title={t.nearbyStationTitle || "역세권 아파트 검색"}
             right={
               <button
                 type="button"
@@ -273,7 +276,8 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
                     : "bg-alternative hover:bg-opacity-90 text-strong"
                 }`}
               >
-                <span>⚙️ 좌표 캐싱 설정</span>
+                <Settings size={13} />
+                <span>{t.geocodeStatsBtn || "좌표 캐싱 설정"}</span>
               </button>
             }
           >
@@ -287,7 +291,7 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
                     type="text"
                     value={stationName}
                     onChange={(e) => setStationName(e.target.value)}
-                    placeholder="지하철역 이름 입력 (예: 판교역, 강남역)"
+                    placeholder={t.stationPlaceholder || "예: 판교역, 강남역"}
                     className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-normal bg-elevated text-strong font-semibold focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
                   />
                 </div>
@@ -309,10 +313,10 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
                 <button
                   type="submit"
                   disabled={loading}
-                  className="px-6 py-2.5 rounded-xl bg-primary text-white font-bold hover:bg-opacity-90 active:scale-95 transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20 disabled:opacity-50"
+                  className="flex items-center justify-center gap-1 px-5 py-2 bg-primary hover:bg-primary/80 text-white text-sm font-semibold rounded-lg shadow-lg shadow-primary/20 transition disabled:opacity-50"
                 >
-                  <Search size={18} />
-                  <span>{loading ? "검색 중..." : "단지 검색"}</span>
+                  {loading ? <RefreshCw size={14} className="animate-spin" /> : <Search size={14} />}
+                  <span>{loading ? (t.loading || "조회 중...") : (t.searchButton || "조회하기")}</span>
                 </button>
               </div>
 
@@ -328,10 +332,13 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
 
         {/* Geocoding 관리 카드 */}
         {showGeocodeAdmin && (
-          <SectionCard title="⚙️ Geocoding 좌표 캐싱 관리">
+          <SectionCard
+            title={t.geocodeStatsTitle || "Geocoding 좌표 캐싱 관리"}
+            right={<Settings size={15} className="text-neutral" />}
+          >
             <div className="space-y-4">
               <div className="flex justify-between items-center text-xs font-bold">
-                <span className="text-neutral">좌표 데이터 현황</span>
+                <span className="text-neutral">{t.geocodePercentageOfTotal || "좌표 데이터 현황"}</span>
                 <span className="text-strong">
                   {geocodeStats?.geocoded || 0} / {geocodeStats?.total || 0} 단지 ({geocodePercentage}%)
                 </span>
@@ -346,8 +353,7 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
               {geocodeStats && geocodeStats.pending > 0 ? (
                 <div className="space-y-3">
                   <p className="text-[11px] text-neutral leading-relaxed">
-                    현재 DB에 등록된 아파트 중 <strong>{geocodeStats.pending}개</strong> 단지의 위도·경도 좌표가 없습니다.
-                    검색 속도 향상을 위해 국토부 지번 주소 기반으로 카카오 Geocoding 일괄 수집을 실행할 수 있습니다.
+                    {(t.geocodeRequiredDesc || "현재 DB에 등록된 아파트 중 {pending}개 단지의 위도·경도 좌표가 없습니다...").replace("{pending}", String(geocodeStats.pending))}
                   </p>
                   <button
                     onClick={handleGeocodeBatch}
@@ -359,7 +365,7 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
                     ) : (
                       <Play size={15} />
                     )}
-                    <span>{batchLoading ? "좌표 수집 중..." : "좌표 미확보 단지 일괄 수집"}</span>
+                    <span>{batchLoading ? (t.loading || "수집 중...") : (t.runGeocodeBatchBtn || "좌표 미확보 단지 일괄 수집")}</span>
                   </button>
                 </div>
               ) : (
@@ -370,8 +376,8 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
 
               {batchResult && (
                 <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-[11px] text-emerald-600 font-bold space-y-1">
-                  <p>✓ Geocoding 수집 배치 완료</p>
-                  <p>- 대상: {batchResult.total}건 / 성공: {batchResult.success}건 / 실패: {batchResult.failed}건</p>
+                  <p>✓ {t.batchGeocodeCompleted || "Geocoding 수집 배치 완료"}</p>
+                  <p>- {(t.batchGeocodeCountInfo || "대상: {total}건 / 성공: {success}건 / 실패: {failed}건").replace("{total}", String(batchResult.total)).replace("{success}", String(batchResult.success)).replace("{failed}", String(batchResult.failed))}</p>
                 </div>
               )}
             </div>
@@ -383,146 +389,145 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
       {searchResult && (
         <div className="space-y-6">
           {/* 통계 요약 카드 */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <StatCard
-              label="지하철역 좌표"
-              value={`${searchResult.station.lat.toFixed(4)}, ${searchResult.station.lng.toFixed(4)}`}
-              icon={MapPin}
-              tone="default"
-            />
-            <StatCard
-              label="반경 내 단지 수"
-              value={`${searchResult.complexes.length} 개`}
+              label={t.nearbyComplexesTitle || "반경 내 단지 정보"}
+              value={`${searchResult.complexes.length} ${t.unitComplex || "개"}`}
               icon={Map}
               tone="good"
             />
             <StatCard
-              label="검색 반경"
+              label={t.nearbyRadiusLabel || "검색 반경"}
               value={`${searchResult.radiusM} m`}
               icon={Compass}
               tone="warn"
-            />
-            <StatCard
-              label="Geocoding 완료"
-              value={`${geocodePercentage}%`}
-              icon={RefreshCw}
-              tone="default"
             />
           </div>
 
           {/* 메인 결과 뷰 */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
             {/* 단지 목록 */}
-            <div className="lg:col-span-1 order-2 lg:order-1">
-              <SectionCard title={`📍 반경 내 단지 정보 (${searchResult.complexes.length}개)`}>
-                {searchResult.complexes.length === 0 ? (
-                  <div className="py-12 text-center text-xs font-semibold text-neutral">
-                    반경 {searchResult.radiusM}m 이내에 등록된 아파트 단지가 없습니다.
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {onNavigateToRules && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const first = searchResult.complexes[0];
-                          onNavigateToRules({
-                            regionName: first.regionName,
-                            regionCode: first.lawdCode,
-                            apartmentKeywords: searchResult.complexes.map((c) => c.name),
-                          });
-                        }}
-                        className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-sm shadow-emerald-500/20"
-                        title="반경 내 모든 단지를 관심 조건 알림 규칙으로 등록합니다."
-                      >
-                        <Bell size={13} />
-                        전체 단지 알림 등록 ({searchResult.complexes.length}개)
-                      </button>
-                    )}
-                    <div className="space-y-3.5 max-h-[470px] overflow-y-auto pr-1">
-                    {searchResult.complexes.map((c, idx) => (
-                      <div
-                        key={idx}
-                        onClick={() => {
-                          if (mapRef.current) {
-                            const pos = new window.kakao.maps.LatLng(c.lat, c.lng);
-                            mapRef.current.panTo(pos);
-                          }
-                        }}
-                        className="group p-3.5 rounded-xl border border-normal bg-elevated/40 hover:bg-elevated hover:border-indigo-500/50 cursor-pointer transition-all duration-200 flex justify-between items-center"
-                      >
-                        <div className="space-y-1 min-w-0 pr-2">
-                          <h4 className="font-bold text-strong text-sm truncate">{c.name}</h4>
-                          <p className="text-[10px] text-neutral truncate">
-                            {c.regionName} {c.dongName || ""} {c.jibun || ""}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-3 shrink-0">
-                          <div className="text-right">
-                            <span className="text-xs font-black text-indigo-500 tracking-tight">{c.distanceM}m</span>
-                            <p className="text-[8px] text-neutral uppercase font-bold tracking-wider mt-0.5">거리</p>
-                          </div>
-                          {onNavigateToRules && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onNavigateToRules({
-                                  regionName: c.regionName,
-                                  regionCode: c.lawdCode,
-                                  apartmentKeywords: [c.name]
-                                });
-                              }}
-                              className="p-2 rounded-lg bg-alternative hover:bg-emerald-500 hover:text-white transition-all active:scale-90 text-neutral"
-                              title="알림 규칙 등록"
-                            >
-                              <Bell size={14} />
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onSelectComplex(c.name, c.lawdCode);
-                            }}
-                            className="p-2 rounded-lg bg-alternative hover:bg-primary hover:text-white transition-all active:scale-90 text-neutral"
-                            title="단지 분석으로 이동"
-                          >
-                            <ArrowRight size={14} />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+            <div className="lg:col-span-1 order-2 lg:order-1 h-full">
+              <div className="bg-elevated border border-normal rounded-xl p-4 flex flex-col" style={{ height: "550px" }}>
+                <div className="flex items-center justify-between border-b border-normal pb-3 mb-3 shrink-0">
+                  <h3 className="font-bold text-strong text-sm flex items-center gap-1.5">
+                    <MapPin className="text-primary h-4 w-4 shrink-0" />
+                    {t.nearbyComplexesTitle || "반경 내 단지 정보"} ({searchResult.complexes.length}{t.unitComplex || "개"})
+                  </h3>
                 </div>
-              )}
-              </SectionCard>
+                <div className="flex-1 min-h-0 flex flex-col">
+                  {searchResult.complexes.length === 0 ? (
+                    <div className="flex-1 flex items-center justify-center text-xs font-semibold text-neutral">
+                      {t.noNearbyComplexes || "반경 이내에 등록된 아파트 단지가 없습니다."}
+                    </div>
+                  ) : (
+                    <div className="flex-1 flex flex-col min-h-0">
+                      {onNavigateToRules && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const first = searchResult.complexes[0];
+                            onNavigateToRules({
+                              regionName: first.regionName,
+                              regionCode: first.lawdCode,
+                              apartmentKeywords: searchResult.complexes.map((c) => c.name),
+                            });
+                          }}
+                          className="w-full py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-sm shadow-emerald-500/20 mb-3 shrink-0"
+                          title={t.alertRegisterTip || "반경 내 모든 단지를 관심 조건 알림 규칙으로 등록합니다."}
+                        >
+                          <Bell size={13} />
+                          {t.allComplexAlertRegister || "전체 단지 알림 등록"} ({searchResult.complexes.length}{t.unitComplex || "개"})
+                        </button>
+                      )}
+                      <div className="flex-1 overflow-y-auto pr-1 space-y-2">
+                        {searchResult.complexes.map((c, idx) => (
+                          <div
+                            key={idx}
+                            onClick={() => {
+                              if (mapRef.current) {
+                                const pos = new window.kakao.maps.LatLng(c.lat, c.lng);
+                                mapRef.current.panTo(pos);
+                              }
+                            }}
+                            className="group p-3 rounded-xl border border-normal bg-elevated/40 hover:bg-elevated hover:border-indigo-500/50 cursor-pointer transition-all duration-200 flex justify-between items-center"
+                          >
+                            <div className="space-y-1 min-w-0 pr-2">
+                              <h4 className="font-bold text-strong text-xs truncate">{c.name}</h4>
+                              <p className="text-[10px] text-neutral truncate">
+                                {c.regionName} {c.dongName || ""} {c.jibun || ""}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <div className="text-right">
+                                <span className="text-xs font-black text-indigo-500 tracking-tight">{c.distanceM}m</span>
+                                <p className="text-[8px] text-neutral uppercase font-bold tracking-wider mt-0.5">{t.distance || "거리"}</p>
+                              </div>
+                              {onNavigateToRules && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onNavigateToRules({
+                                      regionName: c.regionName,
+                                      regionCode: c.lawdCode,
+                                      apartmentKeywords: [c.name]
+                                    });
+                                  }}
+                                  className="p-1.5 rounded-lg bg-alternative hover:bg-emerald-500 hover:text-white transition-all active:scale-90 text-neutral"
+                                  title={t.alertRegisterBtn || "알림 규칙 등록"}
+                                >
+                                  <Bell size={13} />
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onSelectComplex(c.name, c.lawdCode);
+                                }}
+                                className="p-1.5 rounded-lg bg-alternative hover:bg-primary hover:text-white transition-all active:scale-90 text-neutral"
+                                  title={t.complexAnalysisLink || "단지 분석으로 이동"}
+                              >
+                                <ArrowRight size={13} />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* 지도 */}
             <div className="lg:col-span-2 order-1 lg:order-2 h-full">
               <div className="bg-elevated border border-normal rounded-xl p-3 flex flex-col" style={{ height: "550px" }}>
-                <div className="flex justify-between items-center mb-3">
-                  <span className="text-xs font-bold text-neutral">✓ 단지 위치를 클릭하면 단지 상세 분석으로 이동합니다.</span>
+                <div className="flex justify-between items-center mb-3 shrink-0">
+                  <span className="text-xs font-bold text-neutral flex items-center gap-1.5">
+                    <CheckCircle2 size={13} className="text-emerald-500 shrink-0" />
+                    {t.clickComplexToAnalyze || "단지 위치를 클릭하면 단지 상세 분석으로 이동합니다."}
+                  </span>
                   <button
                     type="button"
                     onClick={handleResetCenter}
                     className="px-2.5 py-1 text-[10px] font-bold rounded-lg border border-normal bg-alternative hover:bg-opacity-95 text-strong flex items-center gap-1"
                   >
                     <Compass size={12} />
-                    지하철역 중심으로
+                    {t.centerToStation || "지하철역 중심으로"}
                   </button>
                 </div>
                 <div className="flex-1 w-full relative rounded-lg overflow-hidden border border-normal">
                   {mapError ? (
                     <div className="w-full h-full bg-red-500/5 flex flex-col items-center justify-center text-center p-6">
                       <MapPin className="text-red-500 animate-bounce mb-2" size={32} />
-                      <p className="text-xs font-bold text-red-500">카카오 지도를 로드하지 못했습니다.</p>
+                      <p className="text-xs font-bold text-red-500">{t.mapLoadError || "지도를 로드하지 못했습니다."}</p>
                     </div>
                   ) : !mapLoaded ? (
                     <div className="w-full h-full bg-alternative flex flex-col items-center justify-center">
                       <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mb-2" />
-                      <p className="text-xs font-bold text-neutral">카카오 지도 준비 중...</p>
+                      <p className="text-xs font-bold text-neutral">{t.loadingMap || "지도 준비 중..."}</p>
                     </div>
                   ) : (
                     <div ref={mapContainerRef} className="w-full h-full min-h-[350px]" style={{ touchAction: "auto" }} />

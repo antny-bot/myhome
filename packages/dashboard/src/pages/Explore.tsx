@@ -484,10 +484,10 @@ export function ExplorePage() {
                 type="button"
                 onClick={() => void handleSearch()}
                 disabled={loading}
-                className="flex items-center gap-1.5 h-[38px] rounded-xl bg-primary px-4 py-2 text-xs font-bold text-white shadow-sm shadow-blue-500/20 transition-all hover:opacity-90 disabled:opacity-50"
+                className="flex items-center justify-center gap-1 px-5 py-2 bg-primary hover:bg-primary/80 text-white text-sm font-semibold rounded-lg shadow-lg shadow-primary/20 transition disabled:opacity-50"
               >
-                {loading ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
-                {t.search}
+                {loading ? <RefreshCw size={14} className="animate-spin" /> : <Search size={14} />}
+                <span>{t.search}</span>
               </button>
             </div>
 

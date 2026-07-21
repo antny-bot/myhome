@@ -4,7 +4,7 @@ import remarkGfm from "remark-gfm";
 import { GraphFilter, Insight } from "@myhome/shared";
 import { loadGraphContext, loadInsights, saveInsight, deleteInsight, generateInsight } from "../../api";
 import { promptTemplates, compileTemplate } from "./PromptTemplates";
-import { Clipboard, Check, Save, Sparkles, Trash2, Calendar, FileText, ChevronDown, ChevronUp, Maximize2, X } from "lucide-react";
+import { Clipboard, Check, Save, Sparkles, Trash2, Calendar, FileText, ChevronDown, ChevronUp, Maximize2, X, HelpCircle } from "lucide-react";
 
 const i18n = {
   ko: {
@@ -338,8 +338,9 @@ export default function InsightTab({ filter, regionName }: InsightTabProps) {
             </div>
           </div>
 
-          <div className="bg-normal/50 border border-normal rounded-lg p-3 text-xs text-neutral mt-2 leading-relaxed">
-            💡 {t("usageTips")}
+          <div className="bg-normal/50 border border-normal rounded-lg p-3 text-xs text-neutral mt-2 leading-relaxed flex items-start gap-1.5">
+            <HelpCircle size={14} className="text-neutral mt-0.5 shrink-0" />
+            <span>{t("usageTips")}</span>
           </div>
         </div>
 

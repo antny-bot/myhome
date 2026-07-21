@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Database, Settings, ShieldAlert, CheckCircle, Save, Sliders, Globe } from "lucide-react";
+import { Database, Settings, ShieldAlert, CheckCircle, Save, Sliders, Globe, Building2 } from "lucide-react";
 import { useBreakpoint } from "../useBreakpoint";
 import { SectionCard } from "../components/SectionCard";
 import { PageHeader } from "../components/PageHeader";
@@ -261,7 +261,8 @@ export function SettingsPage({ state, onChanged }: { state: DashboardState | und
                   <div className="space-y-4 p-4 rounded-xl border border-normal bg-normal/30 flex flex-col justify-between">
                     <div>
                       <h3 className="text-sm font-bold text-strong border-b border-normal pb-2 flex items-center gap-1.5">
-                        🏢 공공데이터 실거래 수집 API
+                        <Building2 className="h-4 w-4 text-neutral shrink-0" />
+                        공공데이터 실거래 수집 API
                       </h3>
                       <p className="text-[11px] text-neutral mt-1">국토교통부 아파트 실거래 데이터 수집 및 동기화에 필요한 최상위 수집 키입니다.</p>
                       

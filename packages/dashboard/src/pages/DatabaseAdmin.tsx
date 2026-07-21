@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useBreakpoint } from "../useBreakpoint";
 import { loadAdminDbTables, executeAdminDbQuery, searchComplexNames, clearDatabase, deleteDbRegion, deleteDbComplex, loadGeocodeStats, triggerGeocodeBatch } from "../api";
 import { SectionCard } from "../components/SectionCard";
-import { Play, Database, RefreshCw, AlertCircle, CheckCircle2, ChevronRight, FileText } from "lucide-react";
+import { Play, Database, RefreshCw, AlertCircle, CheckCircle2, ChevronRight, FileText, Settings, Building2, MapPin } from "lucide-react";
 import { copy } from "../locales/ko";
 import { RegionSearchInput } from "../components/RegionSearchInput";
 import { classNames } from "../lib/format";
@@ -345,7 +345,10 @@ export function DatabaseAdminPage() {
         {/* 우측: 데이터 관리 도구 및 SQL 에디터 */}
         <div className="space-y-6">
           {/* Geocoding 좌표 캐싱 관리 */}
-          <SectionCard title="⚙️ Geocoding 좌표 캐싱 관리">
+          <SectionCard
+            title="Geocoding 좌표 캐싱 관리"
+            right={<Settings size={15} className="text-neutral" />}
+          >
             <div className="space-y-4">
               <p className="text-xs text-neutral">
                 지하철역 주변 역세권 분석 속도 및 데이터 정확도 향상을 위해 로컬 DB에 등록된 아파트 단지 주소를 위도·경도 좌표로 일괄 변환(Geocoding) 및 캐싱합니다.
@@ -406,7 +409,10 @@ export function DatabaseAdminPage() {
               <div className="grid gap-4 sm:grid-cols-2">
                 {/* 1. 지역별 삭제 */}
                 <div className="space-y-1.5 p-3 rounded-lg border border-normal bg-alternative/30">
-                  <span className="text-xs font-bold text-strong">📍 지역별 실거래 삭제</span>
+                  <span className="text-xs font-bold text-strong flex items-center gap-1.5">
+                    <MapPin className="h-3.5 w-3.5 text-neutral shrink-0" />
+                    지역별 실거래 삭제
+                  </span>
                   <div className="flex gap-2 items-center mt-1">
                     <div className="flex-1">
                       <RegionSearchInput
@@ -437,7 +443,10 @@ export function DatabaseAdminPage() {
 
                 {/* 2. 아파트 단지별 삭제 */}
                 <div className="space-y-1.5 p-3 rounded-lg border border-normal bg-alternative/30">
-                  <span className="text-xs font-bold text-strong">🏢 아파트 단지별 실거래 삭제</span>
+                  <span className="text-xs font-bold text-strong flex items-center gap-1.5">
+                    <Building2 className="h-3.5 w-3.5 text-neutral shrink-0" />
+                    아파트 단지별 실거래 삭제
+                  </span>
                   <div className="relative flex gap-2 items-center mt-1">
                     <div className="flex-1 relative">
                       <input
