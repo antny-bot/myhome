@@ -39,6 +39,7 @@ export type SystemConfig = {
   googleRedirectUri?: string;
   allowedEmails?: string;
   adminEmails?: string;
+  geminiApiKey?: string;
 };
 
 export type AppState = {

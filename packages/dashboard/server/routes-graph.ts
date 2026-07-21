@@ -22,6 +22,7 @@ import {
 import { readPresets, savePreset, deletePreset } from "./graphPresets.js";
 import { readInsights, saveInsight, deleteInsight } from "./graphInsights.js";
 import { findComplexesNearStation, batchGeocodeComplexes } from "./geocoding.js";
+import { generateTextWithGemini } from "./llmClient.js";
 
 export function createGraphRouter(): Router {
   const router = Router();
@@ -331,6 +332,62 @@ export function createGraphRouter(): Router {
       }
     } catch (err: any) {
       res.status(500).json({ error: err?.message ?? "내부 오류" });
+    }
+  });
+
+  /** POST /api/graph/insights/generate — LLM을 통한 분석 리포트 생성 및 저장 */
+  router.post("/insights/generate", async (req, res) => {
+    try {
+      const { lawdCode, complexName, regionName } = req.body;
+      if (!lawdCode) {
+        res.status(400).json({ error: "lawdCode 파라미터가 필요합니다." });
+        return;
+      }
+
+      const filter: GraphFilter = {
+        lawdCode,
+        complexName: complexName || undefined,
+        startDate: undefined,
+        endDate: undefined,
+      };
+
+      // 1. 실거래 요약 텍스트 컨텍스트 생성
+      const contextText = await getDataContext(filter);
+
+      // 2. 프롬프트 조립
+      const targetName = complexName ? `${complexName} (${regionName || lawdCode})` : (regionName || lawdCode);
+      const prompt = `
+아래는 ${targetName} 아파트 실거래 데이터 요약 정보입니다.
+이 데이터를 심층 분석하여 최근 거래 동향, 가격 추이의 특징(상승/하락/보합세), 그리고 실주거 및 투자 관점에서의 의견을 정리한 종합 분석 리포트를 작성해 주세요.
+
+[실거래 데이터 정보]
+${contextText}
+
+[작성 규칙]
+1. 한글로 작성해 주세요.
+2. 가독성을 위해 마크다운(Markdown) 형식(소제목, 글머리 기호, 굵은 글씨 등)을 풍부하게 활용하세요.
+3. 데이터에 기반하여 핵심 트렌드(평균가 변화량, 최고가 대비 현 시세 비율, 거래 활성도 등)를 정확하게 해석해 주세요.
+4. 분석 마지막 부분에는 이 지역/단지에 대한 종합 투자 및 거주 요약 의견을 2~3줄 요약 문단으로 명시해 주세요.
+`;
+
+      // 3. Gemini API 호출
+      const generatedReport = await generateTextWithGemini(prompt);
+
+      // 4. 리포트 저장
+      const title = complexName ? `${complexName} 실거래 분석 리포트` : `${regionName || lawdCode} 지역 실거래 분석 리포트`;
+      const newInsight = await saveInsight({
+        title,
+        filter: { lawdCode, complexName },
+        promptTemplate: "default-apartment-analysis",
+        generatedPrompt: prompt,
+        response: generatedReport,
+        source: "api",
+      });
+
+      res.status(201).json(newInsight);
+    } catch (err: any) {
+      console.error("AI Insight generation failed:", err);
+      res.status(500).json({ error: err?.message ?? "인사이트 생성 도중 내부 서버 오류가 발생했습니다." });
     }
   });
   // ──────────────────────────────────────────────────

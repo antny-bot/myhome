@@ -8,5 +8,20 @@ export default defineConfig({
     proxy: {
       "/api": "http://127.0.0.1:4174"
     }
+  },
+  build: {
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes("node_modules")) {
+            if (id.includes("recharts")) {
+              return "vendor-recharts";
+            }
+            return "vendor";
+          }
+        }
+      }
+    }
   }
 });

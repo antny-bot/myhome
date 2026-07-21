@@ -34,7 +34,7 @@ function cleanRegionDisplayName(displayName: string): string {
   const match = displayName.match(/\(([^)]+)\)/);
   let address = match ? match[1].trim() : displayName.trim();
 
-  const parts = answer.split(/\s+/);
+  const parts = address.split(/\s+/);
   if (parts.length >= 2) {
     if (parts[0].startsWith("세종")) {
       return "세종특별자치시";
@@ -93,7 +93,8 @@ export function createRouter() {
         googleClientSecret: config.googleClientSecret ? "●●●●●●●●" : (process.env.GOOGLE_CLIENT_SECRET ? "●●●●●●●●" : ""),
         googleRedirectUri: config.googleRedirectUri || (process.env.GOOGLE_REDIRECT_URI || ""),
         allowedEmails: config.allowedEmails || (process.env.ALLOWED_EMAILS || ""),
-        adminEmails: config.adminEmails || (process.env.ADMIN_EMAILS || "")
+        adminEmails: config.adminEmails || (process.env.ADMIN_EMAILS || ""),
+        geminiApiKey: config.geminiApiKey ? "●●●●●●●●" : (process.env.GEMINI_API_KEY ? "●●●●●●●●" : "")
       });
     } catch (err) {
       next(err);
@@ -140,6 +141,9 @@ export function createRouter() {
       }
       if (body.adminEmails !== undefined) {
         update.adminEmails = body.adminEmails;
+      }
+      if (body.geminiApiKey !== undefined && body.geminiApiKey !== "●●●●●●●●") {
+        update.geminiApiKey = body.geminiApiKey;
       }
 
       await saveSystemConfig(update);

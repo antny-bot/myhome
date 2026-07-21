@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { GraphFilter, Insight } from "@myhome/shared";
-import { loadGraphContext, loadInsights, saveInsight, deleteInsight } from "../../api";
+import { loadGraphContext, loadInsights, saveInsight, deleteInsight, generateInsight } from "../../api";
 import { promptTemplates, compileTemplate } from "./PromptTemplates";
 import { Clipboard, Check, Save, Sparkles, Trash2, Calendar, FileText, ChevronDown, ChevronUp, Maximize2, X } from "lucide-react";
 
@@ -19,12 +19,12 @@ const i18n = {
     copyToClipboard: "클립보드 복사",
     usageTips: "사용 방법: 복사하기 버튼을 눌러 내용을 복사한 뒤, Gemini나 Claude, ChatGPT 등 평소 사용하는 외부 LLM 대화창에 바로 붙여넣어 인사이트를 분석하세요.",
     registerReport: "분석 보고서 등록",
-    registerReportDesc: "외부 LLM의 답변 결과를 복사해 영구 리포트로 저장합니다.",
+    registerReportDesc: "외부 LLM의 답변 결과를 복사해 영구 리포트로 저장하거나 아래의 자동 생성 기능을 이용하세요.",
     reportTitle: "보고서 제목",
     titlePlaceholder: "예: 서울 서초구 2026년 상반기 아파트 가격추이 심층 분석",
     llmResponseLabel: "LLM 분석 응답 (마크다운 지원)",
     llmResponsePlaceholder: "외부 AI의 응답 분석 본문을 여기에 그대로 붙여넣어 주세요...",
-    saveReport: "인사이트 보고서 저장하기",
+    saveReport: "인사이트 보고서 수동 저장하기",
     savingReport: "보고서 저장 중...",
     aiReportHistory: "저장된 AI 분석 보고서 이력",
     noSavedReports: "저장된 분석 보고서가 없습니다.",
@@ -41,7 +41,11 @@ const i18n = {
     inputTitleAlert: "분석 결과 제목을 입력해 주세요.",
     inputResponseAlert: "외부 LLM(Gemini, Claude 등)의 응답 본문을 붙여넣어 주세요.",
     viewInModal: "모달로 보기",
-    close: "닫기"
+    close: "닫기",
+    generateAiInsight: "AI 리포트 자동 생성 (Gemini)",
+    generatingAiInsight: "AI 분석 리포트 생성 중...",
+    generateSuccess: "인사이트 리포트가 성공적으로 생성되었습니다.",
+    selectRegionAlert: "검색 필터에서 지역(법정동)을 먼저 선택해 주세요."
   },
   en: {
     write: "Write",
@@ -55,12 +59,12 @@ const i18n = {
     copyToClipboard: "Copy to Clipboard",
     usageTips: "How to use: Click the copy button to copy the content, then paste it into your external LLM chat window (like Gemini, Claude, or ChatGPT) to analyze insights.",
     registerReport: "Register Analysis Report",
-    registerReportDesc: "Copy and paste the response from the external LLM to save it as a permanent report.",
+    registerReportDesc: "Copy and paste the response from the external LLM to save it as a permanent report or use auto-generation below.",
     reportTitle: "Report Title",
     titlePlaceholder: "e.g., In-depth analysis of apartment price trends in Seocho-gu, Seoul, H1 2026",
     llmResponseLabel: "LLM Analysis Response (Markdown supported)",
     llmResponsePlaceholder: "Please paste the response body of the external AI here...",
-    saveReport: "Save Insight Report",
+    saveReport: "Manually Save Insight Report",
     savingReport: "Saving report...",
     aiReportHistory: "Saved AI Analysis Report History",
     noSavedReports: "No saved analysis reports.",
@@ -77,7 +81,11 @@ const i18n = {
     inputTitleAlert: "Please enter the title of the analysis report.",
     inputResponseAlert: "Please paste the response body from the external LLM (Gemini, Claude, etc.).",
     viewInModal: "View in Modal",
-    close: "Close"
+    close: "Close",
+    generateAiInsight: "Auto-generate AI Report (Gemini)",
+    generatingAiInsight: "Generating AI Analysis Report...",
+    generateSuccess: "Insight report has been successfully generated.",
+    selectRegionAlert: "Please select a region in the search filter first."
   }
 };
 
@@ -127,9 +135,10 @@ const MarkdownComponents = {
 
 interface InsightTabProps {
   filter: GraphFilter;
+  regionName?: string;
 }
 
-export default function InsightTab({ filter }: InsightTabProps) {
+export default function InsightTab({ filter, regionName }: InsightTabProps) {
   // 프롬프트 빌더 관련 상태
   const [dataContext, setDataContext] = useState("데이터를 불러오는 중입니다...");
   const [selectedTemplateId, setSelectedTemplateId] = useState(promptTemplates[0].id);
@@ -143,6 +152,7 @@ export default function InsightTab({ filter }: InsightTabProps) {
   const [loadingContext, setLoadingContext] = useState(false);
   const [copied, setCopied] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [generating, setGenerating] = useState(false);
 
   // 저장된 인사이트 목록 상태
   const [savedInsights, setSavedInsights] = useState<Insight[]>([]);
@@ -224,6 +234,29 @@ export default function InsightTab({ filter }: InsightTabProps) {
       alert(t("saveFailed"));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleGenerateInsight = async () => {
+    if (!filter.lawdCode) {
+      alert(t("selectRegionAlert"));
+      return;
+    }
+    setGenerating(true);
+    try {
+      const newInsight = await generateInsight(filter.lawdCode, filter.complexName, regionName);
+      setInsightTitle("");
+      setLlmResponse("");
+      await fetchInsights();
+      alert(t("generateSuccess"));
+      if (newInsight && newInsight.id) {
+        setExpandedInsightId(newInsight.id);
+      }
+    } catch (err: any) {
+      console.error("AI Insight generation failed:", err);
+      alert(err.message || "인사이트 생성 도중 오류가 발생했습니다.");
+    } finally {
+      setGenerating(false);
     }
   };
 
@@ -383,10 +416,21 @@ export default function InsightTab({ filter }: InsightTabProps) {
             </div>
           </div>
 
+          {/* AI 자동 생성 버튼 */}
+          <button
+            onClick={handleGenerateInsight}
+            disabled={generating || loadingContext}
+            className="w-full flex items-center justify-center gap-2 py-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:from-alternative disabled:to-alternative text-white font-bold rounded-lg shadow-lg shadow-indigo-500/20 transition"
+          >
+            <Sparkles size={16} className={generating ? "animate-pulse" : ""} />
+            <span>{generating ? t("generatingAiInsight") : t("generateAiInsight")}</span>
+          </button>
+
+          {/* 수동 등록 버튼 */}
           <button
             onClick={handleSaveResult}
-            disabled={saving}
-            className="w-full flex items-center justify-center gap-2 py-2.5 bg-primary hover:bg-primary/80 disabled:bg-alternative text-white font-semibold rounded-lg shadow-lg shadow-primary/20 transition"
+            disabled={saving || generating}
+            className="w-full flex items-center justify-center gap-2 py-2.5 bg-normal border border-normal hover:bg-alternative disabled:bg-alternative text-strong font-semibold rounded-lg transition"
           >
             <Save size={16} />
             <span>{saving ? t("savingReport") : t("saveReport")}</span>

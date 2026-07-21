@@ -85,11 +85,11 @@ export function createAdminRouter() {
       const db = getDb();
       db.prepare("PRAGMA foreign_keys = OFF").run();
       try {
-        db.prepare("DELETE FROM transactions WHERE apartmentName IN (SELECT name FROM complexes WHERE lawdCode = ?)").run(lawdCode);
-        db.prepare("DELETE FROM complexes WHERE lawdCode = ?").run(lawdCode);
-        db.prepare("DELETE FROM regions WHERE code = ?").run(lawdCode);
-        db.prepare("DELETE FROM region_apartment_cache WHERE lawdCode = ?").run(lawdCode);
-        db.prepare("DELETE FROM region_apartment_cache_meta WHERE lawdCode = ?").run(lawdCode);
+        db.prepare("DELETE FROM transactions WHERE complex_id IN (SELECT id FROM complexes WHERE lawd_code = ?)").run(lawdCode);
+        db.prepare("DELETE FROM complexes WHERE lawd_code = ?").run(lawdCode);
+        db.prepare("DELETE FROM regions WHERE lawd_code = ?").run(lawdCode);
+        db.prepare("DELETE FROM region_apartment_cache WHERE lawd_code = ?").run(lawdCode);
+        db.prepare("DELETE FROM region_apartment_cache_meta WHERE lawd_code = ?").run(lawdCode);
       } finally {
         db.prepare("PRAGMA foreign_keys = ON").run();
       }
@@ -111,7 +111,7 @@ export function createAdminRouter() {
       const db = getDb();
       db.prepare("PRAGMA foreign_keys = OFF").run();
       try {
-        db.prepare("DELETE FROM transactions WHERE apartmentName = ?").run(complexName);
+        db.prepare("DELETE FROM transactions WHERE complex_id IN (SELECT id FROM complexes WHERE name = ?)").run(complexName);
         db.prepare("DELETE FROM complexes WHERE name = ?").run(complexName);
       } finally {
         db.prepare("PRAGMA foreign_keys = ON").run();

@@ -1,3 +1,5 @@
+@import "pretendard/dist/web/variable/pretendardvariable.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -71,7 +73,7 @@
 
   /* supabot manager display tokens */
   --app-font-size: 16px;
-  --app-font-family: 'Pretendard JP Variable', 'Pretendard', 'Noto Sans KR', Inter, system-ui, sans-serif;
+  --app-font-family: 'Pretendard Variable', 'Pretendard', 'Noto Sans KR', Inter, system-ui, sans-serif;
 
   /* Accent (primary) color — WDS Blue default */
   --color-primary-50: 234 242 254;
@@ -121,7 +123,7 @@ html[data-font-family='noto-serif-kr'] {
 }
 
 html[data-font-family='noto-sans-kr'] {
-  --app-font-family: 'Pretendard JP Variable', 'Pretendard', 'Noto Sans KR', Inter, system-ui, sans-serif;
+  --app-font-family: 'Pretendard Variable', 'Pretendard', 'Noto Sans KR', Inter, system-ui, sans-serif;
 }
 
 /* Dark Mode (Class-based and System preference fallback) */

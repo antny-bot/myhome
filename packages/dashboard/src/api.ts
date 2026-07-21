@@ -217,6 +217,13 @@ export function deleteInsight(id: string) {
   return request<void>(`/api/graph/insights/${id}`, { method: "DELETE" });
 }
 
+export function generateInsight(lawdCode: string, complexName?: string, regionName?: string) {
+  return request<Insight>("/api/graph/insights/generate", {
+    method: "POST",
+    body: JSON.stringify({ lawdCode, complexName, regionName }),
+  });
+}
+
 export function loadAdminDbTables() {
   return request<{ tables: string[]; schemas: Record<string, any[]> }>("/api/admin/db/tables");
 }

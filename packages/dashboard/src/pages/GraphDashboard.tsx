@@ -200,7 +200,7 @@ export default function GraphDashboard({ onNavigateToRules, initData, clearInitD
         )}
 
         {activeTab === "insight" && (
-          <InsightTab filter={filter} />
+          <InsightTab filter={filter} regionName={regionName} />
         )}
       </div>
     </div>
