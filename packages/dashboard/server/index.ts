@@ -65,6 +65,7 @@ function findAndLoadYamlPort(): number | null {
 }
 
 const app = express();
+app.set('trust proxy', 1); // Synology Nginx reverse proxy 환경에서 X-Forwarded-For 헤더 신뢰
 const yamlPort = findAndLoadYamlPort();
 const port = Number(process.env.PORT ?? yamlPort ?? "4174");
 

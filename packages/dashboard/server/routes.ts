@@ -8,7 +8,8 @@ import { getApartmentList, getApartmentPrices } from "./mcpClient.js";
 import { isKakaoConfigured, searchAddresses } from "./addressSearch.js";
 import { getMonthsInRange, normalizeTransaction } from "./transactions.js";
 import type { ComparisonCriteria, RuleInput, SystemConfig } from "./types.js";
-import { upsertTransaction, makeGraphDedupeKey, getCachedApartments, saveCachedApartments, searchDbRegions, getLocalTransactionsCount, getLocalApartmentPrices, getUserSettings, saveUserSettings } from "@myhome/shared";
+import { upsertTransactionBatch, makeGraphDedupeKey, getCachedApartments, saveCachedApartments, searchDbRegions, getLocalTransactionsCount, getLocalApartmentPrices, getUserSettings, saveUserSettings } from "@myhome/shared";
+import type { BatchUpsertItem } from "@myhome/shared";
 import { adminRequired } from "./authRoutes.js";
 
 const comparisonValues: ComparisonCriteria[] = ["none", "parking", "large_complex", "transit", "newer", "livability"];
@@ -299,24 +300,28 @@ export function createRouter() {
 
       if (process.env.GRAPH_DB_ENABLED === "true" && records.length > 0 && !isCacheHitOnly) {
         const regionInfo = { lawdCode, displayName: regionDisplayName };
-        for (const rec of records) {
-          const graphKey = makeGraphDedupeKey(lawdCode, rec.apartmentName, rec.dealDate, rec.areaM2, rec.floor);
+        const batchItems: BatchUpsertItem[] = records.map((rec) => {
           const rawObj = ((rec as any).raw && typeof (rec as any).raw === 'object') ? (rec as any).raw as Record<string, unknown> : {};
-          const addrInfo = {
-            dongName: (rawObj.dongName ?? rawObj.umdNm ?? undefined) as string | undefined,
-            jibun: (rawObj.jibun ?? undefined) as string | undefined,
-            roadName: (rawObj.roadName ?? rawObj.roadNm ?? undefined) as string | undefined,
+          return {
+            complexName: rec.apartmentName,
+            tx: {
+              dedupeKey: makeGraphDedupeKey(lawdCode, rec.apartmentName, rec.dealDate, rec.areaM2, rec.floor),
+              dealDate: rec.dealDate,
+              priceEok: rec.priceEok,
+              areaM2: rec.areaM2,
+              floor: rec.floor,
+            },
+            addressInfo: {
+              dongName: (rawObj.dongName ?? rawObj.umdNm ?? undefined) as string | undefined,
+              jibun: (rawObj.jibun ?? undefined) as string | undefined,
+              roadName: (rawObj.roadName ?? rawObj.roadNm ?? undefined) as string | undefined,
+            },
           };
-          upsertTransaction(regionInfo, rec.apartmentName, {
-            dedupeKey: graphKey,
-            dealDate: rec.dealDate,
-            priceEok: rec.priceEok,
-            areaM2: rec.areaM2,
-            floor: rec.floor,
-          }, addrInfo).catch((err: any) =>
-            console.error(`[graphDb] 탐색 upsert 실패 (${rec.apartmentName}):`, err)
-          );
-        }
+        });
+        // 전체를 단일 트랜잭션으로 묶어 HDD fsync 병목 해소 (N번→1번)
+        upsertTransactionBatch(regionInfo, batchItems).catch((err: any) =>
+          console.error(`[graphDb] 탐색 배치 upsert 실패 (${records.length}건):`, err)
+        );
       }
     } catch (error) {
       next(error);

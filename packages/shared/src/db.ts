@@ -156,6 +156,17 @@ export function initDb(): void {
 
   // 좌표 보유 단지 조회 성능 인덱스
   db.exec('CREATE INDEX IF NOT EXISTS idx_complexes_geocoded ON complexes(lat, lng) WHERE lat IS NOT NULL');
+
+  // -- transactions 테이블 lawd_code 컬럼 마이그레이션 (기존 DB 호환)
+  // complex_id 형식이 'lawdCode|complexName' 이므로 역산 가능
+  const txCols = db.prepare("PRAGMA table_info(transactions)").all() as { name: string }[];
+  const txColNames = new Set(txCols.map((c: any) => c.name));
+  if (!txColNames.has('lawd_code')) {
+    db.exec('ALTER TABLE transactions ADD COLUMN lawd_code TEXT');
+    db.exec(`UPDATE transactions SET lawd_code = substr(complex_id, 1, instr(complex_id, '|') - 1) WHERE lawd_code IS NULL`);
+    // lawd_code 컬럼 인덱스 재생성 (이미 DDL에 있으나 혹시 모를 누락 대비)
+    db.exec('CREATE INDEX IF NOT EXISTS idx_transactions_lawd_code_deal_date ON transactions(lawd_code, deal_date)');
+  }
 }
 
 export function closeDb(): void {
@@ -184,7 +195,7 @@ export function makeGraphDedupeKey(
 }
 
 /**
- * 실거래 데이터 Upsert
+ * 실거래 데이터 단건 Upsert (하위 호환 유지)
  */
 export async function upsertTransaction(
   region: RegionInfo,
@@ -192,51 +203,78 @@ export async function upsertTransaction(
   tx: TransactionNode,
   addressInfo?: { dongName?: string; jibun?: string; roadName?: string }
 ): Promise<void> {
+  return upsertTransactionBatch(region, [{ complexName, tx, addressInfo }]);
+}
+
+export type BatchUpsertItem = {
+  complexName: string;
+  tx: TransactionNode;
+  addressInfo?: { dongName?: string; jibun?: string; roadName?: string };
+};
+
+/**
+ * 실거래 데이터 배치 Upsert
+ * 전체 records를 단일 트랜잭션으로 묶어 HDD 환경에서 fsync 횟수를 N→1회로 감소.
+ * Synology 등 IOPS가 제한된 환경에서 수 분 → 수 초로 대폭 단축됨.
+ */
+export async function upsertTransactionBatch(
+  region: RegionInfo,
+  items: BatchUpsertItem[]
+): Promise<void> {
+  if (items.length === 0) return;
+
   const db = getDb();
   const now = new Date().toISOString();
 
+  // Prepared statements를 루프 밖에서 1번만 생성 (성능 최적화)
+  const regionStmt = db.prepare(`
+    INSERT INTO regions (lawd_code, display_name, created_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(lawd_code) DO UPDATE SET display_name = excluded.display_name
+  `);
+  const complexStmt = db.prepare(`
+    INSERT INTO complexes (id, lawd_code, name, created_at, dong_name, jibun, road_name)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      dong_name = COALESCE(excluded.dong_name, complexes.dong_name),
+      jibun = COALESCE(excluded.jibun, complexes.jibun),
+      road_name = COALESCE(excluded.road_name, complexes.road_name)
+  `);
+  const txStmt = db.prepare(`
+    INSERT INTO transactions (dedupe_key, complex_id, lawd_code, deal_date, price_eok, area_m2, floor, collected_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(dedupe_key) DO UPDATE SET
+      price_eok = excluded.price_eok,
+      updated_at = ?
+  `);
+
   db.exec("BEGIN TRANSACTION");
   try {
-    // 1. region upsert
-    db.prepare(`
-      INSERT INTO regions (lawd_code, display_name, created_at)
-      VALUES (?, ?, ?)
-      ON CONFLICT(lawd_code) DO UPDATE SET display_name = excluded.display_name
-    `).run(region.lawdCode, region.displayName, now);
+    // region은 배치 전체에 공통 → 1번만 upsert
+    regionStmt.run(region.lawdCode, region.displayName, now);
 
-    // 2. complex upsert (주소 정보 포함)
-    const complexId = `${region.lawdCode}|${complexName}`;
-    db.prepare(`
-      INSERT INTO complexes (id, lawd_code, name, created_at, dong_name, jibun, road_name)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET
-        dong_name = COALESCE(excluded.dong_name, complexes.dong_name),
-        jibun = COALESCE(excluded.jibun, complexes.jibun),
-        road_name = COALESCE(excluded.road_name, complexes.road_name)
-    `).run(
-      complexId, region.lawdCode, complexName, now,
-      addressInfo?.dongName ?? null,
-      addressInfo?.jibun ?? null,
-      addressInfo?.roadName ?? null
-    );
+    for (const { complexName, tx, addressInfo } of items) {
+      const complexId = `${region.lawdCode}|${complexName}`;
 
-    // 3. transaction upsert
-    db.prepare(`
-      INSERT INTO transactions (dedupe_key, complex_id, deal_date, price_eok, area_m2, floor, collected_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(dedupe_key) DO UPDATE SET
-        price_eok = excluded.price_eok,
-        updated_at = ?
-    `).run(
-      tx.dedupeKey,
-      complexId,
-      tx.dealDate,
-      tx.priceEok,
-      tx.areaM2 ?? null,
-      tx.floor ?? null,
-      now,
-      now
-    );
+      complexStmt.run(
+        complexId, region.lawdCode, complexName, now,
+        addressInfo?.dongName ?? null,
+        addressInfo?.jibun ?? null,
+        addressInfo?.roadName ?? null
+      );
+
+      txStmt.run(
+        tx.dedupeKey,
+        complexId,
+        region.lawdCode,
+        tx.dealDate,
+        tx.priceEok,
+        tx.areaM2 ?? null,
+        tx.floor ?? null,
+        now,
+        now  // updated_at
+      );
+    }
 
     db.exec("COMMIT");
   } catch (err) {

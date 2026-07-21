@@ -1,6 +1,7 @@
 import { promises as fs, existsSync } from "node:fs";
 import { join } from "node:path";
-import { upsertTransaction, makeGraphDedupeKey, getAllRules, initDb } from "@myhome/shared";
+import { upsertTransactionBatch, makeGraphDedupeKey, getAllRules, initDb } from "@myhome/shared";
+import type { BatchUpsertItem } from "@myhome/shared";
 import { fetchApartmentPricesDirect } from "./fetcher.js";
 
 import { dirname } from "node:path";
@@ -162,24 +163,27 @@ export async function runCollector(): Promise<{ totalCollected: number; totalUps
 
         if (transactions.length > 0 && process.env.GRAPH_DB_ENABLED === "true") {
           const regionInfo = { lawdCode: target.lawdCode, displayName: target.displayName };
-          for (const tx of transactions) {
-            try {
-              const graphKey = makeGraphDedupeKey(target.lawdCode, tx.apartmentName, tx.dealDate, tx.areaM2, tx.floor);
-              await upsertTransaction(regionInfo, tx.apartmentName, {
-                dedupeKey: graphKey,
-                dealDate: tx.dealDate,
-                priceEok: tx.priceEok,
-                areaM2: tx.areaM2,
-                floor: tx.floor,
-              }, {
-                dongName: tx.dongName,
-                jibun: tx.jibun,
-                roadName: tx.roadName,
-              });
-              totalUpserted++;
-            } catch (err: any) {
-              console.error(`[Collector] SQLite 적재 오류 (${tx.apartmentName}): ${err.message}`);
-            }
+          const batchItems: BatchUpsertItem[] = transactions.map((tx) => ({
+            complexName: tx.apartmentName,
+            tx: {
+              dedupeKey: makeGraphDedupeKey(target.lawdCode, tx.apartmentName, tx.dealDate, tx.areaM2, tx.floor),
+              dealDate: tx.dealDate,
+              priceEok: tx.priceEok,
+              areaM2: tx.areaM2,
+              floor: tx.floor,
+            },
+            addressInfo: {
+              dongName: tx.dongName,
+              jibun: tx.jibun,
+              roadName: tx.roadName,
+            },
+          }));
+          try {
+            // 월단위 전체를 단일 트랜잭션으로 묶어 fsync 병목 해소
+            await upsertTransactionBatch(regionInfo, batchItems);
+            totalUpserted += batchItems.length;
+          } catch (err: any) {
+            console.error(`[Collector] SQLite 배치 적재 오류 (${target.displayName} / ${month}): ${err.message}`);
           }
         }
       } catch (err: any) {
