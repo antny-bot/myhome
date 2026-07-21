@@ -323,7 +323,16 @@ export function ExplorePage() {
               </div>
 
               <div className="min-w-[200px] flex-1 space-y-1">
-                <span className="text-[11px] font-bold tracking-wide text-neutral">{t.region}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-bold tracking-wide text-neutral">{t.region}</span>
+                  {resolvedRegionName && lawdCode && (
+                    <span className="flex items-center gap-1 text-[10px] text-primary font-semibold">
+                      <MapPin className="h-2.5 w-2.5" />
+                      {resolvedRegionName}
+                      <span className="text-assistive font-normal">({lawdCode})</span>
+                    </span>
+                  )}
+                </div>
                 <RegionSearchInput
                   value={regionName}
                   onChange={(v) => {
@@ -334,13 +343,6 @@ export function ExplorePage() {
                   onSelect={selectRegion}
                   placeholder={t.regionPlaceholder}
                 />
-                {resolvedRegionName && lawdCode && (
-                  <p className="flex items-center gap-1 text-[10px] text-primary font-semibold mt-0.5">
-                    <MapPin className="h-2.5 w-2.5" />
-                    {resolvedRegionName}
-                    <span className="text-assistive font-normal">({lawdCode})</span>
-                  </p>
-                )}
               </div>
 
               {lawdCode && (
