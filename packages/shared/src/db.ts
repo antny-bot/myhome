@@ -498,11 +498,11 @@ export async function searchTransactions(filter: GraphFilter): Promise<any[]> {
     params.push(filter.complexName);
   }
   if (filter.startDate) {
-    queryStr += " AND t.deal_date >= ?";
+    queryStr += " AND substr(t.deal_date, 1, 7) >= ?";
     params.push(filter.startDate);
   }
   if (filter.endDate) {
-    queryStr += " AND t.deal_date <= ?";
+    queryStr += " AND substr(t.deal_date, 1, 7) <= ?";
     params.push(filter.endDate);
   }
   if (filter.minArea !== undefined && filter.minArea !== null) {
@@ -901,6 +901,55 @@ export function getAllDbRegions(): { lawdCode: string; displayName: string }[] {
     ORDER BY display_name ASC
   `).all() as { lawdCode: string; displayName: string }[];
   return rows;
+}
+
+/**
+ * DB regions 테이블에 있는 지역들의 집계 정보 조회 (건수, 집계기간)
+ */
+export function getDbRegionsSummary(): {
+  lawdCode: string;
+  displayName: string;
+  createdAt: string;
+  transactionCount: number;
+  minDealDate: string | null;
+  maxDealDate: string | null;
+}[] {
+  const db = getDb();
+  const rows = db.prepare(`
+    SELECT r.lawd_code AS lawdCode,
+           r.display_name AS displayName,
+           r.created_at AS createdAt,
+           COUNT(t.dedupe_key) AS transactionCount,
+           MIN(t.deal_date) AS minDealDate,
+           MAX(t.deal_date) AS maxDealDate
+    FROM regions r
+    LEFT JOIN transactions t ON r.lawd_code = t.lawd_code
+    GROUP BY r.lawd_code, r.display_name, r.created_at
+    ORDER BY r.display_name ASC
+  `).all() as any[];
+
+  return rows.map(r => ({
+    lawdCode: r.lawdCode,
+    displayName: r.displayName,
+    createdAt: r.createdAt,
+    transactionCount: r.transactionCount,
+    minDealDate: r.minDealDate || null,
+    maxDealDate: r.maxDealDate || null
+  }));
+}
+
+/**
+ * DB regions 테이블에 신규 지역 등록
+ */
+export function insertDbRegion(lawdCode: string, displayName: string): void {
+  const db = getDb();
+  const now = new Date().toISOString();
+  const stmt = db.prepare(`
+    INSERT INTO regions (lawd_code, display_name, created_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(lawd_code) DO NOTHING
+  `);
+  stmt.run(lawdCode, displayName, now);
 }
 
 /**
@@ -1388,32 +1437,60 @@ export function savePresetDb(email: string, preset: any): void {
 
 export async function readPresetsCore(email: string, type: 'overview' | 'analysis'): Promise<any[]> {
   const db = getDb();
-  const table = type === 'overview' ? 'graph_presets_overview' : 'graph_presets_analysis';
-  const rows = db.prepare(`SELECT id, name, filter_data AS filter, created_at AS createdAt FROM ${table} WHERE user_email = ? ORDER BY created_at DESC`).all(email) as any[];
-  return rows.map(r => {
-    let filter = {};
-    try {
-      filter = JSON.parse(r.filter);
-    } catch {
-      filter = {};
-    }
-    return { id: r.id, name: r.name, filter, createdAt: r.createdAt };
-  });
+  if (type === 'overview') {
+    const rows = db.prepare(`SELECT id, name, filter_data AS filter, created_at AS createdAt FROM graph_presets_overview WHERE user_email = ? ORDER BY created_at DESC`).all(email) as any[];
+    return rows.map(r => {
+      let filter = {};
+      try {
+        filter = JSON.parse(r.filter);
+      } catch {
+        filter = {};
+      }
+      return { id: r.id, name: r.name, filter, createdAt: r.createdAt };
+    });
+  } else {
+    const rows = db.prepare(`SELECT id, name, region_name AS regionName, building_name AS buildingName, area_m2 AS areaM2, created_at AS createdAt FROM graph_presets_analysis WHERE user_email = ? ORDER BY created_at DESC`).all(email) as any[];
+    return rows.map(r => ({
+      id: r.id,
+      name: r.name,
+      regionName: r.regionName,
+      buildingName: r.buildingName,
+      areaM2: r.areaM2,
+      createdAt: r.createdAt
+    }));
+  }
 }
 
 export async function savePresetCore(preset: any, email: string, type: 'overview' | 'analysis'): Promise<any> {
   const db = getDb();
-  const table = type === 'overview' ? 'graph_presets_overview' : 'graph_presets_analysis';
   const now = new Date().toISOString();
-  const filterStr = JSON.stringify(preset.filter || {});
-  // ID 자동 생성 (overview/analysis 모두 동일 로직)
   const id = preset.id ?? `preset_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  const stmt = db.prepare(`INSERT INTO ${table} (id, user_email, name, filter_data, created_at) VALUES (?, ?, ?, ?, ?) 
-    ON CONFLICT(id) DO UPDATE SET 
-      name = excluded.name, 
-      filter_data = excluded.filter_data`);
-  stmt.run(id, email, preset.name, filterStr, preset.createdAt || now);
-  return { ...preset, id, createdAt: preset.createdAt || now };
+
+  if (type === 'overview') {
+    const filterStr = JSON.stringify(preset.filter || {});
+    const stmt = db.prepare(`INSERT INTO graph_presets_overview (id, user_email, name, filter_data, created_at) VALUES (?, ?, ?, ?, ?) 
+      ON CONFLICT(id) DO UPDATE SET 
+        name = excluded.name, 
+        filter_data = excluded.filter_data`);
+    stmt.run(id, email, preset.name, filterStr, preset.createdAt || now);
+    return { ...preset, id, createdAt: preset.createdAt || now };
+  } else {
+    const stmt = db.prepare(`INSERT INTO graph_presets_analysis (id, user_email, name, region_name, building_name, area_m2, created_at) VALUES (?, ?, ?, ?, ?, ?, ?) 
+      ON CONFLICT(id) DO UPDATE SET 
+        name = excluded.name, 
+        region_name = excluded.region_name,
+        building_name = excluded.building_name,
+        area_m2 = excluded.area_m2`);
+    stmt.run(id, email, preset.name, preset.regionName, preset.buildingName, preset.areaM2 ?? null, preset.createdAt || now);
+    return {
+      id,
+      name: preset.name,
+      regionName: preset.regionName,
+      buildingName: preset.buildingName,
+      areaM2: preset.areaM2,
+      createdAt: preset.createdAt || now
+    };
+  }
 }
 
 export async function deletePresetCore(id: string, email: string, type: 'overview' | 'analysis'): Promise<boolean> {
@@ -1422,6 +1499,36 @@ export async function deletePresetCore(id: string, email: string, type: 'overvie
   const info = db.prepare(`DELETE FROM ${table} WHERE id = ? AND user_email = ?`).run(id, email);
   return info.changes > 0;
 }
+
+/**
+ * 단지 지리 정보 조회 (위경도, 법정동, 지번 등)
+ */
+export function getComplexGeo(
+  complexName: string,
+  lawdCode?: string
+): { id: string; name: string; lawdCode: string; regionName: string; lat: number | null; lng: number | null; dongName: string | null; jibun: string | null; roadName: string | null } | null {
+  const db = getDb();
+  const resolvedName = resolveComplexName(db, complexName, lawdCode);
+
+  let query = `
+    SELECT c.id, c.name, c.lawd_code AS lawdCode, r.display_name AS regionName,
+           c.lat, c.lng, c.dong_name AS dongName, c.jibun, c.road_name AS roadName
+    FROM complexes c
+    JOIN regions r ON c.lawd_code = r.lawd_code
+    WHERE c.name = ?
+  `;
+  const params: any[] = [resolvedName];
+  if (lawdCode) {
+    query += ' AND c.lawd_code = ?';
+    params.push(lawdCode);
+  }
+  query += ' LIMIT 1';
+
+  const row = db.prepare(query).get(...params);
+  if (!row) return null;
+  return row as any;
+}
+
 
 export function getCheckRunsByEmail(email: string): any[] {
   const db = getDb();
