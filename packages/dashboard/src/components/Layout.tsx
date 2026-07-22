@@ -1,4 +1,4 @@
-import { Bell, History, LayoutDashboard, Menu, X, LucideIcon, BarChart3, Database, ClipboardList, Compass, Home, LogOut, UserCheck, Sun, Moon, ShieldCheck, Star, Settings, Building2 } from "lucide-react";
+import { Bell, History, LayoutDashboard, Menu, X, LucideIcon, BarChart3, Database, ClipboardList, Compass, Home, LogOut, UserCheck, Sun, Moon, Monitor, ShieldCheck, Star, Settings, Building2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { classNames } from "../lib/format";
 import { useBreakpoint } from "../useBreakpoint";
@@ -17,7 +17,7 @@ interface NavItemMeta {
 
 const NAV_ITEMS: NavItemMeta[] = [
   { key: "dashboard", label: "대시보드", compactLabel: "대시보드", adminOnly: false, Icon: LayoutDashboard },
-  { key: "explore", label: "실거래 탐색", compactLabel: "탐색", adminOnly: false, Icon: History },
+  { key: "explore", label: "실거래 집계", compactLabel: "집계", adminOnly: false, Icon: History },
   { key: "analytics", label: "종합 현황", compactLabel: "현황", adminOnly: false, Icon: BarChart3 },
   { key: "complexAnalysis", label: "단지 분석", compactLabel: "단지", adminOnly: false, Icon: Building2 },
   { key: "nearby", label: "역세권 분석", compactLabel: "역세권", adminOnly: false, Icon: Compass },
@@ -174,7 +174,7 @@ export function Layout({
   children: React.ReactNode;
 }) {
   const { isMobile } = useBreakpoint();
-  const { isDark, toggle: toggleTheme } = useTheme();
+  const { theme, isDark, setTheme } = useTheme();
   
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -297,10 +297,11 @@ export function Layout({
                     {collapsed ? "" : "테마"}
                   </span>
                   <button
-                    onClick={() => { if (isDark) toggleTheme(); }}
+                    type="button"
+                    onClick={() => setTheme('light')}
                     title="라이트 모드"
                     className={`rounded-lg p-1.5 transition-colors ${
-                      !isDark
+                      theme === 'light'
                         ? "bg-primary-50 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400"
                         : "text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
                     }`}
@@ -308,15 +309,28 @@ export function Layout({
                     <Sun size={15} />
                   </button>
                   <button
-                    onClick={() => { if (!isDark) toggleTheme(); }}
+                    type="button"
+                    onClick={() => setTheme('dark')}
                     title="다크 모드"
                     className={`rounded-lg p-1.5 transition-colors ${
-                      isDark
+                      theme === 'dark'
                         ? "bg-primary-50 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400"
                         : "text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
                     }`}
                   >
                     <Moon size={15} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTheme('system')}
+                    title="시스템 모드"
+                    className={`rounded-lg p-1.5 transition-colors ${
+                      theme === 'system'
+                        ? "bg-primary-50 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400"
+                        : "text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
+                    }`}
+                  >
+                    <Monitor size={15} />
                   </button>
                 </div>
 
@@ -393,11 +407,21 @@ export function Layout({
 
               <div className="ml-auto flex items-center gap-1">
                 <button
-                  onClick={toggleTheme}
+                  type="button"
+                  onClick={() => {
+                    if (theme === 'light') setTheme('dark');
+                    else if (theme === 'dark') setTheme('system');
+                    else setTheme('light');
+                  }}
                   className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-                  title={isDark ? "라이트 모드" : "다크 모드"}
+                  title={
+                    theme === 'light' ? "라이트 모드" :
+                    theme === 'dark' ? "다크 모드" : "시스템 모드"
+                  }
                 >
-                  {isDark ? <Sun size={16} /> : <Moon size={16} />}
+                  {theme === 'light' && <Sun size={16} />}
+                  {theme === 'dark' && <Moon size={16} />}
+                  {theme === 'system' && <Monitor size={16} />}
                 </button>
                 {onLogout && (
                   <button

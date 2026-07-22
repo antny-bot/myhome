@@ -19,13 +19,17 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 export async function loadDashboard() {
-  const [rules, checkRuns, notifications, config] = await Promise.all([
+  const [rules, checkRuns, notifications, config, dbStats] = await Promise.all([
     request<WatchRule[]>("/api/rules"),
     request<CheckRun[]>("/api/check-runs"),
     request<NotificationRecord[]>("/api/notifications"),
-    request<AppConfig>("/api/config")
+    request<AppConfig>("/api/config"),
+    request<{ regions: number; complexes: number; transactions: number }>("/api/graph/stats").catch((err) => {
+      console.warn("Failed to load db stats:", err);
+      return { regions: 0, complexes: 0, transactions: 0 };
+    })
   ]);
-  return { rules, checkRuns, notifications, config };
+  return { rules, checkRuns, notifications, config, dbStats };
 }
 
 export function createRule(input: RuleInput) {
@@ -62,13 +66,16 @@ export function runRule(id: string) {
   return request(`/api/rules/${id}/run`, { method: "POST" });
 }
 
-export function searchTransactions(lawdCode: string, regionName: string, period: { dealMonth: string } | { startMonth: string; endMonth: string }) {
+export function searchTransactions(lawdCode: string, regionName: string, period: { dealMonth: string } | { startMonth: string; endMonth: string }, refresh = false) {
   const params = new URLSearchParams({ lawd_cd: lawdCode, region_name: regionName });
   if ("dealMonth" in period) {
     params.set("deal_ymd", period.dealMonth);
   } else {
     params.set("start_ymd", period.startMonth);
     params.set("end_ymd", period.endMonth);
+  }
+  if (refresh) {
+    params.set("refresh", "true");
   }
   return request<TransactionRecord[]>(`/api/transactions?${params.toString()}`);
 }
@@ -199,6 +206,39 @@ export function savePreset(name: string, filter: GraphFilter) {
 export function deletePreset(id: string) {
   return request<void>(`/api/graph/presets/${id}`, { method: "DELETE" });
 }
+
+// 종합 현황용 프리셋 API
+export function loadPresetsOverview() {
+  return request<GraphPreset[]>("/api/graph/presets/overview");
+}
+
+export function savePresetOverview(name: string, filter: GraphFilter) {
+  return request<GraphPreset>("/api/graph/presets/overview", {
+    method: "POST",
+    body: JSON.stringify({ name, filter }),
+  });
+}
+
+export function deletePresetOverview(id: string) {
+  return request<void>(`/api/graph/presets/overview/${id}`, { method: "DELETE" });
+}
+
+// 단지 분석용 프리셋 API
+export function loadPresetsAnalysis() {
+  return request<any[]>("/api/graph/presets/analysis");
+}
+
+export function savePresetAnalysis(preset: { name: string; regionName: string; buildingName: string; areaM2?: number }) {
+  return request<any>("/api/graph/presets/analysis", {
+    method: "POST",
+    body: JSON.stringify(preset),
+  });
+}
+
+export function deletePresetAnalysis(id: string) {
+  return request<void>(`/api/graph/presets/analysis/${id}`, { method: "DELETE" });
+}
+
 
 // 💡 LLM 인사이트 관리 API
 
@@ -365,6 +405,17 @@ export function checkAuth() {
 export function logout() {
   return request<{ ok: boolean }>("/api/auth/logout", {
     method: "POST"
+  });
+}
+
+export function fetchDbRegionsSummary() {
+  return request<any[]>("/api/graph/regions-summary");
+}
+
+export function addDbRegion(lawdCode: string, displayName: string) {
+  return request<{ success: boolean }>("/api/graph/regions", {
+    method: "POST",
+    body: JSON.stringify({ lawdCode, displayName })
   });
 }
 

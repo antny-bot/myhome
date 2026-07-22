@@ -8,9 +8,9 @@ import { applySavedDisplayPreferences } from "./lib/displayPreferences";
 applySavedDisplayPreferences();
 
 // 초기 테마 설정 적용 (다크 모드 여부 감지)
-const savedTheme = localStorage.getItem('theme');
+const savedTheme = localStorage.getItem('theme') || 'system';
 const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-const isDark = savedTheme === 'dark' || (!savedTheme && prefersDark);
+const isDark = savedTheme === 'dark' || (savedTheme === 'system' && prefersDark);
 document.documentElement.classList.toggle('dark', isDark);
 if (isDark) {
   document.documentElement.classList.remove('light');

@@ -343,3 +343,66 @@ export async function findComplexesNearStation(
     geocodeStats,
   };
 }
+
+export interface NearbySubwayStation {
+  name: string;
+  distanceM: number;
+  lat: number;
+  lng: number;
+}
+
+// 주변 지하철역 조회 결과 메모리 캐시 (API Rate Limit 절약 및 0ms 초고속 응답 목적)
+const nearbySubwaysCache = new Map<string, NearbySubwayStation[]>();
+
+/**
+ * 특정 좌표(위도/경도) 반경 내 지하철역 검색 (카카오 카테고리 검색 SW8)
+ */
+export async function findSubwayStationsNearCoords(
+  lat: number,
+  lng: number,
+  radiusM = 2000
+): Promise<NearbySubwayStation[]> {
+  // 위경도 소수점 5자리(약 1m 정밀도)로 반올림하여 캐시 키 생성
+  const cacheKey = `${lat.toFixed(5)},${lng.toFixed(5)},${radiusM}`;
+  if (nearbySubwaysCache.has(cacheKey)) {
+    console.log(`[Geocoding] 주변 지하철역 캐시 히트: ${cacheKey}`);
+    return nearbySubwaysCache.get(cacheKey) || [];
+  }
+
+  const apiKey = process.env.KAKAO_REST_API_KEY;
+  if (!apiKey) {
+    console.warn("[Geocoding] KAKAO_REST_API_KEY가 설정되지 않았습니다.");
+    return [];
+  }
+
+  const url = `https://dapi.kakao.com/v2/local/search/category.json?category_group_code=SW8&x=${lng}&y=${lat}&radius=${radiusM}&sort=distance`;
+
+  try {
+    const res = await fetch(url, {
+      headers: { Authorization: `KakaoAK ${apiKey}` },
+      signal: AbortSignal.timeout(5000),
+    });
+
+    if (res.ok) {
+      const body = await res.json();
+      if (body.documents) {
+        const result: NearbySubwayStation[] = body.documents.map((doc: any) => ({
+          name: doc.place_name,
+          distanceM: parseInt(doc.distance) || 0,
+          lat: parseFloat(doc.y),
+          lng: parseFloat(doc.x),
+        }));
+        
+        nearbySubwaysCache.set(cacheKey, result);
+        console.log(`[Geocoding] 주변 지하철역 캐시 저장: ${cacheKey} (${result.length}개 발견)`);
+        return result;
+      }
+    }
+  } catch (err) {
+    console.error(`[Geocoding] 주변 지하철역 검색 실패 (${lat}, ${lng}):`, err);
+  }
+
+  return [];
+}
+
+

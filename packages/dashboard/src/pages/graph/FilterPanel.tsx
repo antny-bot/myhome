@@ -1,7 +1,20 @@
 import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { RegionSearchInput } from "../../components/RegionSearchInput";
 import { GraphFilter, GraphPreset } from "@myhome/shared";
-import { loadPresets, savePreset, deletePreset, searchComplexNames as searchComplexNamesApi, fetchComplexesByRegion } from "../../api";
+import {
+  loadPresets,
+  savePreset,
+  deletePreset,
+  loadPresetsOverview,
+  savePresetOverview,
+  deletePresetOverview,
+  loadPresetsAnalysis,
+  savePresetAnalysis,
+  deletePresetAnalysis,
+  searchComplexNames as searchComplexNamesApi,
+  fetchComplexesByRegion
+} from "../../api";
 import { Play, Save, RotateCcw, X, ChevronDown, ChevronUp } from "lucide-react";
 import { useBreakpoint } from "../../useBreakpoint";
 import type { RegionSearchResult } from "../../types";
@@ -51,11 +64,11 @@ export default function FilterPanel({
     const now = new Date();
     const endYear = now.getFullYear();
     const endMonth = String(now.getMonth() + 1).padStart(2, '0');
-    const end = `${endYear}${endMonth}`;
+    const end = `${endYear}-${endMonth}`;
 
     const startYear = endYear - years;
     const startMonth = String(now.getMonth() + 1).padStart(2, '0');
-    const start = `${startYear}${startMonth}`;
+    const start = `${startYear}-${startMonth}`;
 
     setStartDate(start);
     setEndDate(end);
@@ -80,15 +93,14 @@ export default function FilterPanel({
   // preset에서 시작/종료 년월이 변경되면 로컬 상태 동기화
   useEffect(() => {
     if (filter.startDate && filter.endDate) {
-      const prevStart = startDate.length === 6 ? startDate : '';
-      const prevEnd = endDate.length === 6 ? endDate : '';
-      if (prevStart !== filter.startDate || prevEnd !== filter.endDate) {
+      if (startDate !== filter.startDate || endDate !== filter.endDate) {
         setStartDate(filter.startDate);
         setEndDate(filter.endDate);
         setPeriod('custom');
       }
     }
   }, [filter.startDate, filter.endDate]);
+
 
   // 법드코드 확정 시 해당 지역 아파트 목록 미리 로드 (제한 없이 전체 로드)
   useEffect(() => {
@@ -192,8 +204,10 @@ export default function FilterPanel({
   // 프리셋 로드
   const fetchPresets = async () => {
     try {
-      const data = await loadPresets();
-      setPresets(data);
+      const data = hideComplexSearch
+        ? await loadPresetsOverview()
+        : await loadPresetsAnalysis();
+      setPresets(data as any);
     } catch (err) {
       console.error("Failed to load presets", err);
     }
@@ -278,16 +292,33 @@ export default function FilterPanel({
       return;
     }
     try {
-      const currentFilter: GraphFilter = {
-        lawdCode: filter.lawdCode,
-        regionName: regionName,
-        complexName: complexName || undefined,
-        startDate: startDate || undefined,
-        endDate: endDate || undefined,
-        minArea: minArea ? Number(minArea) : undefined,
-        maxArea: maxArea ? Number(maxArea) : undefined,
-      };
-      await savePreset(newPresetName, currentFilter);
+      if (hideComplexSearch) {
+        // 종합 현황 프리셋 저장
+        const currentFilter: GraphFilter = {
+          lawdCode: filter.lawdCode,
+          regionName: regionName,
+          startDate: startDate || undefined,
+          endDate: endDate || undefined,
+        };
+        await savePresetOverview(newPresetName, currentFilter);
+      } else {
+        // 단지 분석 프리셋 저장
+        if (!regionText) {
+          setErrorMsg("지역을 먼저 검색해 주세요.");
+          return;
+        }
+        if (!complexName) {
+          setErrorMsg("단지명을 입력해 주세요.");
+          return;
+        }
+        const areaVal = minArea ? Number(minArea) : undefined;
+        await savePresetAnalysis({
+          name: newPresetName,
+          regionName: regionText,
+          buildingName: complexName,
+          areaM2: areaVal
+        });
+      }
       setNewPresetName("");
       setShowPresetModal(false);
       setErrorMsg("");
@@ -301,7 +332,11 @@ export default function FilterPanel({
     e.stopPropagation();
     if (!confirm("이 프리셋을 삭제하시겠습니까?")) return;
     try {
-      await deletePreset(id);
+      if (hideComplexSearch) {
+        await deletePresetOverview(id);
+      } else {
+        await deletePresetAnalysis(id);
+      }
       if (selectedPresetId === id) setSelectedPresetId("");
       fetchPresets();
     } catch (err) {
@@ -314,16 +349,32 @@ export default function FilterPanel({
     if (!preset) return;
     setSelectedPresetId(presetId);
 
-    const f = preset.filter;
-    setRegionText(f.regionName || "");
-    setStartDate(f.startDate || "");
-    setEndDate(f.endDate || "");
-    setComplexName(f.complexName || "");
-    setMinArea(f.minArea !== undefined ? String(f.minArea) : "");
-    setMaxArea(f.maxArea !== undefined ? String(f.maxArea) : "");
+    if (hideComplexSearch) {
+      const f = (preset as GraphPreset).filter;
+      setRegionText(f.regionName || "");
+      setStartDate(f.startDate || "");
+      setEndDate(f.endDate || "");
+      onFilterChange(f, f.regionName || preset.name);
+    } else {
+      const p = preset as any;
+      setRegionText(p.regionName || "");
+      setComplexName(p.buildingName || "");
+      setMinArea(p.areaM2 ? String(p.areaM2) : "");
+      setMaxArea(p.areaM2 ? String(p.areaM2) : "");
 
-    // 부모 상태 갱신
-    onFilterChange(f, f.regionName || preset.name);
+      onFilterChange(
+        {
+          lawdCode: filter.lawdCode,
+          regionName: p.regionName,
+          complexName: p.buildingName,
+          startDate: startDate || undefined,
+          endDate: endDate || undefined,
+          minArea: p.areaM2 || undefined,
+          maxArea: p.areaM2 || undefined,
+        },
+        p.regionName || preset.name
+      );
+    }
   };
 
   // 평형 변환 도우미
@@ -422,7 +473,8 @@ export default function FilterPanel({
             </div>
           )}
 
-          <div className={`grid ${isMobile ? 'grid-cols-1' : hideComplexSearch ? 'grid-cols-3' : 'grid-cols-2 md:grid-cols-5'} gap-4 mb-6`}>
+          {/* 1단: 필터 입력 필드 그리드 (지역, 단지명, 면적) */}
+          <div className={`grid ${isMobile ? 'grid-cols-1' : hideComplexSearch ? 'grid-cols-1 max-w-sm' : 'grid-cols-1 md:grid-cols-3'} gap-4 mb-5`}>
             {/* 지역 검색 */}
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-semibold text-neutral">지역</label>
@@ -488,56 +540,6 @@ export default function FilterPanel({
               </div>
             )}
 
-            {/* 기간 선택 - 뱃지 방식 */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-neutral">기간</label>
-              <div className="flex items-center gap-2 flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => handlePeriodBadgeClick(1)}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-full border transition ${
-                    period === '1year' ? "bg-primary text-white border-primary" : "bg-normal text-neutral border-normal hover:border-primary/50"
-                  }`}
-                >
-                  최근 1년
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handlePeriodBadgeClick(2)}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-full border transition ${
-                    period === '2year' ? "bg-primary text-white border-primary" : "bg-normal text-neutral border-normal hover:border-primary/50"
-                  }`}
-                >
-                  최근 2년
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handlePeriodBadgeClick(3)}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-full border transition ${
-                    period === '3year' ? "bg-primary text-white border-primary" : "bg-normal text-neutral border-normal hover:border-primary/50"
-                  }`}
-                >
-                  최근 3년
-                </button>
-              </div>
-              {/* 직접 입력 모드 */}
-              <div className="flex items-center gap-1.5">
-                <input
-                  type="month"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full bg-normal border border-normal rounded-lg px-2 py-1.5 text-sm text-strong focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-                <span className="text-assistive">~</span>
-                <input
-                  type="month"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="w-full bg-normal border border-normal rounded-lg px-2 py-1.5 text-sm text-strong focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-            </div>
-
             {/* 면적(평수) — hideComplexSearch가 true이면 숨김 */}
             {!hideComplexSearch && (
               <div className="flex flex-col gap-1.5">
@@ -545,9 +547,9 @@ export default function FilterPanel({
                   <label className="text-xs font-semibold text-neutral">전용 면적</label>
                   <button
                     onClick={() => setUsePyung(!usePyung)}
-                    className="text-[10px] text-primary hover:underline"
+                    className="text-[10px] text-primary hover:underline font-bold"
                   >
-                    {usePyung ? "㎡ 단위로 보기" : "평 단위로 보기"}
+                    {usePyung ? "㎡ 단위 보기" : "평 단위 보기"}
                   </button>
                 </div>
                 <div className="flex items-center gap-1.5">
@@ -558,7 +560,7 @@ export default function FilterPanel({
                     onChange={(e) => handleAreaChange(e.target.value, "min")}
                     className="w-full bg-normal border border-normal rounded-lg px-3 py-1.5 text-sm text-strong focus:outline-none focus:ring-2 focus:ring-primary"
                   />
-                  <span className="text-assistive">~</span>
+                  <span className="text-assistive font-semibold">~</span>
                   <input
                     type="number"
                     placeholder={usePyung ? "최대 평" : "최대 ㎡"}
@@ -571,29 +573,104 @@ export default function FilterPanel({
             )}
           </div>
 
-          <div className="flex justify-end gap-3 border-t border-normal pt-4">
-            <button
-              onClick={handleReset}
-              className="flex items-center gap-1 px-4 py-2 bg-alternative hover:bg-alternative text-neutral text-sm rounded-lg transition"
-            >
-              <RotateCcw size={14} />
-              <span>초기화</span>
-            </button>
-            <button
-              onClick={handleApply}
-              className="flex items-center gap-1 px-5 py-2 bg-primary hover:bg-primary/80 text-white text-sm font-semibold rounded-lg shadow-lg shadow-primary/20 transition"
-            >
-              <Play size={14} />
-              <span>분석 실행</span>
-            </button>
+          {/* 2단: 분석 기간 선택 영역 (가로 분리 및 직접 입력이 좌측, 퀵 배지가 우측) */}
+          <div className="border-t border-normal pt-4 flex flex-col lg:flex-row lg:items-end gap-5 justify-between">
+            <div className="flex flex-col md:flex-row md:items-center gap-5 flex-grow max-w-4xl">
+              {/* 직접 입력 기간 */}
+              <div className="flex flex-col gap-1.5 flex-grow max-w-md w-full">
+                <span className="text-xs font-semibold text-neutral">직접 입력</span>
+                <div className="flex items-center gap-2 w-full">
+                  <input
+                    type="month"
+                    value={startDate}
+                    onChange={(e) => {
+                      setStartDate(e.target.value);
+                      setPeriod('custom');
+                    }}
+                    className="w-full bg-normal border border-normal rounded-lg px-3 py-1.5 text-sm text-strong focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                  <span className="text-assistive font-semibold">~</span>
+                  <input
+                    type="month"
+                    value={endDate}
+                    onChange={(e) => {
+                      setEndDate(e.target.value);
+                      setPeriod('custom');
+                    }}
+                    className="w-full bg-normal border border-normal rounded-lg px-3 py-1.5 text-sm text-strong focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+              </div>
+
+              {/* 분석 기간 배지 */}
+              <div className="flex flex-col gap-1.5 shrink-0">
+                <span className="text-xs font-semibold text-neutral">분석 기간 퀵 선택</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handlePeriodBadgeClick(1)}
+                    className={`px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
+                      period === '1year' 
+                        ? "bg-primary text-white border-primary" 
+                        : "bg-normal text-neutral border-normal hover:border-primary/50 hover:text-strong"
+                    }`}
+                  >
+                    최근 1년
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handlePeriodBadgeClick(2)}
+                    className={`px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
+                      period === '2year' 
+                        ? "bg-primary text-white border-primary" 
+                        : "bg-normal text-neutral border-normal hover:border-primary/50 hover:text-strong"
+                    }`}
+                  >
+                    최근 2년
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handlePeriodBadgeClick(3)}
+                    className={`px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
+                      period === '3year' 
+                        ? "bg-primary text-white border-primary" 
+                        : "bg-normal text-neutral border-normal hover:border-primary/50 hover:text-strong"
+                    }`}
+                  >
+                    최근 3년
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* 초기화 / 분석 실행 버튼 */}
+            <div className="flex items-center gap-2.5 w-full lg:w-auto lg:shrink-0">
+              <button
+                type="button"
+                onClick={handleReset}
+                className="flex-1 lg:flex-initial flex items-center justify-center gap-1.5 px-5 py-2 bg-alternative hover:bg-alternative/80 text-neutral hover:text-strong text-sm font-bold rounded-lg transition-colors border border-normal"
+              >
+                <RotateCcw size={14} />
+                <span>초기화</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleApply}
+                className="flex-1 lg:flex-initial flex items-center justify-center gap-1.5 px-6 py-2 bg-primary hover:opacity-90 text-white text-sm font-bold rounded-lg shadow-sm shadow-primary/20 transition-opacity"
+              >
+                <Play size={14} />
+                <span>분석 실행</span>
+              </button>
+            </div>
           </div>
+
         </>
       )}
 
       {/* 프리셋 이름 입력 모달 */}
-      {showPresetModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-elevated border border-normal w-full max-w-md p-6 rounded-xl shadow-lg">
+      {showPresetModal && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm pointer-events-auto">
+          <div className="bg-elevated border border-normal w-full max-w-md p-6 rounded-xl shadow-lg relative z-[51] mx-4 animate-in fade-in zoom-in-95 duration-150">
             <h3 className="text-lg font-bold text-strong mb-2">💾 조회 조건 프리셋 저장</h3>
             <p className="text-xs text-neutral mb-4">현재 설정된 필터 조건에 이름을 붙여 저장합니다.</p>
 
@@ -628,7 +705,8 @@ export default function FilterPanel({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

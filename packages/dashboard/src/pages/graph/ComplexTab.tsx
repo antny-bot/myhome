@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -12,8 +12,10 @@ import {
 } from "recharts";
 import { loadComplexDetail } from "../../api";
 import { SectionCard } from "../../components/SectionCard";
+import { StatCard } from "../../components/StatCard";
 import { useBreakpoint } from "../../useBreakpoint";
-import { Home, Calendar, DollarSign, Layers } from "lucide-react";
+import { Home, Calendar, DollarSign, Layers, MapPin, Train, ShoppingBag, School, Activity, Clock, Navigation, ArrowUpDown, TrendingUp } from "lucide-react";
+
 
 const i18n = {
   ko: {
@@ -36,6 +38,11 @@ const i18n = {
     dealPrice: "거래가",
     exclusiveArea: "전용면적",
     floor: "층",
+    recentAvgPrice: "최근 월 평균가",
+    yoyChange: "전년동월비 (YoY)",
+    yoyNoData: "전년동월 거래 없음",
+    pastYearVolume: "최근 1년 거래량",
+    allTimeHigh: "역대 최고가",
   },
   en: {
     selectComplex: "Please select a complex to analyze in the filter panel above.",
@@ -57,6 +64,11 @@ const i18n = {
     dealPrice: "Deal Price",
     exclusiveArea: "Size",
     floor: "Floor",
+    recentAvgPrice: "Recent Monthly Avg",
+    yoyChange: "YoY Change",
+    yoyNoData: "No YoY Data",
+    pastYearVolume: "Past 1Year Volume",
+    allTimeHigh: "All-time High",
   }
 };
 
@@ -110,6 +122,192 @@ export default function ComplexTab({ initialComplexName = "", lawdCode, areaUnit
     setHiddenKeys((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
+  // 카카오맵 관련 상태 및 레프
+  const [mapSdkLoaded, setMapSdkLoaded] = useState(false);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const [mapInstance, setMapInstance] = useState<any>(null);
+  const [infraMarkers, setInfraMarkers] = useState<any[]>([]);
+  const [activeInfraFilter, setActiveInfraFilter] = useState<string | null>(null);
+
+  // 카카오맵 SDK 동적 로드
+  useEffect(() => {
+    // 이미 로드되었거나 SDK가 글로벌하게 존재하면 바로 로드 완료 처리
+    if (window.kakao && window.kakao.maps) {
+      setMapSdkLoaded(true);
+      return;
+    }
+
+    const apiKey = import.meta.env.VITE_KAKAO_MAP_API_KEY;
+    if (!apiKey) {
+      console.warn("[KakaoMap] VITE_KAKAO_MAP_API_KEY가 설정되지 않았습니다.");
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${apiKey}&libraries=services&autoload=false`;
+    script.async = true;
+
+    script.onload = () => {
+      window.kakao.maps.load(() => {
+        setMapSdkLoaded(true);
+      });
+    };
+
+    document.head.appendChild(script);
+  }, []);
+
+  // 도보/차량 시간 계산 헬퍼 함수
+  const getTravelTime = (distanceM: number) => {
+    // 도보: 분당 80m 속도 가정 (시속 약 4.8km)
+    const walkMin = Math.max(1, Math.round(distanceM / 80));
+    // 차량: 분당 500m 속도 가정 (시속 30km)
+    const carMin = Math.max(1, Math.round(distanceM / 500));
+    return { walkMin, carMin };
+  };
+
+  // 인프라 카테고리 정의
+  const infraCategories = [
+    { code: 'MT1', label: '대형마트', icon: ShoppingBag },
+    { code: 'CS2', label: '편의점', icon: ShoppingBag },
+    { code: 'SC4', label: '학교', icon: School },
+    { code: 'HP8', label: '병원', icon: Activity },
+    { code: 'PM9', label: '약국', icon: Activity }
+  ];
+
+  // 지도 인스턴스 생성 및 단지/지하철 마커/반경 원 표시
+  useEffect(() => {
+    if (!mapSdkLoaded || !detailData?.complexInfo || !mapContainerRef.current) return;
+
+    const { lat, lng } = detailData.complexInfo;
+    if (lat === null || lng === null) return;
+
+    const container = mapContainerRef.current;
+    const options = {
+      center: new window.kakao.maps.LatLng(lat, lng),
+      level: 5 // 반경 2km가 원활히 보이도록 레벨 5 설정
+    };
+
+    const map = new window.kakao.maps.Map(container, options);
+    setMapInstance(map);
+
+    // 1. 단지 마커 표시
+    const complexPosition = new window.kakao.maps.LatLng(lat, lng);
+    const complexMarker = new window.kakao.maps.Marker({
+      position: complexPosition,
+      map: map,
+      title: detailData.complexInfo.name
+    });
+
+    const infowindow = new window.kakao.maps.InfoWindow({
+      content: `<div style="padding:6px 12px; font-size:12px; font-weight:700; color:var(--color-semantic-label-strong); background:var(--color-semantic-background-elevated-normal); border:1px solid var(--color-semantic-line-normal-normal); border-radius:8px; text-align:center; min-width:120px;">${detailData.complexInfo.name}</div>`
+    });
+    infowindow.open(map, complexMarker);
+
+    // 2. 반경 원 500m, 1km, 2km 표시
+    const circleRadii = [
+      { r: 500, color: '#3b82f6', opacity: 0.08 },
+      { r: 1000, color: '#10b981', opacity: 0.05 },
+      { r: 2000, color: '#f59e0b', opacity: 0.02 }
+    ];
+
+    const circleInstances = circleRadii.map((c) => {
+      const circle = new window.kakao.maps.Circle({
+        center: complexPosition,
+        radius: c.r,
+        strokeWeight: 1.5,
+        strokeColor: c.color,
+        strokeOpacity: 0.5,
+        strokeStyle: 'dashed',
+        fillColor: c.color,
+        fillOpacity: c.opacity
+      });
+      circle.setMap(map);
+      return circle;
+    });
+
+    // 3. 인근 지하철역 마커 및 커스텀 오버레이 표시
+    const subwayMarkers = (detailData.subways || []).map((sub: any) => {
+      const subPosition = new window.kakao.maps.LatLng(sub.lat, sub.lng);
+      const marker = new window.kakao.maps.Marker({
+        position: subPosition,
+        map: map,
+        title: sub.name
+      });
+
+      const overlay = new window.kakao.maps.CustomOverlay({
+        position: subPosition,
+        content: `<div style="background-color:var(--color-semantic-background-elevated-normal); border:1px solid var(--color-semantic-line-normal-normal); border-radius:12px; padding:3px 8px; font-size:10px; font-weight:700; color:var(--color-semantic-label-strong); box-shadow:0 2px 4px rgba(0,0,0,0.12); margin-top:-38px;">🚇 ${sub.name}</div>`,
+        yAnchor: 1
+      });
+      overlay.setMap(map);
+
+      return { marker, overlay };
+    });
+
+    // Clean up
+    return () => {
+      complexMarker.setMap(null);
+      infowindow.close();
+      circleInstances.forEach(c => c.setMap(null));
+      subwayMarkers.forEach((s: any) => {
+        s.marker.setMap(null);
+        s.overlay.setMap(null);
+      });
+    };
+  }, [mapSdkLoaded, detailData?.complexInfo, detailData?.subways]);
+
+  // 주변 인프라 필터 토글
+  const handleInfraFilterToggle = (categoryCode: string) => {
+    if (!mapInstance || !window.kakao || !detailData?.complexInfo) return;
+
+    // 기존 인프라 마커들 지도에서 제거
+    infraMarkers.forEach(item => {
+      item.marker.setMap(null);
+      if (item.overlay) item.overlay.setMap(null);
+    });
+    setInfraMarkers([]);
+
+    // 현재 활성화된 인프라 필터를 다시 누른 경우 해제
+    if (activeInfraFilter === categoryCode) {
+      setActiveInfraFilter(null);
+      return;
+    }
+
+    setActiveInfraFilter(categoryCode);
+
+    const { lat, lng } = detailData.complexInfo;
+    const ps = new window.kakao.maps.services.Places(mapInstance);
+
+    ps.categorySearch(categoryCode, (data: any, status: any) => {
+      if (status === window.kakao.maps.services.Status.OK) {
+        const newMarkers = data.map((place: any) => {
+          const placePos = new window.kakao.maps.LatLng(place.y, place.x);
+          const marker = new window.kakao.maps.Marker({
+            position: placePos,
+            map: mapInstance,
+            title: place.place_name
+          });
+
+          // 편의시설 이름 표시용 오버레이
+          const overlay = new window.kakao.maps.CustomOverlay({
+            position: placePos,
+            content: `<div style="background-color:var(--color-semantic-background-normal-normal); border:1px solid var(--color-semantic-line-normal-normal); border-radius:4px; padding:2px 6px; font-size:9px; color:var(--color-semantic-label-strong); box-shadow:0 1px 2px rgba(0,0,0,0.15); margin-top:-32px;">${place.place_name}</div>`,
+            yAnchor: 1
+          });
+          overlay.setMap(mapInstance);
+
+          return { marker, overlay };
+        });
+        setInfraMarkers(newMarkers);
+      }
+    }, {
+      location: new window.kakao.maps.LatLng(lat, lng),
+      radius: 1000, // 인프라는 실용적 접근을 위해 1km 반경으로 필터링
+      sort: window.kakao.maps.services.SortBy.DISTANCE
+    });
+  };
+
+
   // 트렌드 데이터 내 존재하는 모든 평수 키 수집
   const trendSizes = React.useMemo(() => {
     if (!detailData?.trend || detailData.trend.length === 0) return [];
@@ -123,6 +321,92 @@ export default function ComplexTab({ initialComplexName = "", lawdCode, areaUnit
     });
     return Array.from(keys).sort((a, b) => (parseInt(a) || 0) - (parseInt(b) || 0));
   }, [detailData]);
+
+  // 실거래 내역을 날짜별로 그룹화 (화면 영역 축소 및 일자별 묶음 조회 목적)
+  // 4개 KPI 요약 정보 연산
+  const kpiData = React.useMemo(() => {
+    if (!detailData?.trend || detailData.trend.length === 0) {
+      return null;
+    }
+    const trend = detailData.trend;
+    const latest = trend[trend.length - 1];
+    if (!latest) return null;
+
+    // 1. 최근 월 평균가
+    const latestAvg = latest.평균가 || 0;
+    const latestMonth = latest.month || "";
+
+    // 2. 전년동월비 (YoY)
+    let yoyDiff = 0;
+    let yoyPercent = 0;
+    let hasYoy = false;
+    let yoyMonthStr = "";
+    
+    if (latestMonth) {
+      const [year, month] = latestMonth.split("-");
+      const targetYear = parseInt(year) - 1;
+      yoyMonthStr = `${targetYear}-${month}`;
+      const yoyData = trend.find((d: any) => d.month === yoyMonthStr);
+      if (yoyData && yoyData.평균가) {
+        yoyDiff = latestAvg - yoyData.평균가;
+        yoyPercent = (yoyDiff / yoyData.평균가) * 100;
+        hasYoy = true;
+      }
+    }
+
+    // 3. 최근 1년 거래량 (최근 월 기준 12개월 범위 내)
+    let pastYearVolume = 0;
+    if (latestMonth) {
+      const [year, month] = latestMonth.split("-").map(Number);
+      let startYear = year;
+      let startMonth = month - 11;
+      if (startMonth <= 0) {
+        startYear -= 1;
+        startMonth += 12;
+      }
+      const startMonthStr = `${startYear}-${String(startMonth).padStart(2, '0')}`;
+      pastYearVolume = trend
+        .filter((d: any) => d.month >= startMonthStr && d.month <= latestMonth)
+        .reduce((sum: number, d: any) => sum + (d.거래량 || 0), 0);
+    }
+
+    // 4. 역대 최고가
+    let maxPrice = 0;
+    let maxMonth = "";
+    trend.forEach((d: any) => {
+      if (d.최대가 && d.최대가 > maxPrice) {
+        maxPrice = d.최대가;
+        maxMonth = d.month;
+      }
+    });
+
+    return {
+      latestAvg,
+      latestMonth,
+      hasYoy,
+      yoyDiff,
+      yoyPercent,
+      yoyMonthStr,
+      pastYearVolume,
+      maxPrice,
+      maxMonth
+    };
+  }, [detailData?.trend]);
+
+  // 실거래 내역을 날짜별로 그룹화 (화면 영역 축소 및 일자별 묶음 조회 목적)
+  const groupedTx = React.useMemo(() => {
+    if (!detailData?.recentTx || detailData.recentTx.length === 0) return [];
+    const groups: { dealDate: string; items: any[] }[] = [];
+    detailData.recentTx.forEach((tx: any) => {
+      let g = groups.find(x => x.dealDate === tx.dealDate);
+      if (!g) {
+        g = { dealDate: tx.dealDate, items: [] };
+        groups.push(g);
+      }
+      g.items.push(tx);
+    });
+    return groups;
+  }, [detailData?.recentTx]);
 
   const fetchDetail = async (name: string, area?: number) => {
     if (!name.trim()) return;
@@ -251,6 +535,131 @@ export default function ComplexTab({ initialComplexName = "", lawdCode, areaUnit
         </div>
       </div>
 
+      {/* 지도 및 입지 분석 섹션 (단지 정보가 존재할 경우 표시) */}
+      {detailData.complexInfo && (
+        <SectionCard title="🗺️ 단지 주변 입지 분석 (지하철역 및 인프라)">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
+            {/* 지도 컨테이너 */}
+            <div className="lg:col-span-2 space-y-4">
+              {!mapSdkLoaded ? (
+                <div className="h-80 lg:h-[400px] w-full flex items-center justify-center bg-alternative border border-normal rounded-xl text-neutral">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mr-2" />
+                  <span>지도 서비스를 로딩 중입니다...</span>
+                </div>
+              ) : detailData.complexInfo.lat === null || detailData.complexInfo.lng === null ? (
+                <div className="h-80 lg:h-[400px] w-full flex flex-col items-center justify-center bg-alternative border border-normal rounded-xl text-neutral p-4 text-center">
+                  <MapPin size={36} className="mb-2 opacity-30" />
+                  <p className="text-sm font-semibold">좌표 정보를 확보할 수 없습니다.</p>
+                  <p className="text-xs text-assistive mt-1">단지의 주소가 불명확하여 지도를 렌더링하지 못했습니다.</p>
+                </div>
+              ) : (
+                <div className="relative rounded-xl border border-normal overflow-hidden shadow-inner">
+                  {/* 카카오 지도 렌더링 노드 */}
+                  <div ref={mapContainerRef} className="h-80 lg:h-[400px] w-full" />
+                  
+                  {/* 편의시설 필터 퀵 패널 */}
+                  <div className="absolute top-3 left-3 z-10 flex flex-wrap gap-1.5 max-w-[calc(100%-24px)] pointer-events-auto bg-elevated/95 backdrop-blur-sm p-1.5 rounded-lg shadow-md border border-normal">
+                    {infraCategories.map((infra) => {
+                      const Icon = infra.icon;
+                      const isActive = activeInfraFilter === infra.code;
+                      return (
+                        <button
+                          key={infra.code}
+                          type="button"
+                          onClick={() => handleInfraFilterToggle(infra.code)}
+                          className={`flex items-center gap-1.5 px-3 py-2 rounded-md text-[10px] font-bold border transition-colors ${
+                            isActive
+                              ? "bg-primary text-white border-primary"
+                              : "bg-normal text-neutral border-normal hover:bg-alternative hover:text-strong"
+                          }`}
+                        >
+                          <Icon size={12} />
+                          <span>{infra.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 인근 지하철역 정보 패널 */}
+            <div className="flex flex-col justify-between gap-4 lg:h-[400px]">
+              <div>
+                <h3 className="text-sm font-bold text-strong flex items-center gap-1.5 mb-2">
+                  <Train size={16} className="text-primary" />
+                  <span>인근 지하철역 (반경 2km 이내)</span>
+                </h3>
+                <p className="text-xs text-neutral mb-3 leading-relaxed">
+                  단지 기준 직선 반경 2km 이내에 위치한 지하철역 목록입니다. 도보/차량 시간은 직선거리 기준 추정값입니다.
+                </p>
+
+                {detailData.subways && detailData.subways.length > 0 ? (
+                  <div className="space-y-3 overflow-y-auto max-h-60 lg:max-h-[200px] pr-1">
+                    {detailData.subways.map((sub: any) => {
+                      const { walkMin, carMin } = getTravelTime(sub.distanceM);
+                      return (
+                        <div key={sub.name} className="flex flex-col p-3 rounded-lg border border-normal bg-normal/30 hover:bg-normal/70 transition">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-strong flex items-center gap-1.5">
+                              <span className="inline-block w-2 h-2 rounded-full bg-amber-500" />
+                              {sub.name}
+                            </span>
+                            <span className="text-[11px] font-mono font-semibold text-primary">
+                              {sub.distanceM >= 1000 
+                                ? `${(sub.distanceM / 1000).toFixed(2)}km` 
+                                : `${sub.distanceM}m`}
+                            </span>
+                          </div>
+                          
+                          <div className="flex items-center gap-4 mt-2 border-t border-normal/50 pt-2">
+                            <span className="text-[10px] text-neutral flex items-center gap-1">
+                              <Clock size={12} className="text-assistive" />
+                              <span>도보 <strong className="text-strong">{walkMin}분</strong></span>
+                            </span>
+                            <span className="text-[10px] text-neutral flex items-center gap-1">
+                              <Navigation size={12} className="text-assistive" />
+                              <span>차량 <strong className="text-strong">{carMin}분</strong></span>
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-8 bg-normal/20 border border-normal border-dashed rounded-xl text-neutral">
+                    <Train size={32} className="mb-2 opacity-20 text-warn" />
+                    <p className="text-xs font-semibold text-warn">2km 이내에 지하철역이 없습니다.</p>
+                  </div>
+                )}
+              </div>
+
+              {detailData.complexInfo && (
+
+                <div className="p-3 bg-alternative/40 border border-normal rounded-lg text-[11px] text-neutral space-y-1.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="font-semibold text-strong shrink-0">단지 주소</span>
+                    <span className="text-right">{detailData.complexInfo.regionName} {detailData.complexInfo.dongName || ""} {detailData.complexInfo.jibun || ""}</span>
+                  </div>
+                  {detailData.complexInfo.roadName && (
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="font-semibold text-strong shrink-0">도로명</span>
+                      <span className="text-right">{detailData.complexInfo.roadName}</span>
+                    </div>
+                  )}
+                  {(detailData.complexInfo.lat && detailData.complexInfo.lng) && (
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-strong">좌표 (위·경도)</span>
+                      <span className="font-mono text-[10px]">{detailData.complexInfo.lat.toFixed(5)}, {detailData.complexInfo.lng.toFixed(5)}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </SectionCard>
+      )}
+
       {/* 데이터가 전혀 없을 경우 */}
       {detailData.recentTx.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 bg-elevated border border-normal rounded-xl text-neutral">
@@ -261,6 +670,45 @@ export default function ComplexTab({ initialComplexName = "", lawdCode, areaUnit
         <>
           {/* 1. 월별 거래 트렌드 시계열 */}
           <SectionCard title={t("monthlyTrendTitle")}>
+            {/* 요약 통계 카드 그리드 */}
+            {kpiData && (
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <StatCard
+                  icon={DollarSign}
+                  label={`${t("recentAvgPrice")} (${kpiData.latestMonth})`}
+                  value={`${kpiData.latestAvg.toFixed(2)}${t("eokUnit")}`}
+                />
+                <StatCard
+                  icon={ArrowUpDown}
+                  label={`${t("yoyChange")} (${kpiData.yoyMonthStr})`}
+                  value={
+                    kpiData.hasYoy
+                      ? `${kpiData.yoyDiff >= 0 ? "+" : ""}${kpiData.yoyDiff.toFixed(2)}${t("eokUnit")} (${kpiData.yoyDiff >= 0 ? "+" : ""}${kpiData.yoyPercent.toFixed(1)}%)`
+                      : t("yoyNoData")
+                  }
+                  tone={
+                    kpiData.hasYoy
+                      ? kpiData.yoyDiff > 0
+                        ? "good"
+                        : kpiData.yoyDiff < 0
+                        ? "warn"
+                        : "default"
+                      : "default"
+                  }
+                />
+                <StatCard
+                  icon={Layers}
+                  label={t("pastYearVolume")}
+                  value={`${kpiData.pastYearVolume}${t("countUnit")}`}
+                />
+                <StatCard
+                  icon={TrendingUp}
+                  label={`${t("allTimeHigh")} (${kpiData.maxMonth})`}
+                  value={`${kpiData.maxPrice.toFixed(2)}${t("eokUnit")}`}
+                />
+              </div>
+            )}
+
             {/* 커스텀 범례 (클릭 시 토글 가능) */}
             <div className="flex flex-wrap items-center gap-4 mb-4">
               {[
@@ -398,43 +846,45 @@ export default function ComplexTab({ initialComplexName = "", lawdCode, areaUnit
 
           {/* 4. 최근 실거래 목록 */}
           <SectionCard title={t("recentTxTitle")}>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left text-neutral tabular-nums">
-                <thead className="text-xs uppercase bg-alternative/60 text-neutral">
-                  <tr>
-                    <th scope="col" className="px-4 py-3">{t("dealDate")}</th>
-                    <th scope="col" className="px-4 py-3 text-right">{t("dealPrice")}</th>
-                    <th scope="col" className="px-4 py-3 text-right">{t("exclusiveArea")}</th>
-                    <th scope="col" className="px-4 py-3 text-right">{t("floor")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {detailData.recentTx.map((tx: any) => (
-                    <tr key={tx.dedupeKey} className="border-b border-normal hover:bg-normal/50">
-                      <td className="px-4 py-3.5 flex items-center gap-1.5 font-medium text-strong">
-                        <Calendar size={13} className="text-assistive" />
-                        {tx.dealDate}
-                      </td>
-                      <td className="px-4 py-3.5 text-primary font-bold text-right">
-                        <span className="inline-flex items-center gap-0.5 justify-end">
-                          <DollarSign size={13} />
-                          {tx.priceEok.toFixed(1)}{t("eokUnit")}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3.5 text-right">
-                        {tx.areaM2 ? formatSizeString(String(tx.areaM2), areaUnit) : "-"}
-                      </td>
-                      <td className="px-4 py-3.5 text-neutral text-right">
-                        <span className="inline-flex items-center gap-1 justify-end">
-                          <Layers size={13} />
-                          {tx.floor ? `${tx.floor}${t("floorUnit")}` : "-"}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            {groupedTx.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {groupedTx.map((group) => (
+                  <div key={group.dealDate} className="bg-normal/30 border border-normal rounded-xl p-3.5 flex flex-col gap-2.5 hover:bg-normal/50 transition duration-150">
+                    {/* 날짜 헤더 */}
+                    <div className="flex items-center gap-1.5 pb-2 border-b border-normal/50 text-xs font-bold text-neutral">
+                      <Calendar size={13} className="text-primary" />
+                      <span>{group.dealDate}</span>
+                      <span className="ml-auto text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-semibold">
+                        {group.items.length} {t("countUnit")}
+                      </span>
+                    </div>
+                    {/* 날짜 내 개별 거래 목록 */}
+                    <div className="flex flex-col gap-2.5">
+                      {group.items.map((tx: any, idx: number) => (
+                        <div key={tx.dedupeKey || idx} className="flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-strong bg-alternative/80 px-2 py-0.5 rounded text-[10px] font-bold">
+                              {tx.floor ? `${tx.floor}${t("floorUnit")}` : "-"}
+                            </span>
+                            <span className="text-neutral font-medium">
+                              {tx.areaM2 ? formatSizeString(String(tx.areaM2), areaUnit) : "-"}
+                            </span>
+                          </div>
+                          <span className="text-primary font-extrabold font-mono text-sm inline-flex items-center gap-0.5">
+                            <DollarSign size={12} className="opacity-80" />
+                            {tx.priceEok.toFixed(1)}{t("eokUnit")}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 bg-normal/20 border border-normal border-dashed rounded-xl text-neutral text-xs">
+                {t("noData")}
+              </div>
+            )}
           </SectionCard>
         </>
       )}

@@ -208,6 +208,7 @@ export function createRouter() {
       const dealMonth = String(req.query.deal_ymd || "");
       const startMonth = String(req.query.start_ymd || "");
       const endMonth = String(req.query.end_ymd || "");
+      const forceRefresh = req.query.refresh === "true";
       let regionDisplayName = String(req.query.region_name || "").trim();
       if (!regionDisplayName || /^\d{5}$/.test(regionDisplayName)) {
         try {
@@ -251,7 +252,7 @@ export function createRouter() {
                          + (currentYm % 100 - targetYm % 100);
         const localCount = getLocalTransactionsCount(lawdCode, month);
 
-        if (diffMonths > 3 && localCount > 0) {
+        if (!forceRefresh && diffMonths > 3 && localCount > 0) {
           cacheHitMonths.push(month);
         } else {
           apiFetchMonths.push(month);

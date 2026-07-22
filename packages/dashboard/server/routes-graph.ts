@@ -13,6 +13,8 @@ import {
   searchComplexNames,
   GraphFilter,
   getAllDbRegions,
+  getDbRegionsSummary,
+  insertDbRegion,
   getComplexesByRegion,
   getDailyCollectionStats,
   getRegionCollectionStatsByDate,
@@ -30,12 +32,15 @@ import {
   saveSystemConfigDb,
   getRulesByEmail,
   upsertRuleDb,
-  deleteRuleDb
+  deleteRuleDb,
+  getComplexGeo,
+  updateComplexCoords
 } from "@myhome/shared";
 import { readPresets, savePreset, deletePreset } from "./graphPresets.js";
 import { readInsights, saveInsight, deleteInsight } from "./graphInsights.js";
-import { findComplexesNearStation, batchGeocodeComplexes } from "./geocoding.js";
+import { findComplexesNearStation, batchGeocodeComplexes, geocodeAddress, findSubwayStationsNearCoords } from "./geocoding.js";
 import { generateTextWithGemini } from "./llmClient.js";
+
 
 export function createGraphRouter(): Router {
   const router = Router();
@@ -45,6 +50,31 @@ export function createGraphRouter(): Router {
     try {
       const regions = await getAllDbRegions();
       res.json(regions);
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message ?? "내부 오류" });
+    }
+  });
+
+  /** GET /api/graph/regions-summary — DB 수집 지역별 요약 통계 */
+  router.get("/regions-summary", async (_req, res) => {
+    try {
+      const summary = await getDbRegionsSummary();
+      res.json(summary);
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message ?? "내부 오류" });
+    }
+  });
+
+  /** POST /api/graph/regions — 신규 수집 지역 추가 */
+  router.post("/regions", async (req, res) => {
+    try {
+      const { lawdCode, displayName } = req.body;
+      if (!lawdCode || !displayName) {
+        res.status(400).json({ error: "lawdCode 또는 displayName이 누락되었습니다." });
+        return;
+      }
+      await insertDbRegion(lawdCode, displayName);
+      res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ error: err?.message ?? "내부 오류" });
     }
@@ -194,7 +224,44 @@ export function createGraphRouter(): Router {
       const lawdCode = req.query.lawdCode as string | undefined;
       const area = req.query.area ? Number(req.query.area) : undefined;
       const data = await getComplexDetail(complexName, lawdCode, area);
-      res.json(data);
+
+      // 단지 지리정보 조회 및 지하철역 연동
+      let complexInfo = getComplexGeo(complexName, lawdCode);
+      let subways: any[] = [];
+
+      if (complexInfo) {
+        // 위경도 좌표가 없으면 Lazy Geocoding 수행
+        if (complexInfo.lat === null || complexInfo.lng === null) {
+          let query = "";
+          if (complexInfo.dongName && complexInfo.jibun) {
+            query = `${complexInfo.regionName} ${complexInfo.dongName} ${complexInfo.jibun}`;
+          } else if (complexInfo.dongName) {
+            query = `${complexInfo.regionName} ${complexInfo.dongName}`;
+          } else {
+            const cleanName = complexInfo.name.replace(/\(.*?\)/g, "").trim();
+            query = `${complexInfo.regionName} ${cleanName}`;
+          }
+
+          const result = await geocodeAddress(query);
+          if (result) {
+            updateComplexCoords(complexInfo.id, result.lat, result.lng);
+            complexInfo.lat = result.lat;
+            complexInfo.lng = result.lng;
+            console.log(`[Lazy Geocoding] 단지 좌표 확보: ${complexInfo.name} -> (${result.lat}, ${result.lng})`);
+          }
+        }
+
+        // 좌표가 있는 경우 주변 지하철역 검색 (반경 2km)
+        if (complexInfo.lat !== null && complexInfo.lng !== null) {
+          subways = await findSubwayStationsNearCoords(complexInfo.lat, complexInfo.lng, 2000);
+        }
+      }
+
+      res.json({
+        ...data,
+        complexInfo,
+        subways
+      });
     } catch (err: any) {
       res.status(500).json({ error: err?.message ?? "내부 오류" });
     }

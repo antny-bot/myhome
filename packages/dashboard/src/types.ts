@@ -109,6 +109,11 @@ export type DashboardState = {
   checkRuns: CheckRun[];
   notifications: NotificationRecord[];
   config: AppConfig;
+  dbStats?: {
+    regions: number;
+    complexes: number;
+    transactions: number;
+  };
 };
 
 export type ApartmentListResponse = {

@@ -1,6 +1,6 @@
 import { promises as fs, existsSync } from "node:fs";
 import { join } from "node:path";
-import { upsertTransactionBatch, makeGraphDedupeKey, getAllRules, initDb } from "@myhome/shared";
+import { upsertTransactionBatch, makeGraphDedupeKey, getAllRules, initDb, getAllDbRegions } from "@myhome/shared";
 import type { BatchUpsertItem } from "@myhome/shared";
 import { fetchApartmentPricesDirect } from "./fetcher.js";
 
@@ -125,20 +125,34 @@ export async function runCollector(): Promise<{ totalCollected: number; totalUps
   const config = await loadConfig();
   let finalTargets = [...config.targets];
 
+  const map = new Map<string, string>();
+  finalTargets.forEach((t) => map.set(t.lawdCode, t.displayName));
+
   if (config.fetchFromDashboard) {
     console.log(`[Collector] 대시보드(${config.dashboardUrl})로부터 알림 규칙 지역 조회 중...`);
     const ruleTargets = await fetchRulesFromDashboard(config.dashboardUrl);
     console.log(`[Collector] 대시보드 규칙에서 ${ruleTargets.length}개 지역 감지됨.`);
-    
-    // 중복 제거 및 병합
-    const map = new Map<string, string>();
-    finalTargets.forEach((t) => map.set(t.lawdCode, t.displayName));
     ruleTargets.forEach((t) => map.set(t.lawdCode, t.displayName));
-    finalTargets = Array.from(map.entries()).map(([code, name]) => ({
-      lawdCode: code,
-      displayName: name,
-    }));
   }
+
+  // DB regions 테이블에 등록된 모든 수집 지역 조회 및 추가 (새벽 자동 수집 범위 통합)
+  try {
+    initDb();
+    const dbRegions = getAllDbRegions();
+    console.log(`[Collector] DB regions 테이블에서 ${dbRegions.length}개 지역 감지됨.`);
+    dbRegions.forEach((r) => {
+      if (r.lawdCode && r.displayName) {
+        map.set(r.lawdCode, r.displayName);
+      }
+    });
+  } catch (err: any) {
+    console.warn(`[Collector] DB 수집 지역 조회 실패: ${err.message}`);
+  }
+
+  finalTargets = Array.from(map.entries()).map(([code, name]) => ({
+    lawdCode: code,
+    displayName: name,
+  }));
 
   if (finalTargets.length === 0) {
     console.log("[Collector] 수집할 대상 지역이 존재하지 않습니다. 종료.");
