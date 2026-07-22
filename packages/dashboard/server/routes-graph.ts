@@ -17,7 +17,20 @@ import {
   getDailyCollectionStats,
   getRegionCollectionStatsByDate,
   getMonthlyCollectionStats,
-  getRegionCollectionStatsByMonth
+  getRegionCollectionStatsByMonth,
+  readPresetsCore,
+  savePresetCore,
+  deletePresetCore,
+  getCheckRunsByEmail,
+  appendCheckRunDb,
+  deleteCheckRunDb,
+  getNotificationsByEmail,
+  appendNotificationDb,
+  getSystemConfigDb,
+  saveSystemConfigDb,
+  getRulesByEmail,
+  upsertRuleDb,
+  deleteRuleDb
 } from "@myhome/shared";
 import { readPresets, savePreset, deletePreset } from "./graphPresets.js";
 import { readInsights, saveInsight, deleteInsight } from "./graphInsights.js";
@@ -249,7 +262,7 @@ export function createGraphRouter(): Router {
     }
   });
 
-  // 조회 조건 프리셋 라우트
+  // 조회 조건 프리셋 라우트 (기존 graph_presets 테이블 사용)
   router.get("/presets", async (req, res) => {
     try {
       const email = req.user?.email || "bootstrap-admin@myhome.local";
@@ -290,7 +303,89 @@ export function createGraphRouter(): Router {
     }
   });
 
-  // LLM 인사이트 라우트
+  // 종합 현황용 프리셋 라우트 (지역만 저장, graph_presets_overview 테이블 사용)
+  router.get("/presets/overview", async (req, res) => {
+    try {
+      const email = req.user?.email || "bootstrap-admin@myhome.local";
+      const presets = await readPresetsCore(email, "overview");
+      res.json(presets);
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message ?? "내부 오류" });
+    }
+  });
+
+  router.post("/presets/overview", async (req, res) => {
+    try {
+      const email = req.user?.email || "bootstrap-admin@myhome.local";
+      const { name, filter } = req.body;
+      if (!name || !filter) {
+        res.status(400).json({ error: "name 또는 filter가 누락되었습니다." });
+        return;
+      }
+      const newPreset = await savePresetCore({ name, filter }, email, "overview");
+      res.status(201).json(newPreset);
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message ?? "내부 오류" });
+    }
+  });
+
+  router.delete("/presets/overview/:id", async (req, res) => {
+    try {
+      const email = req.user?.email || "bootstrap-admin@myhome.local";
+      const { id } = req.params;
+      const success = await deletePresetCore(id, email, "overview");
+      if (success) {
+        res.json({ success: true });
+      } else {
+        res.status(404).json({ error: "존재하지 않는 프리셋 ID입니다." });
+      }
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message ?? "내부 오류" });
+    }
+  });
+
+  // 단지 분석용 프리셋 라우트 (지역 + 단지명 + 평수 저장, graph_presets_analysis 테이블 사용)
+  router.get("/presets/analysis", async (req, res) => {
+    try {
+      const email = req.user?.email || "bootstrap-admin@myhome.local";
+      const presets = await readPresetsCore(email, "analysis");
+      res.json(presets);
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message ?? "내부 오류" });
+    }
+  });
+
+  router.post("/presets/analysis", async (req, res) => {
+    try {
+      const email = req.user?.email || "bootstrap-admin@myhome.local";
+      const { name, regionName, buildingName, areaM2 } = req.body;
+      if (!name || !regionName || !buildingName) {
+        res.status(400).json({ error: "name, regionName, buildingName이 필요합니다." });
+        return;
+      }
+      const newPreset = await savePresetCore({ name, regionName, buildingName, areaM2 }, email, "analysis");
+      res.status(201).json(newPreset);
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message ?? "내부 오류" });
+    }
+  });
+
+  router.delete("/presets/analysis/:id", async (req, res) => {
+    try {
+      const email = req.user?.email || "bootstrap-admin@myhome.local";
+      const { id } = req.params;
+      const success = await deletePresetCore(id, email, "analysis");
+      if (success) {
+        res.json({ success: true });
+      } else {
+        res.status(404).json({ error: "존재하지 않는 프리셋 ID입니다." });
+      }
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message ?? "내부 오류" });
+    }
+  });
+
+  // LLM 인사이트 라우트 (graphInsights.ts 파일 사용)
   router.get("/insights", async (_req, res) => {
     try {
       const insights = await readInsights();
@@ -390,6 +485,7 @@ ${contextText}
       res.status(500).json({ error: err?.message ?? "인사이트 생성 도중 내부 서버 오류가 발생했습니다." });
     }
   });
+
   // ──────────────────────────────────────────────────
   // 역세권 / Geocoding API
   // ──────────────────────────────────────────────────

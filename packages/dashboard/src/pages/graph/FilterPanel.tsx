@@ -32,7 +32,7 @@ export default function FilterPanel({
   const [minArea, setMinArea] = useState(filter.minArea !== undefined ? String(filter.minArea) : "");
   const [maxArea, setMaxArea] = useState(filter.maxArea !== undefined ? String(filter.maxArea) : "");
 
-  // 글로벌 단지 검색 자동완성
+  // 전역 단지 검색 자동완성
   const [globalSuggestions, setGlobalSuggestions] = useState<Array<{ name: string; lawdCode: string; regionName: string }>>([]);
   const [apartments, setApartments] = useState<string[]>([]);
   const [searchingComplexes, setSearchingComplexes] = useState(false);
@@ -41,7 +41,56 @@ export default function FilterPanel({
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const complexInputRef = useRef<HTMLInputElement>(null);
 
-  // lawdCode 확정 시 해당 지역 아파트 목록 미리 로드 (제한 없이 전체 로드)
+  // 기간 선택: "최근 1년", "최근 2년", "최근 3년"
+  const [period, setPeriod] = useState<string>(
+    filter.startDate && filter.endDate ? 'custom' : 'none'
+  );
+
+  // 기간 옵션 적용 (즉시 적용 + 부모에 반영)
+  const applyPeriodOption = (years: number) => {
+    const now = new Date();
+    const endYear = now.getFullYear();
+    const endMonth = String(now.getMonth() + 1).padStart(2, '0');
+    const end = `${endYear}${endMonth}`;
+
+    const startYear = endYear - years;
+    const startMonth = String(now.getMonth() + 1).padStart(2, '0');
+    const start = `${startYear}${startMonth}`;
+
+    setStartDate(start);
+    setEndDate(end);
+    setPeriod(`${years}year`);
+
+    // 부모 필터 즉시 업데이트
+    onFilterChange(
+      {
+        lawdCode: filter.lawdCode,
+        regionName: regionName,
+        complexName: complexName || undefined,
+        startDate: start,
+        endDate: end,
+        minArea: minArea ? Number(minArea) : undefined,
+        maxArea: maxArea ? Number(maxArea) : undefined,
+      },
+      regionName
+    );
+    onApply();
+  };
+
+  // preset에서 시작/종료 년월이 변경되면 로컬 상태 동기화
+  useEffect(() => {
+    if (filter.startDate && filter.endDate) {
+      const prevStart = startDate.length === 6 ? startDate : '';
+      const prevEnd = endDate.length === 6 ? endDate : '';
+      if (prevStart !== filter.startDate || prevEnd !== filter.endDate) {
+        setStartDate(filter.startDate);
+        setEndDate(filter.endDate);
+        setPeriod('custom');
+      }
+    }
+  }, [filter.startDate, filter.endDate]);
+
+  // 법드코드 확정 시 해당 지역 아파트 목록 미리 로드 (제한 없이 전체 로드)
   useEffect(() => {
     if (!filter.lawdCode) {
       setApartments([]);
@@ -219,6 +268,7 @@ export default function FilterPanel({
     setComplexName("");
     setMinArea("");
     setMaxArea("");
+    setPeriod('none');
     onFilterChange({}, "");
   };
 
@@ -298,12 +348,17 @@ export default function FilterPanel({
     }
   };
 
+  // 기간 배지 클릭 핸들러
+  const handlePeriodBadgeClick = (years: number) => {
+    applyPeriodOption(years);
+  };
+
   return (
     <div className="bg-elevated border border-normal rounded-xl p-6 mb-6 shadow-sm text-strong">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 border-b border-normal pb-4">
         <div className="flex items-center justify-between w-full md:w-auto">
           <div>
-            <h2 className="text-lg font-bold text-strong">📊 {hideComplexSearch ? "지역·기간 필터" : "실거래 분석 필터"}</h2>
+            <h2 className="text-lg font-bold text-strong">{hideComplexSearch ? "지역·기간 필터" : "실거래 분석 필터"}</h2>
             <p className="text-xs text-neutral mt-1">{hideComplexSearch ? "기간과 지역을 설정해 거시 통계 데이터를 탐색합니다." : "기간, 지역, 단지명, 평형 조건을 설정해 데이터를 탐색합니다."}</p>
           </div>
           {isMobile && (
@@ -367,7 +422,7 @@ export default function FilterPanel({
             </div>
           )}
 
-          <div className={`grid ${isMobile ? 'grid-cols-1' : hideComplexSearch ? 'grid-cols-2' : 'grid-cols-2 md:grid-cols-4'} gap-4 mb-6`}>
+          <div className={`grid ${isMobile ? 'grid-cols-1' : hideComplexSearch ? 'grid-cols-3' : 'grid-cols-2 md:grid-cols-5'} gap-4 mb-6`}>
             {/* 지역 검색 */}
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-semibold text-neutral">지역</label>
@@ -433,9 +488,39 @@ export default function FilterPanel({
               </div>
             )}
 
-            {/* 기간 선택 */}
+            {/* 기간 선택 - 뱃지 방식 */}
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-semibold text-neutral">기간</label>
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => handlePeriodBadgeClick(1)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-full border transition ${
+                    period === '1year' ? "bg-primary text-white border-primary" : "bg-normal text-neutral border-normal hover:border-primary/50"
+                  }`}
+                >
+                  최근 1년
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handlePeriodBadgeClick(2)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-full border transition ${
+                    period === '2year' ? "bg-primary text-white border-primary" : "bg-normal text-neutral border-normal hover:border-primary/50"
+                  }`}
+                >
+                  최근 2년
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handlePeriodBadgeClick(3)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-full border transition ${
+                    period === '3year' ? "bg-primary text-white border-primary" : "bg-normal text-neutral border-normal hover:border-primary/50"
+                  }`}
+                >
+                  최근 3년
+                </button>
+              </div>
+              {/* 직접 입력 모드 */}
               <div className="flex items-center gap-1.5">
                 <input
                   type="month"

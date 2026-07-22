@@ -109,6 +109,28 @@ export function initDb(): void {
       FOREIGN KEY (user_email) REFERENCES user_settings(email) ON DELETE CASCADE
     );
 
+    -- 종합 현황용: 지역만 저장 (단지명/평수 없이)
+    CREATE TABLE IF NOT EXISTS graph_presets_overview (
+      id TEXT PRIMARY KEY,
+      user_email TEXT NOT NULL,
+      name TEXT NOT NULL,
+      filter_data TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (user_email) REFERENCES user_settings(email) ON DELETE CASCADE
+    );
+
+    -- 단지 분석용: 지역 + 단지명 + 평수 저장
+    CREATE TABLE IF NOT EXISTS graph_presets_analysis (
+      id TEXT PRIMARY KEY,
+      user_email TEXT NOT NULL,
+      name TEXT NOT NULL,
+      region_name TEXT NOT NULL,
+      building_name TEXT NOT NULL,
+      area_m2 REAL,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (user_email) REFERENCES user_settings(email) ON DELETE CASCADE
+    );
+
     CREATE TABLE IF NOT EXISTS check_runs (
       id TEXT PRIMARY KEY,
       user_email TEXT NOT NULL,
@@ -1364,9 +1386,40 @@ export function savePresetDb(email: string, preset: any): void {
   `).run(preset.id, email, preset.name, filterStr, preset.createdAt || now);
 }
 
-export function deletePresetDb(email: string, id: string): boolean {
+export async function readPresetsCore(email: string, type: 'overview' | 'analysis'): Promise<any[]> {
   const db = getDb();
-  const info = db.prepare("DELETE FROM graph_presets WHERE id = ? AND user_email = ?").run(id, email);
+  const table = type === 'overview' ? 'graph_presets_overview' : 'graph_presets_analysis';
+  const rows = db.prepare(`SELECT id, name, filter_data AS filter, created_at AS createdAt FROM ${table} WHERE user_email = ? ORDER BY created_at DESC`).all(email) as any[];
+  return rows.map(r => {
+    let filter = {};
+    try {
+      filter = JSON.parse(r.filter);
+    } catch {
+      filter = {};
+    }
+    return { id: r.id, name: r.name, filter, createdAt: r.createdAt };
+  });
+}
+
+export async function savePresetCore(preset: any, email: string, type: 'overview' | 'analysis'): Promise<any> {
+  const db = getDb();
+  const table = type === 'overview' ? 'graph_presets_overview' : 'graph_presets_analysis';
+  const now = new Date().toISOString();
+  const filterStr = JSON.stringify(preset.filter || {});
+  // ID 자동 생성 (overview/analysis 모두 동일 로직)
+  const id = preset.id ?? `preset_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const stmt = db.prepare(`INSERT INTO ${table} (id, user_email, name, filter_data, created_at) VALUES (?, ?, ?, ?, ?) 
+    ON CONFLICT(id) DO UPDATE SET 
+      name = excluded.name, 
+      filter_data = excluded.filter_data`);
+  stmt.run(id, email, preset.name, filterStr, preset.createdAt || now);
+  return { ...preset, id, createdAt: preset.createdAt || now };
+}
+
+export async function deletePresetCore(id: string, email: string, type: 'overview' | 'analysis'): Promise<boolean> {
+  const db = getDb();
+  const table = type === 'overview' ? 'graph_presets_overview' : 'graph_presets_analysis';
+  const info = db.prepare(`DELETE FROM ${table} WHERE id = ? AND user_email = ?`).run(id, email);
   return info.changes > 0;
 }
 

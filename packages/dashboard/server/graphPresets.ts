@@ -4,7 +4,9 @@ import { GraphPreset } from "@myhome/shared";
 import {
   getPresetsByEmail,
   savePresetDb,
-  deletePresetDb
+  readPresetsCore,
+  savePresetCore,
+  deletePresetCore
 } from "@myhome/shared";
 
 const DATA_DIR = join(process.cwd(), "data");
@@ -40,6 +42,7 @@ export async function migratePresetsToDb() {
 // 기동 시 마이그레이션 비동기 실행
 void migratePresetsToDb();
 
+// 기존 호환성 유지 (기본 graph_presets 테이블)
 export async function readPresets(email: string = DEFAULT_EMAIL): Promise<GraphPreset[]> {
   return getPresetsByEmail(email);
 }
@@ -55,5 +58,27 @@ export async function savePreset(preset: Omit<GraphPreset, "id" | "createdAt">, 
 }
 
 export async function deletePreset(id: string, email: string = DEFAULT_EMAIL): Promise<boolean> {
-  return deletePresetDb(email, id);
+  // graph_presets 테이블에서 삭제 (deletePresetCore 사용)
+  return deletePresetCore(id, email, "overview");
+}
+
+// 종합 현황용 / 단지 분석용 프리셋 분리 함수
+export async function readPresetsByType(email: string, type: "overview" | "analysis"): Promise<any[]> {
+  return readPresetsCore(email, type);
+}
+
+export async function savePresetByType(
+  preset: any,
+  email: string,
+  type: "overview" | "analysis"
+): Promise<any> {
+  return savePresetCore(preset, email, type);
+}
+
+export async function deletePresetByType(
+  id: string,
+  email: string,
+  type: "overview" | "analysis"
+): Promise<boolean> {
+  return deletePresetCore(id, email, type);
 }
