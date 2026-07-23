@@ -88,7 +88,7 @@ function App() {
   }
 
   return (
-    <Layout view={view} onNavigate={setView} onLogout={handleLogout} isAdmin={auth?.isAdmin}>
+    <Layout view={view} onNavigate={setView} onLogout={handleLogout} isAdmin={auth?.isAdmin} userEmail={auth?.email}>
       {error && <p className="mb-4 text-sm text-red-500 font-medium">{error}</p>}
       {view === "dashboard" && <DashboardPage state={state} onChanged={() => void refresh()} />}
       {view === "rules" && (

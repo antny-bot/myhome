@@ -165,12 +165,14 @@ export function Layout({
   onNavigate,
   onLogout,
   isAdmin = false,
+  userEmail,
   children
 }: {
   view: View;
   onNavigate: (view: View) => void;
   onLogout?: () => void;
   isAdmin?: boolean;
+  userEmail?: string;
   children: React.ReactNode;
 }) {
   const { isMobile } = useBreakpoint();
@@ -220,7 +222,7 @@ export function Layout({
     (item) => item.key !== "settings" && (!item.adminOnly || isAdmin)
   ).slice(0, 5);
 
-  const displayName = "Admin User";
+  const displayName = userEmail || "Admin User";
 
   return (
     <div className="font-app-ui min-h-screen bg-slate-50 dark:bg-slate-950 flex text-slate-900 dark:text-slate-100">

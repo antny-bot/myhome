@@ -44,6 +44,7 @@ export function haversineDistance(
 interface GeocoordResult {
   lat: number;
   lng: number;
+  address?: string;
 }
 
 // 메모리 캐시 (서버 수명 동안 유지)
@@ -147,9 +148,10 @@ export async function geocodeSubwayStation(stationName: string): Promise<Geocoor
         const result: GeocoordResult = {
           lat: parseFloat(doc.y),
           lng: parseFloat(doc.x),
+          address: doc.address_name,
         };
         geocodeCache.set(cacheKey, result);
-        console.log(`[Geocoding] 지하철역 좌표 확보: ${query} → (${result.lat}, ${result.lng})`);
+        console.log(`[Geocoding] 지하철역 좌표 확보: ${query} → (${result.lat}, ${result.lng}, 주소: ${doc.address_name})`);
         return result;
       }
     }
@@ -194,13 +196,15 @@ function buildGeocodeQuery(
  * @returns { total, success, failed }
  */
 export async function batchGeocodeComplexes(
-  lawdCode?: string
+  lawdCode?: string,
+  maxLimit = 30
 ): Promise<{ total: number; success: number; failed: number }> {
-  const pending = getComplexesWithoutCoords(lawdCode);
+  const pendingAll = getComplexesWithoutCoords(lawdCode);
+  const pending = pendingAll.slice(0, maxLimit);
   let success = 0;
   let failed = 0;
 
-  console.log(`[Geocoding] 일괄 Geocoding 시작: ${pending.length}개 단지`);
+  console.log(`[Geocoding] 일괄 Geocoding 시작: ${pending.length}개 단지 (전체 미확보: ${pendingAll.length}개)`);
 
   for (const complex of pending) {
     const query = buildGeocodeQuery(
@@ -223,8 +227,8 @@ export async function batchGeocodeComplexes(
     await new Promise((resolve) => setTimeout(resolve, 200));
   }
 
-  console.log(`[Geocoding] 일괄 완료: 성공 ${success}, 실패 ${failed} / 총 ${pending.length}`);
-  return { total: pending.length, success, failed };
+  console.log(`[Geocoding] 일괄 완료: 성공 ${success}, 실패 ${failed} / 총 ${pending.length} (잔여 미확보: ${pendingAll.length - success}개)`);
+  return { total: pendingAll.length, success, failed };
 }
 
 // ──────────────────────────────────────────────────
@@ -276,6 +280,25 @@ export async function findComplexesNearStation(
     throw new Error(`지하철역 '${stationName}'의 좌표를 확인할 수 없습니다.`);
   }
 
+  // 지하철역 주소 기반으로 매칭되는 DB 내 지역코드(lawdCode) 탐색
+  let targetLawdCode: string | undefined = undefined;
+  if (stationCoords.address) {
+    try {
+      const { getAllDbRegions } = await import("@myhome/shared");
+      const regions = await getAllDbRegions();
+      const matchedRegion = regions
+        .filter((r) => stationCoords.address!.includes(r.displayName))
+        .sort((a, b) => b.displayName.length - a.displayName.length)[0];
+      
+      if (matchedRegion) {
+        targetLawdCode = matchedRegion.lawdCode;
+        console.log(`[Geocoding] 지하철역 주소 매칭 지역코드 확보: ${stationCoords.address} → ${matchedRegion.displayName} (${targetLawdCode})`);
+      }
+    } catch (e) {
+      console.error("[Geocoding] 지역코드 조회 및 매칭 실패:", e);
+    }
+  }
+
   const nearbyComplexes: NearbyComplex[] = [];
 
   // 2. DB에서 좌표 보유 단지 → 거리 계산
@@ -296,8 +319,8 @@ export async function findComplexesNearStation(
     }
   }
 
-  // 3. 좌표 미확보 단지 → Lazy Geocoding
-  const pendingComplexes = getComplexesWithoutCoords();
+  // 3. 좌표 미확보 단지 → Lazy Geocoding (지하철역과 동일 지역구 단지로만 한정하여 504 Timeout 방지)
+  const pendingComplexes = targetLawdCode ? getComplexesWithoutCoords(targetLawdCode) : [];
   for (const c of pendingComplexes) {
     // 사전 필터: 법정동이 다른 지역이면 Geocoding 스킵 (API 절약)
     const query = buildGeocodeQuery(c.regionName, c.dongName, c.jibun, c.name);
