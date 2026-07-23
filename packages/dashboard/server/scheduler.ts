@@ -2,6 +2,7 @@ import { runRuleCheck } from "./ruleEngine.js";
 import { sendNotifications } from "./notifications.js";
 import { runCollector } from "@myhome/collector";
 import { getAllRules } from "@myhome/shared";
+import { batchGeocodeComplexes } from "./geocoding.js";
 
 
 function isDue(lastCheckedAt: string | undefined, intervalMinutes: number) {
@@ -26,8 +27,13 @@ export async function runDueCollector() {
       lastCollectedDate = todayStr;
       const result = await runCollector();
       console.log(`[Scheduler] Daily collection finished: collected ${result.totalCollected} items, upserted ${result.totalUpserted}`);
+
+      // 신규 수집된 아파트 단지에 대한 일괄 Geocoding 수행
+      console.log("[Scheduler] Starting batch geocoding for new complexes...");
+      const geoResult = await batchGeocodeComplexes();
+      console.log(`[Scheduler] Batch geocoding finished: total ${geoResult.total}, success ${geoResult.success}, failed ${geoResult.failed}`);
     } catch (err: any) {
-      console.error("[Scheduler] Daily collection failed:", err.message);
+      console.error("[Scheduler] Daily collection or geocoding failed:", err.message);
       lastCollectedDate = ""; // 실패 시 다음 스케줄 검사 주기에서 재시도하도록 재설정
     }
   }
