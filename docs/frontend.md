@@ -92,3 +92,35 @@ import { BarChart3 } from "lucide-react";
 ## 4. 다국어 (i18n) 대응 의무화
 
 사용자에게 노출되는 모든 고정 문자열(헤더 타이틀, 설명, 버튼 텍스트, 에러 메시지, 플레이스홀더 등)은 하드코딩해서는 안 되며, `packages/dashboard/src/locales/ko.ts` 파일에 등록된 다국어 사전을 참조하여 `t.key` 형태로 렌더링해야 합니다.
+
+---
+
+## 5. 차트 설계 표준 및 Box Plot 동적 Y축 스케일링 정책
+
+분석 대시보드 내의 Box Plot 차트 구현 시, 사용자가 UI 범례 토글을 통해 차트의 Whisker(최소/최대) 혹은 Box(Q1/Q3) 레이어를 숨겼을 때 Y축의 가격 스케일이 이에 맞춰 동적으로 재조정(Zoom-in)되어야 합니다.
+
+### 구현 가이드라인
+1. **단일 `<Bar>` 기반 Box Plot**:
+   - Recharts의 `<Bar>` 컴포넌트 `shape` 프롭에 커스텀 SVG 드로잉 컴포넌트(`BoxPlotShape`)를 함수 래퍼 형태로 전달하여 단일 막대 영역 내에서 Whisker, Box, Median, Mean을 일괄 렌더링합니다.
+   
+2. **동적 Y축 도메인 보장 (투명 가이드 Line)**:
+   - Box Plot은 단순히 `dataKey="mean"`(혹은 `avg`) 하나만 등록할 경우, Recharts의 Y축 자동 도메인 연산 엔진이 Box와 Whisker의 경계값(`q1`, `q3`, `min`, `max`)을 감지하지 못해 차트가 잘려 나갑니다.
+   - 따라서, Y축 가격 도메인 바인딩을 위해 화면에 그려지지 않는 투명 가이드 `<Line>` 컴포넌트를 조건부로 추가 배치하여 Y축의 스케일 조정을 위임합니다.
+
+3. **토글 연계 조건부 렌더링 규격**:
+   - 사용자가 범례 필터에서 레이어를 토글할 때마다 투명 가이드 Line의 데이터를 다음과 같이 스위칭하여 Y축이 최적의 높이로 조절(밀착)되도록 유도합니다.
+   ```tsx
+   {!hideWhisker ? (
+     <>
+       <Line yAxisId="left" dataKey="max" stroke="none" dot={false} activeDot={false} legendType="none" />
+       <Line yAxisId="left" dataKey="min" stroke="none" dot={false} activeDot={false} legendType="none" />
+     </>
+   ) : !hideBox ? (
+     <>
+       <Line yAxisId="left" dataKey="q3" stroke="none" dot={false} activeDot={false} legendType="none" />
+       <Line yAxisId="left" dataKey="q1" stroke="none" dot={false} activeDot={false} legendType="none" />
+     </>
+   ) : (
+     <Line yAxisId="left" dataKey="mean" stroke="none" dot={false} activeDot={false} legendType="none" />
+   )}
+   ```

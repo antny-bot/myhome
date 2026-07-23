@@ -92,6 +92,7 @@ export default function ComplexAnalysisPage({
         onFilterChange={handleFilterChange}
         onApply={handleApply}
         hideComplexSearch={false}
+        locale={locale}
       />
 
       {/* Tabs */}

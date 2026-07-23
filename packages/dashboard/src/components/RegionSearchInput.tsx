@@ -7,12 +7,14 @@ export function RegionSearchInput({
   value,
   onChange,
   onSelect,
-  placeholder = "예: 경기도 수원시"
+  placeholder = "예: 경기도 수원시",
+  className,
 }: {
   value: string;
   onChange: (value: string) => void;
   onSelect: (region: RegionSearchResult) => void;
   placeholder?: string;
+  className?: string;
 }) {
   const [results, setResults] = useState<RegionSearchResult[]>([]);
   const [showSuggest, setShowSuggest] = useState(false);
@@ -80,7 +82,7 @@ export function RegionSearchInput({
     <div className="relative">
       <input
         ref={inputRef}
-        className="w-full rounded-lg border border-normal bg-normal px-4 py-2.5 text-sm text-strong focus:border-primary outline-none"
+        className={className || "w-full rounded-lg border border-normal bg-normal px-4 py-2.5 text-sm text-strong focus:border-primary outline-none"}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         onFocus={() => results.length > 0 && setShowSuggest(true)}

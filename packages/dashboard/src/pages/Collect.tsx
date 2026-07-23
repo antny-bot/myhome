@@ -246,11 +246,6 @@ export function CollectPage() {
                     onClick={handleChartClick}
                     margin={{ top: 10, right: 58, left: 0, bottom: 0 }}
                   >
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      vertical={false}
-                      stroke="var(--color-semantic-line-normal-normal)"
-                    />
                     <XAxis
                       dataKey="collectDate"
                       tick={{ fontSize: 11, fill: "var(--color-semantic-label-neutral)" }}

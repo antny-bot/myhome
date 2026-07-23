@@ -971,7 +971,6 @@ export function ExplorePage() {
                         <div className="flex-1 w-full min-h-[220px]">
                           <ResponsiveContainer width="100%" height="100%">
                             <LineChart data={selectedAptChartData} margin={{ top: 10, right: 15, left: -20, bottom: 0 }}>
-                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-semantic-line-normal-normal)" />
                               <XAxis dataKey="date" tick={{ fontSize: 10, fill: "var(--color-semantic-label-neutral)" }} tickLine={false} />
                               <YAxis tick={{ fontSize: 10, fill: "var(--color-semantic-label-neutral)", fontFamily: "monospace" }} tickLine={false} width={45} tickFormatter={(v) => `${v}억`} />
                               <RechartsTooltip content={<SelectedAptTooltip />} />

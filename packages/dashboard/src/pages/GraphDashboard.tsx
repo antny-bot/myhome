@@ -74,7 +74,7 @@ export default function GraphDashboard({ onNavigateToRules, onSelectComplex }: G
       {/* Page Header */}
       <PageHeader
         title="종합 현황"
-        subtitle="로컬 SQLite 실거래 적재 데이터를 지역·기간별로 거시 통계 분석합니다. 단지를 클릭하면 단지 분석으로 이동합니다."
+        subtitle="실거래 적재 데이터를 지역·기간별로 거시 통계 분석합니다. 단지를 클릭하면 단지 분석으로 이동합니다."
         icon={BarChart3}
       />
 
@@ -85,6 +85,7 @@ export default function GraphDashboard({ onNavigateToRules, onSelectComplex }: G
         onFilterChange={handleFilterChange}
         onApply={handleApply}
         hideComplexSearch={true}
+        locale={locale}
       />
 
       {/* Tabs */}

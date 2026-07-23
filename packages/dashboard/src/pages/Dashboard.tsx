@@ -101,43 +101,43 @@ export function DashboardPage({ state, onChanged }: { state: DashboardState | un
       </header>
 
       {/* 🚀 화려한 그라디언트 히어로 배너 (실시간 DB 상태 요약) */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary-600 via-primary-700 to-indigo-900 text-white p-6 md:p-8 shadow-lg shadow-primary-500/10">
+      <div className="relative overflow-hidden rounded-2xl border border-primary-100/80 bg-gradient-to-br from-primary-50 via-primary-100/30 to-indigo-100/20 text-strong p-6 md:p-8 shadow-md shadow-primary-100/10 dark:border-none dark:bg-gradient-to-br dark:from-primary-600 dark:via-primary-700 dark:to-indigo-900 dark:text-white dark:shadow-lg dark:shadow-primary-500/10">
         {/* 데코용 은은한 글래스 원형 레이어 */}
-        <div className="absolute -right-10 -top-10 w-40 h-40 rounded-full bg-white/5 blur-2xl pointer-events-none" />
-        <div className="absolute -left-10 -bottom-10 w-40 h-40 rounded-full bg-white/5 blur-2xl pointer-events-none" />
+        <div className="absolute -right-10 -top-10 w-40 h-40 rounded-full bg-primary-200/20 blur-2xl pointer-events-none dark:bg-white/5" />
+        <div className="absolute -left-10 -bottom-10 w-40 h-40 rounded-full bg-primary-200/20 blur-2xl pointer-events-none dark:bg-white/5" />
 
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-2 max-w-xl">
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-white/20 text-white backdrop-blur-md">
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-primary-100 text-primary border border-primary-200/30 backdrop-blur-md dark:bg-white/20 dark:text-white dark:border-none">
               <Database className="h-3 w-3" />
               Live DB Status
             </span>
-            <h3 className="text-lg md:text-2xl font-black tracking-tight text-white">{t.dbStatsTitle}</h3>
-            <p className="text-xs md:text-sm text-white/80 leading-relaxed font-medium">
+            <h3 className="text-lg md:text-2xl font-black tracking-tight text-strong dark:text-white">{t.dbStatsTitle}</h3>
+            <p className="text-xs md:text-sm text-neutral leading-relaxed font-medium dark:text-white/80">
               {t.dbStatsSubtitle}
             </p>
           </div>
 
           {/* 3열 글라스모피즘 통계 칩 */}
           <div className="grid grid-cols-3 gap-3 md:gap-4 shrink-0 min-w-full md:min-w-[360px]">
-            <div className="bg-white/10 backdrop-blur-md border border-white/10 p-3 md:p-4 rounded-xl flex flex-col items-center justify-center text-center transition-all hover:bg-white/15">
-              <MapPin className="h-5 w-5 text-white/70 mb-1.5" />
-              <span className="text-[10px] md:text-xs text-white/60 font-bold">{t.dbStatsRegionCount}</span>
-              <span className="text-lg md:text-xl font-bold font-mono mt-1 text-white">
+            <div className="bg-white/80 border border-primary-100/50 p-3 md:p-4 rounded-xl flex flex-col items-center justify-center text-center transition-all hover:bg-white dark:bg-white/10 dark:border-white/10 dark:text-white dark:hover:bg-white/15">
+              <MapPin className="h-5 w-5 text-primary/70 mb-1.5 dark:text-white/70" />
+              <span className="text-[10px] md:text-xs text-neutral font-bold dark:text-white/60">{t.dbStatsRegionCount}</span>
+              <span className="text-lg md:text-xl font-bold font-mono mt-1 text-strong dark:text-white">
                 {state.dbStats?.regions?.toLocaleString("ko-KR") ?? 0}
               </span>
             </div>
-            <div className="bg-white/10 backdrop-blur-md border border-white/10 p-3 md:p-4 rounded-xl flex flex-col items-center justify-center text-center transition-all hover:bg-white/15">
-              <Building2 className="h-5 w-5 text-white/70 mb-1.5" />
-              <span className="text-[10px] md:text-xs text-white/60 font-bold">{t.dbStatsComplexCount}</span>
-              <span className="text-lg md:text-xl font-bold font-mono mt-1 text-white">
+            <div className="bg-white/80 border border-primary-100/50 p-3 md:p-4 rounded-xl flex flex-col items-center justify-center text-center transition-all hover:bg-white dark:bg-white/10 dark:border-white/10 dark:text-white dark:hover:bg-white/15">
+              <Building2 className="h-5 w-5 text-primary/70 mb-1.5 dark:text-white/70" />
+              <span className="text-[10px] md:text-xs text-neutral font-bold dark:text-white/60">{t.dbStatsComplexCount}</span>
+              <span className="text-lg md:text-xl font-bold font-mono mt-1 text-strong dark:text-white">
                 {state.dbStats?.complexes?.toLocaleString("ko-KR") ?? 0}
               </span>
             </div>
-            <div className="bg-white/10 backdrop-blur-md border border-white/10 p-3 md:p-4 rounded-xl flex flex-col items-center justify-center text-center transition-all hover:bg-white/15">
-              <TrendingUp className="h-5 w-5 text-white/70 mb-1.5" />
-              <span className="text-[10px] md:text-xs text-white/60 font-bold">{t.dbStatsDealCount}</span>
-              <span className="text-lg md:text-xl font-bold font-mono mt-1 text-white">
+            <div className="bg-white/80 border border-primary-100/50 p-3 md:p-4 rounded-xl flex flex-col items-center justify-center text-center transition-all hover:bg-white dark:bg-white/10 dark:border-white/10 dark:text-white dark:hover:bg-white/15">
+              <TrendingUp className="h-5 w-5 text-primary/70 mb-1.5 dark:text-white/70" />
+              <span className="text-[10px] md:text-xs text-neutral font-bold dark:text-white/60">{t.dbStatsDealCount}</span>
+              <span className="text-lg md:text-xl font-bold font-mono mt-1 text-strong dark:text-white">
                 {state.dbStats?.transactions?.toLocaleString("ko-KR") ?? 0}
               </span>
             </div>

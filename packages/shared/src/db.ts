@@ -639,63 +639,119 @@ export async function getComplexDetail(
   const resolvedName = resolveComplexName(db, complexName, lawdCode);
   const trend = await getComplexTrend(resolvedName, lawdCode, area);
 
-  // 1. 평수별 통계
-  let areaSql = `
+  // 1. 전체 매칭 거래 가져오기 (메모리에서 통계 연산 수행용)
+  let baseSql = `
     SELECT CAST(ROUND(t.area_m2) AS TEXT) || '㎡' AS area,
-           AVG(t.price_eok) AS avgPrice,
-           COUNT(*) AS cnt
+           t.floor AS floor,
+           t.price_eok AS priceEok
     FROM transactions t
     JOIN complexes c ON t.complex_id = c.id
     WHERE c.name = ?
   `;
-  const areaParams: any[] = [resolvedName];
+  const baseParams: any[] = [resolvedName];
   if (lawdCode) {
-    areaSql += " AND c.lawd_code = ?";
-    areaParams.push(lawdCode);
+    baseSql += " AND c.lawd_code = ?";
+    baseParams.push(lawdCode);
   }
   if (area !== undefined && area !== null) {
-    areaSql += " AND CAST(ROUND(t.area_m2) AS INTEGER) = ?";
-    areaParams.push(area);
+    baseSql += " AND CAST(ROUND(t.area_m2) AS INTEGER) = ?";
+    baseParams.push(area);
   }
-  areaSql += " GROUP BY area ORDER BY area";
 
-  const areaRows = db.prepare(areaSql).all(...areaParams);
-  const areaBreakdown = areaRows.map((r: any) => ({
-    area: r.area,
-    avgPriceEok: Number(r.avgPrice.toFixed(2)),
-    count: r.cnt,
-  }));
-  // 숫자 기준 오름차순 정렬 (좌측 소형 -> 우측 대형)
+  const allTxs = db.prepare(baseSql).all(...baseParams) as { area: string; floor: number | null; priceEok: number }[];
+
+  // Box Plot 통계 계산용 헬퍼 함수
+  function calculateBoxPlotStats(prices: number[]) {
+    if (prices.length === 0) {
+      return {
+        min: 0,
+        max: 0,
+        q1: 0,
+        median: 0,
+        q3: 0,
+        mean: 0,
+      };
+    }
+    const sorted = [...prices].sort((a, b) => a - b);
+    const count = sorted.length;
+    const min = sorted[0];
+    const max = sorted[count - 1];
+    const sum = sorted.reduce((a, b) => a + b, 0);
+    const mean = sum / count;
+
+    const getPercentile = (p: number) => {
+      const idx = p * (count - 1);
+      const low = Math.floor(idx);
+      const high = Math.ceil(idx);
+      if (low === high) return sorted[low];
+      return sorted[low] + (idx - low) * (sorted[high] - sorted[low]);
+    };
+
+    const q1 = getPercentile(0.25);
+    const median = getPercentile(0.5);
+    const q3 = getPercentile(0.75);
+
+    return {
+      min: Number(min.toFixed(2)),
+      max: Number(max.toFixed(2)),
+      q1: Number(q1.toFixed(2)),
+      median: Number(median.toFixed(2)),
+      q3: Number(q3.toFixed(2)),
+      mean: Number(mean.toFixed(2)),
+    };
+  }
+
+  // 평형별/층별 그룹화
+  const areaGroups = new Map<string, number[]>();
+  const floorGroups = new Map<number, number[]>();
+
+  for (const tx of allTxs) {
+    let aList = areaGroups.get(tx.area);
+    if (!aList) {
+      aList = [];
+      areaGroups.set(tx.area, aList);
+    }
+    aList.push(tx.priceEok);
+
+    if (tx.floor !== null && tx.floor !== undefined) {
+      let fList = floorGroups.get(tx.floor);
+      if (!fList) {
+        fList = [];
+        floorGroups.set(tx.floor, fList);
+      }
+      fList.push(tx.priceEok);
+    }
+  }
+
+  // areaBreakdown 생성
+  const areaBreakdown = Array.from(areaGroups.entries()).map(([area, prices]) => {
+    const stats = calculateBoxPlotStats(prices);
+    return {
+      area,
+      avgPriceEok: stats.mean, // 하위 호환
+      count: prices.length,
+      ...stats,
+    };
+  });
+  // 평형 기준 정렬 (숫자 크기 순)
   areaBreakdown.sort((a: any, b: any) => {
     const numA = parseInt(a.area) || 0;
     const numB = parseInt(b.area) || 0;
     return numA - numB;
   });
 
-  // 2. 층별 분포
-  let floorSql = `
-    SELECT t.floor AS floor, COUNT(*) AS cnt, AVG(t.price_eok) AS avgPrice
-    FROM transactions t
-    JOIN complexes c ON t.complex_id = c.id
-    WHERE c.name = ? AND t.floor IS NOT NULL
-  `;
-  const floorParams: any[] = [resolvedName];
-  if (lawdCode) {
-    floorSql += " AND c.lawd_code = ?";
-    floorParams.push(lawdCode);
-  }
-  if (area !== undefined && area !== null) {
-    floorSql += " AND CAST(ROUND(t.area_m2) AS INTEGER) = ?";
-    floorParams.push(area);
-  }
-  floorSql += " GROUP BY floor ORDER BY floor";
-
-  const floorRows = db.prepare(floorSql).all(...floorParams);
-  const floorDist = floorRows.map((r: any) => ({
-    floor: r.floor,
-    count: r.cnt,
-    avgPriceEok: Number(r.avgPrice.toFixed(2)),
-  }));
+  // floorDist 생성
+  const floorDist = Array.from(floorGroups.entries()).map(([floor, prices]) => {
+    const stats = calculateBoxPlotStats(prices);
+    return {
+      floor,
+      count: prices.length,
+      avgPriceEok: stats.mean, // 하위 호환
+      ...stats,
+    };
+  });
+  // 층수 기준 정렬
+  floorDist.sort((a: any, b: any) => a.floor - b.floor);
 
   // 3. 최근 거래 (최대 10건)
   let recentSql = `
