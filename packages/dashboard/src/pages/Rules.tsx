@@ -1,4 +1,4 @@
-import { Check, ChevronLeft, ChevronRight, History, Pencil, Play, RefreshCw, Search, Send, Trash2, X, Bell } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, History, Pencil, Play, RefreshCw, Search, Send, Trash2, X, Bell, HelpCircle, ShieldAlert } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState, useRef } from "react";
 import { useBreakpoint } from "../useBreakpoint";
 import { createRule, deleteRule, getApartments, patchRule, runRule, searchRegions } from "../api";
@@ -9,6 +9,7 @@ import { classNames, formatDate } from "../lib/format";
 import type { ComparisonCriteria, DashboardState, RegionSearchResult, RuleInput, WatchRule, ComplexSearchResult } from "../types";
 import { MapPin } from "lucide-react";
 import { copy } from "../locales/ko";
+import { TelegramGuideModal } from "../components/TelegramGuideModal";
 
 const locale = "ko";
 const t = copy[locale];
@@ -33,15 +34,20 @@ function RuleForm({
   initData,
   clearInitData,
   onSave,
-  onCancel
+  onCancel,
+  isAdmin = false,
+  currentRulesCount = 0
 }: {
   editingRule?: WatchRule;
   initData?: { regionName: string; regionCode?: string; apartmentKeywords: string[] } | null;
   clearInitData?: () => void;
   onSave: () => void;
   onCancel: () => void;
+  isAdmin?: boolean;
+  currentRulesCount?: number;
 }) {
   const [step, setStep] = useState(1);
+  const [isTelegramGuideOpen, setIsTelegramGuideOpen] = useState(false);
   const [form, setForm] = useState<RuleInput>(() => ({
     ...initialForm,
     name: t.ruleInitialName
@@ -211,8 +217,15 @@ function RuleForm({
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    setSaving(true);
     setError("");
+
+    const isLimitExceeded = !isAdmin && !editingRule && currentRulesCount >= 5;
+    if (isLimitExceeded) {
+      setError("일반 사용자는 알림 규칙을 최대 5개까지만 등록할 수 있습니다.");
+      return;
+    }
+
+    setSaving(true);
     try {
       if (editingRule) {
         await patchRule(editingRule.id, form);
@@ -239,6 +252,14 @@ function RuleForm({
       }
     >
       <div className="space-y-6">
+        {!isAdmin && !editingRule && (
+          <div className="mx-2 sm:mx-6 bg-primary/5 border border-primary/10 rounded-xl p-3 text-[11px] text-primary font-bold flex justify-between items-center animate-in fade-in duration-300">
+            <span>💡 일반 사용자는 알림 규칙을 최대 5개까지 생성할 수 있습니다.</span>
+            <span className="bg-primary/15 px-2.5 py-0.5 rounded-full text-xs">
+              {currentRulesCount} / 5개
+            </span>
+          </div>
+        )}
         {/* Step Wizard Stepper */}
         <div className="mb-6 flex items-center justify-between px-2 sm:px-6">
           {[1, 2, 3].map((s) => (
@@ -553,7 +574,17 @@ function RuleForm({
               </div>
 
               <div className="space-y-1.5 sm:col-span-2">
-                 <span className="text-sm font-semibold text-strong">{t.alertChannels}</span>
+                 <div className="flex items-center justify-between">
+                    <span className="text-sm font-semibold text-strong">{t.alertChannels}</span>
+                    <button
+                      type="button"
+                      onClick={() => setIsTelegramGuideOpen(true)}
+                      className="text-xs text-primary hover:underline font-semibold flex items-center gap-1"
+                    >
+                      <HelpCircle size={13} />
+                      <span>설정 가이드</span>
+                    </button>
+                 </div>
                  <div className="flex gap-4 p-3 rounded-lg border border-normal/30 bg-alternative/50">
                     <label className="flex items-center gap-2 text-sm text-neutral cursor-pointer select-none">
                       <input type="checkbox" checked readOnly disabled className="h-4 w-4 rounded text-primary" />
@@ -574,8 +605,15 @@ function RuleForm({
                       {t.channelKakao}
                     </label>
                  </div>
+                 <p className="text-[10px] text-neutral/80 mt-1">
+                   * {locale === "ko" 
+                     ? "텔레그램 봇 토큰 및 대화방 ID 설정은 좌측 메뉴 [환경 설정]에서 개인별로 등록할 수 있습니다." 
+                     : "Telegram Bot Token and Chat ID can be configured personally in the [Settings] menu."}
+                 </p>
               </div>
             </div>
+
+            {error && <p className="text-xs text-warn font-bold mt-2">{error}</p>}
 
             <div className="flex gap-2 pt-2">
               <button
@@ -587,16 +625,26 @@ function RuleForm({
               </button>
               <form onSubmit={submit} className="flex-[2]">
                 <button
-                  className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-2.5 text-sm font-bold text-white disabled:opacity-60 hover:opacity-90 transition-all shadow-md shadow-primary/20 active:scale-95"
-                  disabled={saving}
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-2.5 text-sm font-bold text-white disabled:opacity-60 hover:opacity-90 transition-all shadow-md shadow-primary/20 active:scale-95 disabled:bg-slate-400 disabled:shadow-none"
+                  disabled={saving || (!isAdmin && !editingRule && currentRulesCount >= 5)}
                 >
                   {saving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                   {saving ? t.buttonSaveProgress : editingRule ? t.buttonSaveComplete : t.buttonSave}
                 </button>
               </form>
             </div>
+            {!isAdmin && !editingRule && currentRulesCount >= 5 && (
+              <p className="text-[10px] text-warn font-semibold text-center mt-2">
+                ⚠️ 최대 5개의 규칙만 등록 가능하여 신규 추가가 제한됩니다. (현재: {currentRulesCount}/5개)
+              </p>
+            )}
           </div>
         )}
+        <TelegramGuideModal
+          isOpen={isTelegramGuideOpen}
+          onClose={() => setIsTelegramGuideOpen(false)}
+          locale={locale}
+        />
       </div>
     </SectionCard>
   );
@@ -755,15 +803,22 @@ export function RulesPage({
   state,
   onChanged,
   initData,
-  clearInitData
+  clearInitData,
+  onNavigate,
+  isAdmin = false
 }: {
   state: DashboardState | undefined;
   onChanged: () => void;
   initData?: { regionName: string; regionCode?: string; apartmentKeywords: string[] } | null;
   clearInitData?: () => void;
+  onNavigate?: (view: any) => void;
+  isAdmin?: boolean;
 }) {
   const { isMobile } = useBreakpoint();
   const [editingRule, setEditingRule] = useState<WatchRule | undefined>();
+  const [isTelegramGuideOpen, setIsTelegramGuideOpen] = useState(false);
+
+  const telegramNotConfigured = state && !state.config.telegramConfigured;
 
   return (
     <div className="space-y-6">
@@ -777,33 +832,74 @@ export function RulesPage({
         </header>
       )}
 
-      <RuleForm
-        editingRule={editingRule}
-        initData={initData}
-        clearInitData={clearInitData}
-        onSave={() => {
-          setEditingRule(undefined);
-          onChanged();
-        }}
-        onCancel={() => setEditingRule(undefined)}
-      />
-
-      <div>
-        <div className="mb-4 flex items-center justify-between px-1">
-          <h2 className="text-lg font-bold text-strong tracking-tight">{t.ruleListTitle}</h2>
-          <span className="text-xs font-bold text-neutral bg-elevated border border-normal px-2 py-0.5 rounded-full">
-            {state?.rules.length ?? 0}{t.unitCount}
-          </span>
+      {telegramNotConfigured ? (
+        <div className="rounded-xl border border-warn bg-warn/5 p-6 shadow-sm space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="flex items-start gap-4">
+            <div className="p-2.5 bg-warn/10 text-warn rounded-xl shrink-0">
+              <ShieldAlert className="h-6 w-6" />
+            </div>
+            <div className="flex-1 space-y-1.5">
+              <h3 className="text-sm font-bold text-strong">📬 텔레그램 알림 채널 미설정</h3>
+              <p className="text-xs text-neutral leading-relaxed">
+                실거래가 감시 조건 충족 시 실시간 알림을 수신하기 위한 텔레그램 연동이 설정되지 않았습니다.<br />
+                알림 규칙을 등록하고 실행하기 전에 텔레그램 봇 토큰 및 대화방 ID를 먼저 입력해야 알림을 정상적으로 수신하실 수 있습니다.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2.5 pl-0 sm:pl-12 pt-2">
+            <button
+              onClick={() => onNavigate?.("settings")}
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-primary text-white text-xs font-bold rounded-lg hover:opacity-90 transition-opacity shadow-lg shadow-primary/10"
+            >
+              <span>환경 설정으로 이동하여 등록하기</span>
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={() => setIsTelegramGuideOpen(true)}
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 border border-normal bg-normal hover:bg-alternative text-strong text-xs font-bold rounded-lg transition-colors"
+            >
+              <span>설정 방법 가이드 보기</span>
+            </button>
+          </div>
+          <TelegramGuideModal
+            isOpen={isTelegramGuideOpen}
+            onClose={() => setIsTelegramGuideOpen(false)}
+            locale={locale}
+          />
         </div>
-        <RuleList
-          rules={state?.rules ?? []}
-          onChanged={onChanged}
-          onEdit={(rule) => {
-            setEditingRule(rule);
-            window.scrollTo({ top: 0, behavior: "smooth" });
-          }}
-        />
-      </div>
+      ) : (
+        <>
+          <RuleForm
+            editingRule={editingRule}
+            initData={initData}
+            clearInitData={clearInitData}
+            onSave={() => {
+              setEditingRule(undefined);
+              onChanged();
+            }}
+            onCancel={() => setEditingRule(undefined)}
+            isAdmin={isAdmin}
+            currentRulesCount={state?.rules.length ?? 0}
+          />
+
+          <div>
+            <div className="mb-4 flex items-center justify-between px-1">
+              <h2 className="text-lg font-bold text-strong tracking-tight">{t.ruleListTitle}</h2>
+              <span className="text-xs font-bold text-neutral bg-elevated border border-normal px-2 py-0.5 rounded-full">
+                {state?.rules.length ?? 0}{t.unitCount}
+              </span>
+            </div>
+            <RuleList
+              rules={state?.rules ?? []}
+              onChanged={onChanged}
+              onEdit={(rule) => {
+                setEditingRule(rule);
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
+            />
+          </div>
+        </>
+      )}
     </div>
   );
 }

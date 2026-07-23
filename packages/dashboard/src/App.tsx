@@ -23,7 +23,7 @@ function App() {
   const [complexAnalysisInitData, setComplexAnalysisInitData] = useState<{ complexName: string; lawdCode?: string } | null>(null);
   const [drilldownFromOverview, setDrilldownFromOverview] = useState(false);
   
-  const adminViews: View[] = ["collect", "dbAdmin", "allowedAccounts", "settings"];
+  const adminViews: View[] = ["collect", "dbAdmin", "allowedAccounts"];
   useEffect(() => {
     if (auth?.isAuthenticated && !auth.isAdmin && adminViews.includes(view)) {
       setView("dashboard");
@@ -97,6 +97,8 @@ function App() {
           onChanged={() => void refresh()}
           initData={rulesInitData}
           clearInitData={() => setRulesInitData(null)}
+          onNavigate={setView}
+          isAdmin={auth?.isAdmin}
         />
       )}
       {view === "explore" && <ExplorePage />}
@@ -131,7 +133,7 @@ function App() {
       {view === "collect" && <CollectPage />}
       {view === "dbAdmin" && <DatabaseAdminPage />}
       {view === "allowedAccounts" && <AllowedAccountsPage onChanged={() => void refresh()} currentUserEmail={auth?.email} />}
-      {view === "settings" && <SettingsPage state={state} onChanged={() => void refresh()} />}
+      {view === "settings" && <SettingsPage state={state} onChanged={() => void refresh()} isAdmin={auth?.isAdmin} />}
     </Layout>
   );
 }

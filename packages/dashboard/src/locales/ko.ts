@@ -293,7 +293,22 @@ export const copy = {
     alertRegisterBtn: "알림 규칙 등록",
     stationSearchFailed: "지하철역 조회에 실패했습니다.",
     geocodeBatchFailed: "Geocoding 배치 실행에 실패했습니다.",
-    distance: "거리"
+    distance: "거리",
+    telegramGuideTitle: "텔레그램 알림 설정 가이드",
+    telegramGuideSubtitle: "아파트 실거래 조건 충족 시 알림을 실시간 수신할 텔레그램 설정을 안내합니다.",
+    telegramStep1: "1단계: 봇 생성하기 (BotFather)",
+    telegramStep1Desc: "Telegram 앱에서 @BotFather를 찾아 대화를 시작한 후 /newbot 명령을 전송하여 봇을 만듭니다. 생성 과정 중 봇의 이름과 Username을 지정하면, 고유한 'HTTP API Token'을 획득할 수 있습니다.",
+    telegramStep2: "2단계: 봇과의 개인 대화방 생성 및 /start 전송",
+    telegramStep2Desc: "생성된 봇의 Telegram 대화 링크를 클릭하여 대화를 시작하고 반드시 /start 메시지를 보내야 봇이 메시지를 발송할 수 있는 권한이 활성화됩니다.",
+    telegramStep3: "3단계: 대화방 ID (Chat ID) 알아내기",
+    telegramStep3Desc: "수신할 대화방 ID를 찾기 위해 Telegram에서 @getidsbot을 검색해 대화방에 들어가거나, 봇을 초대한 그룹방에 해당 ID 봇을 초대하여 Chat ID를 얻습니다. (개인 ID는 9~10자리 양수, 그룹/채널 ID는 -로 시작하는 음수입니다.)",
+    telegramStep4: "4단계: 환경설정 저장",
+    telegramStep4Desc: "대시보드의 '환경 설정 > 외부 API 연동 설정 > 텔레그램 알림 채널' 메뉴로 이동하여 획득한 '봇 토큰'과 '대화방 ID'를 입력한 후 저장합니다.",
+    telegramOpenBotFather: "@BotFather 바로가기",
+    telegramOpenGetIdsBot: "@getidsbot 바로가기",
+    telegramCopy: "복사",
+    telegramCopied: "복사 완료!",
+    telegramClose: "닫기"
   },
   en: {
     // Navigation / Breadcrumb Parents
@@ -579,7 +594,22 @@ export const copy = {
     alertRegisterBtn: "Register Alert Rule",
     stationSearchFailed: "Failed to query subway station.",
     geocodeBatchFailed: "Failed to execute Geocoding batch.",
-    distance: "Distance"
+    distance: "Distance",
+    telegramGuideTitle: "Telegram Setup Guide",
+    telegramGuideSubtitle: "Guide to set up Telegram notifications when apartment transactions meet your conditions.",
+    telegramStep1: "Step 1: Create a Bot (BotFather)",
+    telegramStep1Desc: "Search for @BotFather in Telegram and send /newbot. Follow the instructions to choose a name and username for your bot. You will then receive the 'HTTP API Token'.",
+    telegramStep2: "Step 2: Start Chat with the Bot & Send /start",
+    telegramStep2Desc: "Click the bot link provided by BotFather to start a chat and send /start. This step is essential to permit the bot to send you messages.",
+    telegramStep3: "Step 3: Get your Chat ID",
+    telegramStep3Desc: "To get the destination Chat ID, search for @getidsbot in Telegram and start a chat, or add the bot to your group/channel where you want to receive alerts. (User ID is positive, Group/Channel ID is negative starting with -.)",
+    telegramStep4: "Step 4: Save & Apply Settings",
+    telegramStep4Desc: "Go to 'Settings > External API Settings > Telegram Channel' in the dashboard, input the Bot Token and Chat ID, then save the changes.",
+    telegramOpenBotFather: "Go to @BotFather",
+    telegramOpenGetIdsBot: "Go to @getidsbot",
+    telegramCopy: "Copy",
+    telegramCopied: "Copied!",
+    telegramClose: "Close"
   }
 } as const;
 
