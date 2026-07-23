@@ -318,17 +318,32 @@ export default function ComplexTab({ initialComplexName = "", lawdCode, areaUnit
       return;
     }
 
-    const script = document.createElement("script");
-    script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${apiKey}&libraries=services&autoload=false`;
-    script.async = true;
+    const scriptId = "kakao-map-sdk";
+    let script = document.getElementById(scriptId) as HTMLScriptElement | null;
 
-    script.onload = () => {
-      window.kakao.maps.load(() => {
-        setMapSdkLoaded(true);
-      });
+    const handleScriptLoad = () => {
+      if (window.kakao && window.kakao.maps) {
+        window.kakao.maps.load(() => {
+          setMapSdkLoaded(true);
+        });
+      }
     };
 
-    document.head.appendChild(script);
+    if (!script) {
+      script = document.createElement("script");
+      script.id = scriptId;
+      script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${apiKey}&libraries=services&autoload=false`;
+      script.async = true;
+      document.head.appendChild(script);
+    }
+
+    script.addEventListener("load", handleScriptLoad);
+
+    return () => {
+      if (script) {
+        script.removeEventListener("load", handleScriptLoad);
+      }
+    };
   }, []);
 
   // 도보/차량 시간 계산 헬퍼 함수
