@@ -66,19 +66,25 @@ export function createRouter() {
     res.json({ ok: true });
   });
 
-  router.get("/config", (_req, res) => {
-    res.json({
-      telegramConfigured: isTelegramConfigured(),
-      kakaoStatus: "phase-2",
-      kakaoSearchConfigured: isKakaoConfigured(),
-      kakaoConfigured: Boolean(process.env.KAKAO_REST_API_KEY),
-      jusoConfigured: Boolean(process.env.JUSO_CONFM_KEY),
-      dataGoKrConfigured: Boolean(process.env.DATA_GO_KR_API_KEY),
-      kakaoJavascriptConfigured: Boolean(process.env.KAKAO_JAVASCRIPT_KEY),
-      kakaoJavascriptKey: process.env.KAKAO_JAVASCRIPT_KEY || "",
-      kakaoNativeAppConfigured: Boolean(process.env.KAKAO_NATIVE_APP_KEY),
-      dataSourceNotice: getSourceLimitNotice()
-    });
+  router.get("/config", async (_req, res, next) => {
+    try {
+      const config = await getSystemConfig();
+      res.json({
+        telegramConfigured: isTelegramConfigured(),
+        kakaoStatus: "phase-2",
+        kakaoSearchConfigured: isKakaoConfigured(),
+        kakaoConfigured: Boolean(process.env.KAKAO_REST_API_KEY),
+        jusoConfigured: Boolean(process.env.JUSO_CONFM_KEY),
+        dataGoKrConfigured: Boolean(process.env.DATA_GO_KR_API_KEY),
+        kakaoJavascriptConfigured: Boolean(process.env.KAKAO_JAVASCRIPT_KEY),
+        kakaoJavascriptKey: process.env.KAKAO_JAVASCRIPT_KEY || "",
+        kakaoNativeAppConfigured: Boolean(process.env.KAKAO_NATIVE_APP_KEY),
+        dataSourceNotice: getSourceLimitNotice(),
+        geminiConfigured: Boolean(config.geminiApiKey || process.env.GEMINI_API_KEY)
+      });
+    } catch (err) {
+      next(err);
+    }
   });
 
   router.get("/system-config", adminRequired, async (_req, res, next) => {

@@ -219,7 +219,8 @@ export async function getSystemConfig(): Promise<SystemConfig> {
     googleClientSecret: dbConfig.googleClientSecret || "",
     googleRedirectUri: dbConfig.googleRedirectUri || "",
     allowedEmails: dbConfig.allowedEmails || "",
-    adminEmails: dbConfig.adminEmails || ""
+    adminEmails: dbConfig.adminEmails || "",
+    geminiApiKey: dbConfig.geminiApiKey || ""
   };
 }
 
@@ -246,6 +247,7 @@ export async function saveSystemConfig(config: SystemConfig): Promise<SystemConf
   if (config.googleRedirectUri !== undefined) process.env.GOOGLE_REDIRECT_URI = config.googleRedirectUri;
   if (config.allowedEmails !== undefined) process.env.ALLOWED_EMAILS = config.allowedEmails;
   if (config.adminEmails !== undefined) process.env.ADMIN_EMAILS = config.adminEmails;
+  if (config.geminiApiKey !== undefined) process.env.GEMINI_API_KEY = config.geminiApiKey;
 
   return getSystemConfig();
 }
@@ -264,4 +266,5 @@ export async function applySystemConfigToEnv() {
   if (config.googleRedirectUri) process.env.GOOGLE_REDIRECT_URI = config.googleRedirectUri;
   if (config.allowedEmails) process.env.ALLOWED_EMAILS = config.allowedEmails;
   if (config.adminEmails) process.env.ADMIN_EMAILS = config.adminEmails;
+  if (config.geminiApiKey) process.env.GEMINI_API_KEY = config.geminiApiKey;
 }

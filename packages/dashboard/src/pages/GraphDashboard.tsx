@@ -8,6 +8,7 @@ import { BarChart3, Sparkles } from "lucide-react";
 import { copy } from "../locales/ko";
 import { PageHeader } from "../components/PageHeader";
 import { classNames } from "../lib/format";
+import type { AppConfig } from "../types";
 
 const locale = "ko";
 const t = copy[locale];
@@ -21,9 +22,10 @@ interface GraphDashboardProps {
   onNavigateToRules?: (initData: { regionName: string; regionCode?: string; apartmentKeywords: string[] }) => void;
   /** 종합 현황에서 단지 클릭 시 단지 분석으로 이동하는 콜백 */
   onSelectComplex?: (complexName: string, lawdCode?: string) => void;
+  config?: AppConfig;
 }
 
-export default function GraphDashboard({ onNavigateToRules, onSelectComplex }: GraphDashboardProps) {
+export default function GraphDashboard({ onNavigateToRules, onSelectComplex, config }: GraphDashboardProps) {
   const [activeTab, setActiveTab] = useState<"overview" | "insight">("overview");
 
   const [filter, setFilter] = useState<GraphFilter>({
@@ -186,7 +188,7 @@ export default function GraphDashboard({ onNavigateToRules, onSelectComplex }: G
         )}
 
         {activeTab === "insight" && (
-          <InsightTab filter={filter} regionName={regionName} />
+          <InsightTab filter={filter} regionName={regionName} geminiConfigured={config?.geminiConfigured} />
         )}
       </div>
     </div>

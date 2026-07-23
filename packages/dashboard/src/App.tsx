@@ -104,6 +104,7 @@ function App() {
         <GraphDashboard
           onNavigateToRules={handleNavigateToRules}
           onSelectComplex={handleSelectComplex}
+          config={state?.config}
         />
       )}
       {view === "complexAnalysis" && (

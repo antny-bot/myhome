@@ -45,7 +45,8 @@ const i18n = {
     generateAiInsight: "AI 리포트 자동 생성 (Gemini)",
     generatingAiInsight: "AI 분석 리포트 생성 중...",
     generateSuccess: "인사이트 리포트가 성공적으로 생성되었습니다.",
-    selectRegionAlert: "검색 필터에서 지역(법정동)을 먼저 선택해 주세요."
+    selectRegionAlert: "검색 필터에서 지역(법정동)을 먼저 선택해 주세요.",
+    geminiNotConfigured: "Gemini API key가 설정되지 않아 자동 생성이 비활성화되었습니다. 시스템 설정에서 키를 등록해 주세요."
   },
   en: {
     write: "Write",
@@ -85,7 +86,8 @@ const i18n = {
     generateAiInsight: "Auto-generate AI Report (Gemini)",
     generatingAiInsight: "Generating AI Analysis Report...",
     generateSuccess: "Insight report has been successfully generated.",
-    selectRegionAlert: "Please select a region in the search filter first."
+    selectRegionAlert: "Please select a region in the search filter first.",
+    geminiNotConfigured: "Gemini API key is not configured. Auto-generation is disabled. Please configure it in system settings."
   }
 };
 
@@ -136,9 +138,10 @@ const MarkdownComponents = {
 interface InsightTabProps {
   filter: GraphFilter;
   regionName?: string;
+  geminiConfigured?: boolean;
 }
 
-export default function InsightTab({ filter, regionName }: InsightTabProps) {
+export default function InsightTab({ filter, regionName, geminiConfigured }: InsightTabProps) {
   // 프롬프트 빌더 관련 상태
   const [dataContext, setDataContext] = useState("데이터를 불러오는 중입니다...");
   const [selectedTemplateId, setSelectedTemplateId] = useState(promptTemplates[0].id);
@@ -418,10 +421,15 @@ export default function InsightTab({ filter, regionName }: InsightTabProps) {
           </div>
 
           {/* AI 자동 생성 버튼 */}
+          {geminiConfigured === false && (
+            <div className="bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 p-2.5 rounded-lg text-[11px] leading-relaxed text-center font-medium animate-pulse mb-1">
+              ⚠️ {t("geminiNotConfigured")}
+            </div>
+          )}
           <button
             onClick={handleGenerateInsight}
-            disabled={generating || loadingContext}
-            className="w-full flex items-center justify-center gap-2 py-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:from-alternative disabled:to-alternative text-white font-bold rounded-lg shadow-lg shadow-indigo-500/20 transition"
+            disabled={generating || loadingContext || geminiConfigured === false}
+            className="w-full flex items-center justify-center gap-2 py-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:from-alternative disabled:to-alternative disabled:text-neutral/50 text-white font-bold rounded-lg shadow-lg shadow-indigo-500/20 transition"
           >
             <Sparkles size={16} className={generating ? "animate-pulse" : ""} />
             <span>{generating ? t("generatingAiInsight") : t("generateAiInsight")}</span>

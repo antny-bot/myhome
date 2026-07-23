@@ -94,6 +94,7 @@ export type AppConfig = {
   kakaoJavascriptKey?: string;
   kakaoNativeAppConfigured?: boolean;
   dataSourceNotice: string;
+  geminiConfigured?: boolean;
 };
 
 export type RegionSearchResult = {
