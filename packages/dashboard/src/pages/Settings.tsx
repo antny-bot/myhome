@@ -245,6 +245,7 @@ export function SettingsPage({ state, onChanged, isAdmin = false }: { state: Das
           {/* Form Editor */}
           <SectionCard
             title="외부 API 연동 설정"
+            className={classNames(!isAdmin && "max-w-2xl")}
           >
             {loading ? (
               <div className="flex justify-center py-6">
@@ -265,7 +266,7 @@ export function SettingsPage({ state, onChanged, isAdmin = false }: { state: Das
                   </div>
                 )}
 
-                <div className={classNames("grid gap-6", isAdmin ? "grid-cols-1 lg:grid-cols-2" : "grid-cols-1 max-w-2xl")}>
+                <div className={classNames("grid gap-6", isAdmin ? "grid-cols-1 lg:grid-cols-2" : "grid-cols-1")}>
                   {/* 1. 실거래 수집 설정 */}
                   {isAdmin && (
                     <div className="space-y-4 p-4 rounded-xl border border-normal bg-normal/30 flex flex-col justify-between">
