@@ -13,6 +13,7 @@ import { loadComplexDetail } from "../../api";
 import { SectionCard } from "../../components/SectionCard";
 import { StatCard } from "../../components/StatCard";
 import { useBreakpoint } from "../../useBreakpoint";
+import { useKakaoMap } from "../../useKakaoMap";
 import { Home, Calendar, DollarSign, Layers, MapPin, Train, ShoppingBag, School, Activity, Clock, Navigation, ArrowUpDown, TrendingUp } from "lucide-react";
 
 
@@ -298,53 +299,11 @@ export default function ComplexTab({ initialComplexName = "", lawdCode, areaUnit
   };
 
   // 카카오맵 관련 상태 및 레프
-  const [mapSdkLoaded, setMapSdkLoaded] = useState(false);
+  const { loaded: mapSdkLoaded } = useKakaoMap();
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const [mapInstance, setMapInstance] = useState<any>(null);
   const [infraMarkers, setInfraMarkers] = useState<any[]>([]);
   const [activeInfraFilter, setActiveInfraFilter] = useState<string | null>(null);
-
-  // 카카오맵 SDK 동적 로드
-  useEffect(() => {
-    // 이미 로드되었거나 SDK가 글로벌하게 존재하면 바로 로드 완료 처리
-    if (window.kakao && window.kakao.maps) {
-      setMapSdkLoaded(true);
-      return;
-    }
-
-    const apiKey = import.meta.env.VITE_KAKAO_MAP_API_KEY;
-    if (!apiKey) {
-      console.warn("[KakaoMap] VITE_KAKAO_MAP_API_KEY가 설정되지 않았습니다.");
-      return;
-    }
-
-    const scriptId = "kakao-map-sdk";
-    let script = document.getElementById(scriptId) as HTMLScriptElement | null;
-
-    const handleScriptLoad = () => {
-      if (window.kakao && window.kakao.maps) {
-        window.kakao.maps.load(() => {
-          setMapSdkLoaded(true);
-        });
-      }
-    };
-
-    if (!script) {
-      script = document.createElement("script");
-      script.id = scriptId;
-      script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${apiKey}&libraries=services&autoload=false`;
-      script.async = true;
-      document.head.appendChild(script);
-    }
-
-    script.addEventListener("load", handleScriptLoad);
-
-    return () => {
-      if (script) {
-        script.removeEventListener("load", handleScriptLoad);
-      }
-    };
-  }, []);
 
   // 도보/차량 시간 계산 헬퍼 함수
   const getTravelTime = (distanceM: number) => {
