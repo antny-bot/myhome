@@ -347,10 +347,12 @@ export default function ComplexTab({ initialComplexName = "", lawdCode, areaUnit
       title: detailData.complexInfo.name
     });
 
-    const infowindow = new window.kakao.maps.InfoWindow({
-      content: `<div style="padding:6px 12px; font-size:12px; font-weight:700; color:var(--color-semantic-label-strong); background:var(--color-semantic-background-elevated-normal); border:1px solid var(--color-semantic-line-normal-normal); border-radius:8px; text-align:center; min-width:120px;">${detailData.complexInfo.name}</div>`
+    const complexOverlay = new window.kakao.maps.CustomOverlay({
+      position: complexPosition,
+      content: `<div style="background-color:var(--color-semantic-background-elevated-normal); border:1px solid var(--color-semantic-line-normal-normal); border-radius:8px; padding:6px 12px; font-size:12px; font-weight:700; color:var(--color-semantic-label-strong); box-shadow:0 2px 4px rgba(0,0,0,0.12); margin-top:-46px; text-align:center; min-width:120px;">🏢 ${detailData.complexInfo.name}</div>`,
+      yAnchor: 1
     });
-    infowindow.open(map, complexMarker);
+    complexOverlay.setMap(map);
 
     // 2. 반경 원 500m, 1km, 2km 표시
     const circleRadii = [
@@ -396,7 +398,7 @@ export default function ComplexTab({ initialComplexName = "", lawdCode, areaUnit
     // Clean up
     return () => {
       complexMarker.setMap(null);
-      infowindow.close();
+      complexOverlay.setMap(null);
       circleInstances.forEach(c => c.setMap(null));
       subwayMarkers.forEach((s: any) => {
         s.marker.setMap(null);
