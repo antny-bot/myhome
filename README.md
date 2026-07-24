@@ -15,6 +15,22 @@
 
 ---
 
+## 📚 개발 문서 및 가이드
+
+이 프로젝트의 세부 아키텍처와 개발 규칙은 넘버링이 적용된 아래의 개발 문서를 참고하시기 바랍니다. AI 에이전트 및 개발자를 위한 전체 Sitemap과 진입 규칙은 [AGENTS.md](file:///e:/apps/myhome/AGENTS.md)에 상세히 정의되어 있습니다.
+
+| 순번 | 개발/수정 부문 | 상세 개발 문서 |
+|:---:|---|---|
+| **01** | **프로젝트 전체 구조 & 핵심 패턴 파악** | [docs/01_OVERVIEW.md](file:///e:/apps/myhome/docs/01_OVERVIEW.md) |
+| **02** | **국토부 OpenAPI 연동 & 실거래 캐싱 정책** | [docs/02_CACHE_POLICY.md](file:///e:/apps/myhome/docs/02_CACHE_POLICY.md) |
+| **03** | **백엔드 Express 서버 & 자동 수집 스케줄러** | [docs/03_BACKEND_SCHEDULER.md](file:///e:/apps/myhome/docs/03_BACKEND_SCHEDULER.md) |
+| **04** | **SQLite DB 스키마 & 집계 SQL 쿼리** | [docs/04_DATABASE.md](file:///e:/apps/myhome/docs/04_DATABASE.md) |
+| **05** | **프론트엔드 UI, Recharts 차트, 반응형/i18n** | [docs/05_DESIGN.md](file:///e:/apps/myhome/docs/05_DESIGN.md) |
+| **06** | **개발 진행 현황 & Phase별 로드맵** | [docs/06_ROADMAP.md](file:///e:/apps/myhome/docs/06_ROADMAP.md) |
+| **07** | **지역 검색 및 주소 자동완성 기능** | [docs/07_REGION_SEARCH.md](file:///e:/apps/myhome/docs/07_REGION_SEARCH.md) |
+
+---
+
 ## 🛠️ 기술 구성
 
 * **Frontend**: React (v19), TypeScript, Vite, Tailwind CSS
