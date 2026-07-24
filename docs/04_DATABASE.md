@@ -1,4 +1,4 @@
-# 로컬 SQLite 데이터베이스 가이드 (Database Guide)
+# [04] 로컬 SQLite 데이터베이스 가이드 (Database Guide)
 
 Node.js 24 내장 `node:sqlite` 모듈 도입, 파일 기반(`data/myhome.db`) 로컬 실거래 데이터베이스 스키마 및 집계 기조 설명.
 

@@ -1,4 +1,4 @@
-# myhome 프로젝트 개요
+# [01] myhome 프로젝트 개요
 
 > **아파트 알림 서비스 (Apartment Alert)** — 국토부 오픈 API 직접 호출 및 알림 자동화 + SQLite 실거래 분석 대시보드 (v0.3.0)
 
@@ -33,9 +33,13 @@ myhome/                            ← 모노레포 루트
 │       ├── docker-release.yml     ← 릴리즈 시 GHCR 빌드/푸시
 │       └── cleanup-ghcr.yml       ← 매주 월요일 오래된 이미지 삭제 (10개 보존)
 ├── docs/                          ← 프로젝트 문서
-│   ├── OVERVIEW.md                ← 이 파일
-│   ├── ROADMAP.md                 ← 전체 Phase 로드맵
-│   └── DESIGN.md                  ← UI/UX 디자인 가이드라인
+│   ├── 01_OVERVIEW.md             ← 이 파일
+│   ├── 02_CACHE_POLICY.md         ← 국토부 OpenAPI 연동 & 실거래 캐싱 정책
+│   ├── 03_BACKEND_SCHEDULER.md    ← 백엔드 Express 서버 & 자동 수집 스케줄러
+│   ├── 04_DATABASE.md             ← SQLite DB 스키마 & 집계 SQL 쿼리
+│   ├── 05_DESIGN.md               ← 프론트엔드 UI, Recharts 차트, 반응형/i18n
+│   ├── 06_ROADMAP.md              ← 개발 진행 현황 & Phase별 로드맵
+│   └── 07_REGION_SEARCH.md        ← 지역 검색 및 주소 자동완성 기능
 │
 ├── packages/
 │   ├── shared/                    ← @myhome/shared 공통 모듈
@@ -97,8 +101,8 @@ myhome/                            ← 모노레포 루트
 
 | 작업 유형 | 필독 파일 |
 |-----------|-----------|
-| 전체 로드맵·Phase 파악 | `docs/ROADMAP.md` |
-| 국토부 API 캐싱 및 수집 정책 | `docs/CACHE_POLICY.md` |
+| 전체 로드맵·Phase 파악 | `docs/06_ROADMAP.md` |
+| 국토부 API 캐싱 및 수집 정책 | `docs/02_CACHE_POLICY.md` |
 | SQLite 클라이언트 / DDL / 집계 SQL | `packages/shared/src/db.ts` |
 | 국토부 오픈 API 직접 호출 / 정규화 | `packages/shared/src/apiClient.ts` |
 | XML 응답 파싱 유틸 | `packages/shared/src/xmlParser.ts` |

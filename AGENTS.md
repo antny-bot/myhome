@@ -15,16 +15,17 @@
 
 ## 읽기 순서
 1. 이 파일 (완료)
-2. [OVERVIEW.md](file:///e:/apps/myhome/docs/OVERVIEW.md) — 프로젝트 구조·기술 스택·핵심 패턴 (항상 읽기)
+2. [01_OVERVIEW.md](file:///e:/apps/myhome/docs/01_OVERVIEW.md) — 프로젝트 구조·기술 스택·핵심 패턴 (항상 읽기)
 3. 아래 표 참조, 작업 수정 부문 맞춰 상세 개발문서 이동.
 
 ## 개발 부문별 상세 가이드 (Sitemap)
 
-| 개발/수정 부문 | 필독 개발문서 |
-|---|---|
-| **프로젝트 전체 구조 & 핵심 패턴 파악** | [docs/OVERVIEW.md](file:///e:/apps/myhome/docs/OVERVIEW.md) |
-| **국토부 OpenAPI 연동 & 실거래 캐싱 정책** | [docs/CACHE_POLICY.md](file:///e:/apps/myhome/docs/CACHE_POLICY.md) |
-| **백엔드 Express 서버 & 자동 수집 스케줄러** | [docs/BACKEND_SCHEDULER.md](file:///e:/apps/myhome/docs/BACKEND_SCHEDULER.md) |
-| **SQLite DB 스키마 & 집계 SQL 쿼리** | [docs/DATABASE.md](file:///e:/apps/myhome/docs/DATABASE.md) |
-| **프론트엔드 UI, Recharts 차트, 반응형/i18n** | [docs/DESIGN.md](file:///e:/apps/myhome/docs/DESIGN.md) |
-| **개발 진행 현황 & Phase별 로드맵** | [docs/ROADMAP.md](file:///e:/apps/myhome/docs/ROADMAP.md) |
+| 순번 | 개발/수정 부문 | 필독 개발문서 |
+|---|---|---|
+| 01 | **프로젝트 전체 구조 & 핵심 패턴 파악** | [docs/01_OVERVIEW.md](file:///e:/apps/myhome/docs/01_OVERVIEW.md) |
+| 02 | **국토부 OpenAPI 연동 & 실거래 캐싱 정책** | [docs/02_CACHE_POLICY.md](file:///e:/apps/myhome/docs/02_CACHE_POLICY.md) |
+| 03 | **백엔드 Express 서버 & 자동 수집 스케줄러** | [docs/03_BACKEND_SCHEDULER.md](file:///e:/apps/myhome/docs/03_BACKEND_SCHEDULER.md) |
+| 04 | **SQLite DB 스키마 & 집계 SQL 쿼리** | [docs/04_DATABASE.md](file:///e:/apps/myhome/docs/04_DATABASE.md) |
+| 05 | **프론트엔드 UI, Recharts 차트, 반응형/i18n** | [docs/05_DESIGN.md](file:///e:/apps/myhome/docs/05_DESIGN.md) |
+| 06 | **개발 진행 현황 & Phase별 로드맵** | [docs/06_ROADMAP.md](file:///e:/apps/myhome/docs/06_ROADMAP.md) |
+| 07 | **지역 검색 및 주소 자동완성 기능** | [docs/07_REGION_SEARCH.md](file:///e:/apps/myhome/docs/07_REGION_SEARCH.md) |
