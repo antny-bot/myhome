@@ -202,6 +202,13 @@ export function initDb(): void {
   }
   // lawd_code 컬럼 인덱스 생성 (기본 DDL에서 제거하여, 컬럼이 확실히 존재하는 상태에서 안전하게 항상 생성하도록 함)
   db.exec('CREATE INDEX IF NOT EXISTS idx_transactions_lawd_code_deal_date ON transactions(lawd_code, deal_date)');
+
+  // -- user_settings 테이블 password_hash 컬럼 마이그레이션 (기존 DB 호환)
+  const userSettingsCols = db.prepare("PRAGMA table_info(user_settings)").all() as { name: string }[];
+  const userSettingsColNames = new Set(userSettingsCols.map((c: any) => c.name));
+  if (!userSettingsColNames.has('password_hash')) {
+    db.exec('ALTER TABLE user_settings ADD COLUMN password_hash TEXT');
+  }
 }
 
 export function closeDb(): void {
@@ -1942,5 +1949,71 @@ export function getActivityStats(): {
     totalUsers,
     totalLogs
   };
+}
+
+export function getUserPasswordHash(email: string): string | null {
+  const db = getDb();
+  const row = db.prepare(`
+    SELECT password_hash AS passwordHash
+    FROM user_settings
+    WHERE email = ?
+  `).get(email.toLowerCase()) as any | undefined;
+  return row?.passwordHash ?? null;
+}
+
+export function updateUserCredentials(
+  currentEmail: string,
+  newEmail: string,
+  passwordHash: string | null
+): void {
+  const db = getDb();
+  const now = new Date().toISOString();
+
+  const current = currentEmail.toLowerCase();
+  const next = newEmail.toLowerCase();
+
+  // newEmail user_settings 레코드 존재 검사
+  const existing = db.prepare("SELECT email FROM user_settings WHERE email = ?").get(next);
+  if (!existing) {
+    // currentEmail의 기존 데이터를 가져와 복사
+    const currentSettings = db.prepare(`
+      SELECT telegram_bot_token, telegram_chat_id, kakao_rest_api_key, alerted_dedupe_keys
+      FROM user_settings
+      WHERE email = ?
+    `).get(current) as any | undefined;
+
+    const botToken = currentSettings?.telegram_bot_token ?? null;
+    const chatId = currentSettings?.telegram_chat_id ?? null;
+    const kakaoKey = currentSettings?.kakao_rest_api_key ?? null;
+    const alertedKeys = currentSettings?.alerted_dedupe_keys ?? "[]";
+
+    db.prepare(`
+      INSERT INTO user_settings (email, telegram_bot_token, telegram_chat_id, kakao_rest_api_key, alerted_dedupe_keys, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(next, botToken, chatId, kakaoKey, alertedKeys, now);
+  }
+
+  // 비밀번호가 세팅된 경우 해시 업데이트
+  if (passwordHash !== null) {
+    db.prepare(`
+      UPDATE user_settings
+      SET password_hash = ?, updated_at = ?
+      WHERE email = ?
+    `).run(passwordHash, now, next);
+  }
+
+  // 이메일이 변경된 경우 관련 테이블의 이메일 이그레이션 진행
+  if (current !== next) {
+    db.prepare("UPDATE rules SET user_email = ?, updated_at = ? WHERE user_email = ?").run(next, now, current);
+    db.prepare("UPDATE graph_presets SET user_email = ? WHERE user_email = ?").run(next, current);
+    db.prepare("UPDATE graph_presets_overview SET user_email = ? WHERE user_email = ?").run(next, current);
+    db.prepare("UPDATE graph_presets_analysis SET user_email = ? WHERE user_email = ?").run(next, current);
+    db.prepare("UPDATE check_runs SET user_email = ? WHERE user_email = ?").run(next, current);
+    db.prepare("UPDATE notifications SET user_email = ? WHERE user_email = ?").run(next, current);
+    db.prepare("UPDATE user_activity_logs SET user_email = ? WHERE user_email = ?").run(next, current);
+
+    // 구 이메일 레코드 삭제
+    db.prepare("DELETE FROM user_settings WHERE email = ?").run(current);
+  }
 }
 

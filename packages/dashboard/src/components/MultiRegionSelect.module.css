@@ -1,0 +1,45 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  align-items: center;
+}
+.chip {
+  background: var(--bg-elevated, #f0f0f0);
+  border: 1px solid var(--border-normal, #ccc);
+  border-radius: 0.25rem;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.chipClose {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-weight: bold;
+}
+.clearAll {
+  background: transparent;
+  border: none;
+  color: var(--color-warn, #d9534f);
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+.searchInput {
+  width: 100%;
+}
+.extraChip {
+  background: var(--bg-muted, #e0e0e0);
+  border: 1px solid var(--border-normal, #ccc);
+  border-radius: 0.25rem;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.85rem;
+  color: var(--color-primary, #333);
+}

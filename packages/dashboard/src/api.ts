@@ -382,10 +382,43 @@ export function loadNearbyStation(station: string, radius = 500) {
       distanceM: number;
       dongName: string | null;
       jibun: string | null;
+      hasDbData?: boolean;
     }[];
+    /** 실시간 국토부 API로 발견된 단지 목록 */
+    liveComplexes: {
+      name: string;
+      lawdCode: string;
+      regionName: string;
+      lat: number | null;
+      lng: number | null;
+      distanceM: number | null;
+      dongName: string | null;
+      jibun: string | null;
+      hasDbData: boolean;
+    }[];
+    /** 역 주소 기반 법정동코드 */
+    stationLawdCode: string | null;
     geocodeStats: { total: number; geocoded: number; pending: number };
   }>(`/api/graph/nearby-station?${params.toString()}`);
 }
+
+/**
+ * 특정 단지의 최근 12개월 실거래 데이터를 API에서 가져와 DB에 적재
+ */
+export function fetchComplexData(complexName: string, lawdCode: string, regionName?: string) {
+  return request<{
+    ok: boolean;
+    complexName: string;
+    lawdCode: string;
+    inserted: number;
+    months: string[];
+    alreadyCached: string[];
+  }>("/api/graph/complex-fetch", {
+    method: "POST",
+    body: JSON.stringify({ complexName, lawdCode, regionName }),
+  });
+}
+
 
 export function triggerGeocodeBatch(lawdCode?: string) {
   return request<{ total: number; success: number; failed: number }>("/api/graph/geocode-batch", {
@@ -405,6 +438,20 @@ export function checkAuth() {
 export function logout() {
   return request<{ ok: boolean }>("/api/auth/logout", {
     method: "POST"
+  });
+}
+
+export function loginLocal(email: string, password: string) {
+  return request<{ ok: boolean; email: string }>("/api/auth/login-local", {
+    method: "POST",
+    body: JSON.stringify({ email, password })
+  });
+}
+
+export function updateCredentials(email: string, password?: string) {
+  return request<{ ok: boolean; email: string }>("/api/auth/credentials", {
+    method: "POST",
+    body: JSON.stringify({ email, password })
   });
 }
 

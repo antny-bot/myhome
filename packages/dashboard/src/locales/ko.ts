@@ -324,7 +324,11 @@ export const copy = {
     activityTrends: "최근 활동 추이 (14일)",
     activityDistribution: "활동 유형별 분포",
     payload: "추가 정보",
-    viewPayload: "상세 데이터"
+    viewPayload: "상세 데이터",
+    recentSearch: "최근 검색",
+    recentSearchClear: "전체 삭제",
+    recentRegions: "최근 검색 지역",
+    recentStations: "최근 검색 지하철역"
   },
   en: {
     // Navigation / Breadcrumb Parents
@@ -346,6 +350,11 @@ export const copy = {
     subBreadcrumb: "Apartment Sales",
     title: "Transaction Explorer",
     subtitle: "View and manage transaction stats for registered regions (automatically updated daily at 6 AM via MOLIT API).",
+    addRegionTitle: "Register New Region",
+    addRegionSuccess: "Region added to collection targets (collected automatically every morning).",
+    deleteRegionSuccess: "Region removed from collection targets.",
+    regionsListTitle: "Collection & Aggregation Regions",
+    deleteRegion: "Delete",
     tradeType: "Trade Type",
     sale: "Sale",
     jeonse: "Jeonse",
@@ -641,7 +650,11 @@ export const copy = {
     activityTrends: "Recent Activity Trends (14 days)",
     activityDistribution: "Activity Distribution",
     payload: "Payload",
-    viewPayload: "View Details"
+    viewPayload: "View Details",
+    recentSearch: "Recent Search",
+    recentSearchClear: "Clear All",
+    recentRegions: "Recent Regions",
+    recentStations: "Recent Stations"
   }
 } as const;
 

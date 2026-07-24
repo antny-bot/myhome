@@ -381,7 +381,7 @@ export function Layout({
               </div>
               {!collapsed && (
                 <>
-                  <span className="flex-1 text-left text-app-body-sm font-medium text-slate-700 dark:text-slate-200 truncate min-w-0">
+                  <span className="flex-1 text-left text-xs font-normal text-slate-500 dark:text-slate-400 truncate min-w-0">
                     {displayName}
                   </span>
                   <Settings size={14} className="shrink-0 text-slate-400 dark:text-slate-500" />

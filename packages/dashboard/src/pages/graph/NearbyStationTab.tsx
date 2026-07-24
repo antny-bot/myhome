@@ -3,9 +3,53 @@ import { useKakaoMap } from "../../useKakaoMap";
 import { SectionCard } from "../../components/SectionCard";
 import { StatCard } from "../../components/StatCard";
 import { PageHeader } from "../../components/PageHeader";
-import { loadNearbyStation, triggerGeocodeBatch, loadGeocodeStats } from "../../api";
-import { MapPin, Search, Map, Compass, Play, RefreshCw, AlertTriangle, ArrowRight, Bell, Settings, CheckCircle2 } from "lucide-react";
+import { loadNearbyStation, triggerGeocodeBatch, loadGeocodeStats, fetchComplexData } from "../../api";
+import { MapPin, Search, Map, Compass, Play, RefreshCw, AlertTriangle, ArrowRight, Bell, Settings, CheckCircle2, X, Clock, Database, Download, Loader2, ChevronRight, Zap } from "lucide-react";
 import { copy } from "../../locales/ko";
+
+const LOCAL_STORAGE_KEY_STATIONS = "myhome_recent_stations";
+
+function loadRecentStations(): string[] {
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_KEY_STATIONS);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    console.error("Failed to load recent stations", e);
+    return [];
+  }
+}
+
+function saveRecentStation(station: string) {
+  if (!station.trim()) return;
+  try {
+    const current = loadRecentStations();
+    const filtered = current.filter(x => x.toLowerCase() !== station.trim().toLowerCase());
+    const updated = [station.trim(), ...filtered].slice(0, 10);
+    localStorage.setItem(LOCAL_STORAGE_KEY_STATIONS, JSON.stringify(updated));
+  } catch (e) {
+    console.error("Failed to save recent station", e);
+  }
+}
+
+function removeRecentStation(station: string): string[] {
+  try {
+    const current = loadRecentStations();
+    const updated = current.filter(x => x.toLowerCase() !== station.trim().toLowerCase());
+    localStorage.setItem(LOCAL_STORAGE_KEY_STATIONS, JSON.stringify(updated));
+    return updated;
+  } catch (e) {
+    console.error("Failed to remove recent station", e);
+    return [];
+  }
+}
+
+function clearRecentStations() {
+  try {
+    localStorage.removeItem(LOCAL_STORAGE_KEY_STATIONS);
+  } catch (e) {
+    console.error("Failed to clear recent stations", e);
+  }
+}
 
 interface NearbyComplex {
   name: string;
@@ -16,6 +60,27 @@ interface NearbyComplex {
   distanceM: number;
   dongName: string | null;
   jibun: string | null;
+  hasDbData?: boolean;
+}
+
+interface LiveNearbyComplex {
+  name: string;
+  lawdCode: string;
+  regionName: string;
+  lat: number | null;
+  lng: number | null;
+  distanceM: number | null;
+  dongName: string | null;
+  jibun: string | null;
+  hasDbData: boolean;
+}
+
+interface FetchResult {
+  ok: boolean;
+  complexName: string;
+  inserted: number;
+  months: string[];
+  alreadyCached: string[];
 }
 
 interface NearbyStationTabProps {
@@ -32,12 +97,76 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [showGeocodeAdmin, setShowGeocodeAdmin] = useState(false);
+  const [activeListTab, setActiveListTab] = useState<"db" | "live">("live");
+
+  // 최근 검색어 상태 추가
+  const [recentStations, setRecentStations] = useState<string[]>([]);
+  const [showSuggest, setShowSuggest] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // 온디맨드 적재 상태
+  const [fetchingComplex, setFetchingComplex] = useState<string | null>(null);
+  const [fetchResult, setFetchResult] = useState<FetchResult | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  // 선택된 단지 (온디맨드 적재 패널용)
+  const [selectedLiveComplex, setSelectedLiveComplex] = useState<LiveNearbyComplex | null>(null);
+
+  useEffect(() => {
+    setRecentStations(loadRecentStations());
+  }, []);
+
+  const handleDeleteRecent = (event: React.MouseEvent, station: string) => {
+    event.stopPropagation();
+    event.preventDefault();
+    const updated = removeRecentStation(station);
+    setRecentStations(updated);
+    inputRef.current?.focus();
+  };
+
+  const handleClearAllRecent = (event: React.MouseEvent) => {
+    event.stopPropagation();
+    event.preventDefault();
+    clearRecentStations();
+    setRecentStations([]);
+    inputRef.current?.focus();
+  };
+
+  const query = stationName.trim().toLowerCase();
+  const displayedStations = recentStations.filter((station) => {
+    if (!query) return true;
+    return station.toLowerCase().includes(query);
+  });
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!showSuggest || displayedStations.length === 0) return;
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setActiveIndex((prev) => (prev < displayedStations.length - 1 ? prev + 1 : prev));
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setActiveIndex((prev) => (prev > 0 ? prev - 1 : -1));
+    } else if (event.key === "Enter") {
+      if (activeIndex >= 0 && activeIndex < displayedStations.length) {
+        event.preventDefault();
+        const selected = displayedStations[activeIndex];
+        setStationName(selected);
+        void handleSearch(undefined, selected);
+      }
+    } else if (event.key === "Escape") {
+      setShowSuggest(false);
+      setActiveIndex(-1);
+    }
+  };
 
   // API 결과 상태
   const [searchResult, setSearchResult] = useState<{
     station: { name: string; lat: number; lng: number };
     radiusM: number;
     complexes: NearbyComplex[];
+    liveComplexes: LiveNearbyComplex[];
+    stationLawdCode: string | null;
   } | null>(null);
 
   // Geocoding 통계 상태
@@ -71,17 +200,39 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
   }, []);
 
   // 2. 검색 실행
-  const handleSearch = async (e?: React.FormEvent) => {
+  const handleSearch = async (e?: React.FormEvent, overrideStationName?: string) => {
     if (e) e.preventDefault();
-    if (!stationName.trim()) return;
+    const queryStr = (overrideStationName !== undefined ? overrideStationName : stationName).trim();
+    if (!queryStr) return;
 
     setLoading(true);
     setErrorMsg("");
     setBatchResult(null);
+    setShowSuggest(false);
+    setFetchResult(null);
+    setFetchError(null);
+    setSelectedLiveComplex(null);
 
     try {
-      const result = await loadNearbyStation(stationName.trim(), radiusM);
-      setSearchResult(result);
+      const result = await loadNearbyStation(queryStr, radiusM);
+      setSearchResult({
+        station: result.station,
+        radiusM: result.radiusM,
+        complexes: result.complexes || [],
+        liveComplexes: result.liveComplexes || [],
+        stationLawdCode: result.stationLawdCode ?? null,
+      });
+
+      // 실시간 단지가 있으면 live 탭 기본 선택, 없으면 db 탭
+      if ((result.liveComplexes || []).length > 0) {
+        setActiveListTab("live");
+      } else {
+        setActiveListTab("db");
+      }
+      
+      saveRecentStation(queryStr);
+      setRecentStations(loadRecentStations());
+
       if (result.geocodeStats) {
         setGeocodeStats(result.geocodeStats);
       }
@@ -90,6 +241,31 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
       setSearchResult(null);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // 온디맨드 적재 핸들러
+  const handleFetchComplex = async (complex: LiveNearbyComplex) => {
+    if (fetchingComplex) return;
+    setSelectedLiveComplex(complex);
+    setFetchingComplex(complex.name);
+    setFetchResult(null);
+    setFetchError(null);
+
+    try {
+      const result = await fetchComplexData(complex.name, complex.lawdCode, complex.regionName);
+      setFetchResult(result);
+      // 적재 완료 후 검색 결과 갱신 (hasDbData 업데이트)
+      if (searchResult) {
+        const updatedLive = searchResult.liveComplexes.map((c) =>
+          c.name === complex.name ? { ...c, hasDbData: true } : c
+        );
+        setSearchResult({ ...searchResult, liveComplexes: updatedLive });
+      }
+    } catch (err: any) {
+      setFetchError(err.message || "데이터 수집에 실패했습니다.");
+    } finally {
+      setFetchingComplex(null);
     }
   };
 
@@ -179,7 +355,14 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
     const bounds = new kakao.maps.LatLngBounds();
     bounds.extend(center); // 지하철역 포함
 
-    const newOverlays = searchResult.complexes.map((c) => {
+    const addedNames = new Set<string>();
+    const newOverlays: any[] = [];
+
+    // 1. 기존 DB 단지들 마커 생성 (초록색)
+    searchResult.complexes.forEach((c) => {
+      if (addedNames.has(c.name)) return;
+      addedNames.add(c.name);
+
       const pos = new kakao.maps.LatLng(c.lat, c.lng);
       bounds.extend(pos);
 
@@ -212,13 +395,64 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
       });
 
       overlay.setMap(map);
-      return overlay;
+      newOverlays.push(overlay);
+    });
+
+    // 2. 실시간 단지들 마커 생성 (파란색 또는 초록색)
+    searchResult.liveComplexes.forEach((c) => {
+      if (addedNames.has(c.name) || c.lat === null || c.lng === null) return;
+      addedNames.add(c.name);
+
+      const pos = new kakao.maps.LatLng(c.lat, c.lng);
+      bounds.extend(pos);
+
+      const el = document.createElement("div");
+      el.className = "relative -translate-y-[100%] select-none pointer-events-auto group";
+
+      const bgColor = c.hasDbData ? "bg-emerald-600 border-emerald-500" : "bg-blue-600 border-blue-500";
+      const arrowColor = c.hasDbData ? "border-t-emerald-600" : "border-t-blue-600";
+      const badgeText = c.hasDbData ? "" : `<span class="text-[7px] font-black text-blue-200 block -mt-0.5">실시간</span>`;
+
+      el.innerHTML = `
+        <div class="flex flex-col items-center cursor-pointer transition-all duration-200 hover:scale-105 hover:z-50 active:scale-95">
+          <div class="px-2 py-1.5 rounded-lg ${bgColor} text-white font-bold flex flex-col items-center text-center shadow-md">
+            <span class="text-[9px] truncate max-w-[100px] leading-tight font-medium opacity-90">${c.name}</span>
+            <div class="flex items-baseline gap-0.5 mt-0.5">
+              <span class="text-xs font-black tracking-tight">${c.distanceM ?? "?"}</span>
+              <span class="text-[8px] font-bold opacity-80">m</span>
+            </div>
+            ${badgeText}
+          </div>
+          <div class="w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-t-[5px] ${arrowColor}"></div>
+        </div>
+      `;
+
+      el.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (c.hasDbData) {
+          onSelectComplex(c.name, c.lawdCode);
+        } else {
+          // 온디맨드 적재 패널 활성화
+          handleFetchComplex(c);
+        }
+      });
+
+      const overlay = new kakao.maps.CustomOverlay({
+        position: pos,
+        content: el,
+        xAnchor: 0.5,
+        yAnchor: 0,
+      });
+
+      overlay.setMap(map);
+      newOverlays.push(overlay);
     });
 
     overlaysRef.current = newOverlays;
 
     // 지도를 단지들이 한눈에 보이게 바운즈 재설정
-    if (searchResult.complexes.length > 0) {
+    const totalComplexesCount = searchResult.complexes.length + searchResult.liveComplexes.filter(c => c.lat !== null).length;
+    if (totalComplexesCount > 0) {
       map.setBounds(bounds);
       // 너무 줌인되는 방지
       if (map.getLevel() < 3) {
@@ -288,12 +522,82 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
                     <MapPin size={18} />
                   </span>
                   <input
+                    ref={inputRef}
                     type="text"
                     value={stationName}
-                    onChange={(e) => setStationName(e.target.value)}
+                    onChange={(e) => {
+                      setStationName(e.target.value);
+                      setShowSuggest(true);
+                    }}
+                    onFocus={() => {
+                      setRecentStations(loadRecentStations());
+                      setShowSuggest(true);
+                    }}
+                    onBlur={() => {
+                      setTimeout(() => {
+                        setShowSuggest(false);
+                        setActiveIndex(-1);
+                      }, 200);
+                    }}
+                    onKeyDown={handleKeyDown}
                     placeholder={t.stationPlaceholder || "예: 판교역, 강남역"}
                     className="w-full pl-10 pr-4 py-1.5 h-[38px] rounded-lg border border-normal bg-normal text-strong text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-primary focus:border-transparent transition-all"
+                    autoComplete="off"
                   />
+                  {showSuggest && displayedStations.length > 0 && (
+                    <div className="absolute z-20 mt-1 max-h-72 w-full overflow-hidden rounded-lg border border-normal bg-normal shadow-lg flex flex-col left-0 top-[38px]">
+                      <div className="flex justify-between items-center px-3 py-1.5 bg-alternative border-b border-normal text-[10px] font-bold text-neutral select-none">
+                        <span>{t.recentStations || "최근 검색 지하철역"}</span>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={handleClearAllRecent}
+                          className="hover:text-red-500 transition-colors flex items-center gap-0.5"
+                        >
+                          <X size={10} />
+                          <span>{t.recentSearchClear || "전체 삭제"}</span>
+                        </button>
+                      </div>
+                      <ul role="listbox" className="overflow-y-auto max-h-60 py-1">
+                        {displayedStations.map((station, index) => {
+                          const isSelected = index === activeIndex;
+                          return (
+                            <li
+                              key={`${station}-${index}`}
+                              id={`suggest-station-item-${index}`}
+                              role="option"
+                              aria-selected={isSelected}
+                              className="relative group"
+                            >
+                              <button
+                                type="button"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => {
+                                  setStationName(station);
+                                  void handleSearch(undefined, station);
+                                }}
+                                className={`flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-strong transition-colors ${
+                                  isSelected ? "bg-primary/10 text-primary" : "hover:bg-primary/5"
+                                }`}
+                              >
+                                <Clock className="h-3.5 w-3.5 text-neutral shrink-0" />
+                                <span className="flex-1 truncate pr-8">{station}</span>
+                              </button>
+                              <button
+                                type="button"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={(e) => handleDeleteRecent(e, station)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-neutral hover:text-red-500 rounded transition-colors group-hover:opacity-100 opacity-0 focus:opacity-100"
+                                title={t.deleteRegion || "삭제"}
+                              >
+                                <X size={12} />
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-2 min-w-[200px]">
                   <span className="text-xs font-bold text-neutral whitespace-nowrap">{t.nearbyRadiusLabel}</span>
@@ -389,12 +693,18 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
       {searchResult && (
         <div className="space-y-6">
           {/* 통계 요약 카드 */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <StatCard
-              label={t.nearbyComplexesTitle || "반경 내 단지 정보"}
-              value={`${searchResult.complexes.length} ${t.unitComplex || "개"}`}
-              icon={Map}
+              label="DB 집계 단지"
+              value={`${searchResult.complexes.length} 개`}
+              icon={Database}
               tone="good"
+            />
+            <StatCard
+              label="실시간 발견 단지"
+              value={`${searchResult.liveComplexes.length} 개`}
+              icon={Zap}
+              tone={searchResult.liveComplexes.length > 0 ? "good" : "neutral" as any}
             />
             <StatCard
               label={t.nearbyRadiusLabel || "검색 반경"}
@@ -406,100 +716,303 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
 
           {/* 메인 결과 뷰 */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-            {/* 단지 목록 */}
+            {/* 단지 목록 (탭 분리) */}
             <div className="lg:col-span-1 order-2 lg:order-1 h-full">
-              <div className="bg-elevated border border-normal rounded-xl p-4 flex flex-col" style={{ height: "550px" }}>
-                <div className="flex items-center justify-between border-b border-normal pb-3 mb-3 shrink-0">
-                  <h3 className="font-bold text-strong text-sm flex items-center gap-1.5">
-                    <MapPin className="text-primary h-4 w-4 shrink-0" />
-                    {t.nearbyComplexesTitle || "반경 내 단지 정보"} ({searchResult.complexes.length}{t.unitComplex || "개"})
-                  </h3>
+              <div className="bg-elevated border border-normal rounded-xl flex flex-col" style={{ height: "550px" }}>
+                {/* 탭 헤더 */}
+                <div className="flex items-center border-b border-normal shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setActiveListTab("live")}
+                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-bold border-b-2 transition-colors ${
+                      activeListTab === "live"
+                        ? "border-primary text-primary"
+                        : "border-transparent text-neutral hover:text-strong"
+                    }`}
+                  >
+                    <Zap size={12} />
+                    실시간 단지
+                    <span className={`ml-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-black ${
+                      activeListTab === "live" ? "bg-primary text-white" : "bg-alternative text-neutral"
+                    }`}>
+                      {searchResult.liveComplexes.length}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveListTab("db")}
+                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-bold border-b-2 transition-colors ${
+                      activeListTab === "db"
+                        ? "border-emerald-500 text-emerald-600"
+                        : "border-transparent text-neutral hover:text-strong"
+                    }`}
+                  >
+                    <Database size={12} />
+                    DB 집계 단지
+                    <span className={`ml-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-black ${
+                      activeListTab === "db" ? "bg-emerald-500 text-white" : "bg-alternative text-neutral"
+                    }`}>
+                      {searchResult.complexes.length}
+                    </span>
+                  </button>
                 </div>
-                <div className="flex-1 min-h-0 flex flex-col">
-                  {searchResult.complexes.length === 0 ? (
-                    <div className="flex-1 flex items-center justify-center text-xs font-semibold text-neutral">
-                      {t.noNearbyComplexes || "반경 이내에 등록된 아파트 단지가 없습니다."}
-                    </div>
-                  ) : (
-                    <div className="flex-1 flex flex-col min-h-0">
-                      {onNavigateToRules && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const first = searchResult.complexes[0];
-                            onNavigateToRules({
-                              regionName: first.regionName,
-                              regionCode: first.lawdCode,
-                              apartmentKeywords: searchResult.complexes.map((c) => c.name),
-                            });
-                          }}
-                          className="w-full py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-sm shadow-emerald-500/20 mb-3 shrink-0"
-                          title={t.alertRegisterTip || "반경 내 모든 단지를 관심 조건 알림 규칙으로 등록합니다."}
-                        >
-                          <Bell size={13} />
-                          {t.allComplexAlertRegister || "전체 단지 알림 등록"} ({searchResult.complexes.length}{t.unitComplex || "개"})
-                        </button>
-                      )}
-                      <div className="flex-1 overflow-y-auto pr-1 space-y-2">
-                        {searchResult.complexes.map((c, idx) => (
-                          <div
-                            key={idx}
-                            onClick={() => {
-                              if (mapRef.current) {
-                                const pos = new window.kakao.maps.LatLng(c.lat, c.lng);
-                                mapRef.current.panTo(pos);
-                              }
-                            }}
-                            className="group p-3 rounded-xl border border-normal bg-elevated/40 hover:bg-elevated hover:border-indigo-500/50 cursor-pointer transition-all duration-200 flex justify-between items-center"
-                          >
-                            <div className="space-y-1 min-w-0 pr-2">
-                              <h4 className="font-bold text-strong text-xs truncate">{c.name}</h4>
-                              <p className="text-[10px] text-neutral truncate">
-                                {c.regionName} {c.dongName || ""} {c.jibun || ""}
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                              <div className="text-right">
-                                <span className="text-xs font-black text-indigo-500 tracking-tight">{c.distanceM}m</span>
-                                <p className="text-[8px] text-neutral uppercase font-bold tracking-wider mt-0.5">{t.distance || "거리"}</p>
-                              </div>
-                              {onNavigateToRules && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    onNavigateToRules({
-                                      regionName: c.regionName,
-                                      regionCode: c.lawdCode,
-                                      apartmentKeywords: [c.name]
-                                    });
-                                  }}
-                                  className="p-1.5 rounded-lg bg-alternative hover:bg-emerald-500 hover:text-white transition-all active:scale-90 text-neutral"
-                                  title={t.alertRegisterBtn || "알림 규칙 등록"}
-                                >
-                                  <Bell size={13} />
-                                </button>
-                              )}
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onSelectComplex(c.name, c.lawdCode);
-                                }}
-                                className="p-1.5 rounded-lg bg-alternative hover:bg-primary hover:text-white transition-all active:scale-90 text-neutral"
-                                  title={t.complexAnalysisLink || "단지 분석으로 이동"}
+
+                <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+                  {/* 실시간 단지 탭 */}
+                  {activeListTab === "live" && (
+                    <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                      {searchResult.liveComplexes.length === 0 ? (
+                        <div className="flex-1 flex flex-col items-center justify-center text-center px-4 py-8">
+                          <Zap className="text-assistive h-8 w-8 mb-2" />
+                          <p className="text-xs font-semibold text-neutral">실시간 단지 정보가 없습니다.</p>
+                          <p className="text-[10px] text-assistive mt-1">
+                            국토부 API 키 또는 카카오 API 키가 필요합니다.
+                          </p>
+                        </div>
+                      ) : (
+                        <>
+                          <p className="px-3 py-1.5 text-[10px] text-neutral bg-alternative/50 border-b border-normal/50 shrink-0">
+                            <span className="font-bold text-primary">{searchResult.stationLawdCode}</span> 지역 실거래 기반 실시간 조회
+                          </p>
+                          <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
+                            {searchResult.liveComplexes.map((c, idx) => (
+                              <div
+                                key={idx}
+                                className={`group p-2.5 rounded-xl border transition-all duration-200 ${
+                                  selectedLiveComplex?.name === c.name
+                                    ? "border-primary bg-primary/5"
+                                    : "border-normal bg-elevated/40 hover:bg-elevated hover:border-primary/30"
+                                }`}
                               >
-                                <ArrowRight size={13} />
-                              </button>
-                            </div>
+                                <div className="flex justify-between items-start gap-2">
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <h4 className="font-bold text-strong text-xs truncate">{c.name}</h4>
+                                      {c.hasDbData ? (
+                                        <span className="shrink-0 px-1.5 py-0.5 rounded-full text-[9px] font-black bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                                          DB ✓
+                                        </span>
+                                      ) : (
+                                        <span className="shrink-0 px-1.5 py-0.5 rounded-full text-[9px] font-black bg-blue-500/10 text-blue-500 border border-blue-500/20">
+                                          실시간
+                                        </span>
+                                      )}
+                                    </div>
+                                    {c.distanceM !== null && (
+                                      <p className="text-[10px] text-indigo-500 font-black font-mono mt-0.5">{c.distanceM}m</p>
+                                    )}
+                                    <p className="text-[9px] text-neutral truncate mt-0.5">
+                                      {c.dongName || ""} {c.jibun || ""}
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    {c.hasDbData ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => onSelectComplex(c.name, c.lawdCode)}
+                                        className="p-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500 hover:text-white transition-all active:scale-90 text-emerald-600"
+                                        title="단지 분석으로 이동"
+                                      >
+                                        <ChevronRight size={13} />
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        disabled={!!fetchingComplex}
+                                        onClick={() => handleFetchComplex(c)}
+                                        className="p-1.5 rounded-lg bg-blue-500/10 hover:bg-blue-500 hover:text-white transition-all active:scale-90 text-blue-500 disabled:opacity-50"
+                                        title="실거래 데이터 수집 (최근 12개월)"
+                                      >
+                                        {fetchingComplex === c.name ? (
+                                          <Loader2 size={13} className="animate-spin" />
+                                        ) : (
+                                          <Download size={13} />
+                                        )}
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+
+                  {/* DB 집계 단지 탭 (기존 UI) */}
+                  {activeListTab === "db" && (
+                    <div className="flex-1 flex flex-col min-h-0">
+                      {searchResult.complexes.length === 0 ? (
+                        <div className="flex-1 flex items-center justify-center text-xs font-semibold text-neutral">
+                          {t.noNearbyComplexes || "반경 이내에 등록된 아파트 단지가 없습니다."}
+                        </div>
+                      ) : (
+                        <div className="flex-1 flex flex-col min-h-0">
+                          {onNavigateToRules && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const first = searchResult.complexes[0];
+                                onNavigateToRules({
+                                  regionName: first.regionName,
+                                  regionCode: first.lawdCode,
+                                  apartmentKeywords: searchResult.complexes.map((c) => c.name),
+                                });
+                              }}
+                              className="w-full py-2 rounded-none bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold flex items-center justify-center gap-2 transition-all active:scale-[0.98] shrink-0"
+                              title={t.alertRegisterTip || "반경 내 모든 단지를 관심 조건 알림 규칙으로 등록합니다."}
+                            >
+                              <Bell size={13} />
+                              {t.allComplexAlertRegister || "전체 단지 알림 등록"} ({searchResult.complexes.length}{t.unitComplex || "개"})
+                            </button>
+                          )}
+                          <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
+                            {searchResult.complexes.map((c, idx) => (
+                              <div
+                                key={idx}
+                                onClick={() => {
+                                  if (mapRef.current && c.lat && c.lng) {
+                                    const pos = new window.kakao.maps.LatLng(c.lat, c.lng);
+                                    mapRef.current.panTo(pos);
+                                  }
+                                }}
+                                className="group p-2.5 rounded-xl border border-normal bg-elevated/40 hover:bg-elevated hover:border-emerald-500/50 cursor-pointer transition-all duration-200 flex justify-between items-center"
+                              >
+                                <div className="space-y-0.5 min-w-0 pr-2">
+                                  <div className="flex items-center gap-1.5">
+                                    <h4 className="font-bold text-strong text-xs truncate">{c.name}</h4>
+                                    {c.hasDbData !== false && (
+                                      <span className="shrink-0 px-1.5 py-0.5 rounded-full text-[9px] font-black bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                                        DB ✓
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-[10px] text-neutral truncate">
+                                    {c.regionName} {c.dongName || ""} {c.jibun || ""}
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <div className="text-right">
+                                    <span className="text-xs font-black text-indigo-500 tracking-tight">{c.distanceM}m</span>
+                                    <p className="text-[8px] text-neutral uppercase font-bold tracking-wider mt-0.5">{t.distance || "거리"}</p>
+                                  </div>
+                                  {onNavigateToRules && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        onNavigateToRules({
+                                          regionName: c.regionName,
+                                          regionCode: c.lawdCode,
+                                          apartmentKeywords: [c.name]
+                                        });
+                                      }}
+                                      className="p-1.5 rounded-lg bg-alternative hover:bg-emerald-500 hover:text-white transition-all active:scale-90 text-neutral"
+                                      title={t.alertRegisterBtn || "알림 규칙 등록"}
+                                    >
+                                      <Bell size={13} />
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onSelectComplex(c.name, c.lawdCode);
+                                    }}
+                                    className="p-1.5 rounded-lg bg-alternative hover:bg-primary hover:text-white transition-all active:scale-90 text-neutral"
+                                    title={t.complexAnalysisLink || "단지 분석으로 이동"}
+                                  >
+                                    <ArrowRight size={13} />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
               </div>
+
+              {/* 온디맨드 적재 패널 */}
+              {selectedLiveComplex && (
+                <div className="mt-3 bg-elevated border border-normal rounded-xl p-4 space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-bold text-strong text-xs flex items-center gap-1.5">
+                      <Download className="text-blue-500 h-3.5 w-3.5" />
+                      실거래 데이터 수집
+                    </h4>
+                    <button
+                      type="button"
+                      onClick={() => { setSelectedLiveComplex(null); setFetchResult(null); setFetchError(null); }}
+                      className="text-neutral hover:text-strong p-0.5"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-neutral">
+                    <span className="font-bold text-strong">{selectedLiveComplex.name}</span> 단지의 최근 12개월 실거래 데이터를 수집합니다.
+                  </p>
+
+                  {fetchingComplex === selectedLiveComplex.name && (
+                    <div className="flex items-center gap-2 p-3 rounded-lg bg-blue-500/5 border border-blue-500/20">
+                      <Loader2 size={14} className="animate-spin text-blue-500 shrink-0" />
+                      <span className="text-xs font-semibold text-blue-600">국토부 API 호출 및 DB 적재 중...</span>
+                    </div>
+                  )}
+
+                  {fetchResult && (
+                    <div className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20 space-y-2">
+                      <p className="text-xs font-bold text-emerald-600 flex items-center gap-1.5">
+                        <CheckCircle2 size={13} />
+                        수집 완료!
+                      </p>
+                      <div className="grid grid-cols-2 gap-2 text-[11px]">
+                        <div className="bg-alternative rounded-lg p-2 text-center">
+                          <p className="text-neutral">해당 단지 적재</p>
+                          <p className="font-black text-strong text-sm mt-0.5">{fetchResult.inserted}건</p>
+                        </div>
+                        <div className="bg-alternative rounded-lg p-2 text-center">
+                          <p className="text-neutral">조회 기간</p>
+                          <p className="font-black text-strong text-sm mt-0.5">{fetchResult.months.length}개월</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => onSelectComplex(selectedLiveComplex.name, selectedLiveComplex.lawdCode)}
+                        className="w-full py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-[0.98]"
+                      >
+                        <ChevronRight size={13} />
+                        단지 분석으로 이동
+                      </button>
+                    </div>
+                  )}
+
+                  {fetchError && (
+                    <div className="p-3 rounded-lg bg-red-500/5 border border-red-500/20">
+                      <p className="text-xs font-semibold text-red-500 flex items-center gap-1.5">
+                        <AlertTriangle size={13} />
+                        {fetchError}
+                      </p>
+                    </div>
+                  )}
+
+                  {!fetchingComplex && !fetchResult && !fetchError && (
+                    <button
+                      type="button"
+                      onClick={() => handleFetchComplex(selectedLiveComplex)}
+                      className="w-full py-2.5 rounded-xl bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] shadow-sm shadow-blue-500/20"
+                    >
+                      <Download size={13} />
+                      최근 12개월 데이터 수집
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
+
 
             {/* 지도 */}
             <div className="lg:col-span-2 order-1 lg:order-2 h-full">

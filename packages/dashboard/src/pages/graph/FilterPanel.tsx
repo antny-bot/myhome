@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { RegionSearchInput } from "../../components/RegionSearchInput";
+
 import { GraphFilter, GraphPreset } from "@myhome/shared";
 import {
   loadPresets,
@@ -130,6 +131,15 @@ export default function FilterPanel({
   const [complexName, setComplexName] = useState(filter.complexName || "");
   const [minArea, setMinArea] = useState(filter.minArea !== undefined ? String(filter.minArea) : "");
   const [maxArea, setMaxArea] = useState(filter.maxArea !== undefined ? String(filter.maxArea) : "");
+  const [selectedRegions, setSelectedRegions] = useState<Array<{ lawdCode: string; regionName: string }>>(() => {
+    if (filter.lawdCodes && filter.lawdCodes.length > 0) {
+      return filter.lawdCodes.map((code) => ({ lawdCode: code, regionName: '' }));
+    }
+    if (filter.lawdCode) {
+      return [{ lawdCode: filter.lawdCode, regionName: regionName || '' }];
+    }
+    return [];
+  });
 
   // 전역 단지 검색 자동완성
   const [globalSuggestions, setGlobalSuggestions] = useState<Array<{ name: string; lawdCode: string; regionName: string }>>([]);
@@ -492,7 +502,7 @@ export default function FilterPanel({
 
   // 필터 요약 문자열 생성
   const getFilterSummaryText = () => {
-    const regionTextStr = regionText || t.allRegions;
+    const regionTextStr = selectedRegions.map((r) => r.regionName).join(', ') || t.allRegions;
     const periodText = startDate && endDate ? `${startDate} ~ ${endDate}` : "";
     const complexText = !hideComplexSearch && complexName ? ` · ${complexName}` : "";
     const areaText = !hideComplexSearch && (minArea || maxArea) ? ` · ${usePyung ? toPyung(minArea) : minArea}~${usePyung ? toPyung(maxArea) : maxArea}${usePyung ? '평' : '㎡'}` : "";
@@ -593,8 +603,9 @@ export default function FilterPanel({
                       setRegionText(candidate.displayName);
                       onFilterChange({ ...filter, lawdCode: candidate.lawdCode, regionName: candidate.displayName }, candidate.displayName);
                     }}
-                    placeholder={regionName || t.regionPlaceholder}
+                    placeholder={t.regionPlaceholder}
                     className="w-full bg-normal border border-normal rounded-lg px-2.5 py-1.5 text-xs text-strong focus:outline-none focus:ring-1 focus:ring-primary"
+                    locale={locale}
                   />
                 </div>
               </div>
@@ -747,8 +758,9 @@ export default function FilterPanel({
                         setRegionText(candidate.displayName);
                         onFilterChange({ ...filter, lawdCode: candidate.lawdCode, regionName: candidate.displayName }, candidate.displayName);
                       }}
-                      placeholder={regionName || t.regionPlaceholder}
+                      placeholder={t.regionPlaceholder}
                       className="w-full bg-normal border border-normal rounded-lg px-2.5 py-1.5 text-xs text-strong focus:outline-none focus:ring-1 focus:ring-primary"
+                      locale={locale}
                     />
                   </div>
                 </div>

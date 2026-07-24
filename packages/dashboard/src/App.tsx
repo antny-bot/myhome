@@ -213,7 +213,7 @@ function App() {
       {view === "activityLog" && <ActivityLogPage />}
       {view === "dbAdmin" && <DatabaseAdminPage />}
       {view === "allowedAccounts" && <AllowedAccountsPage onChanged={() => void refresh()} currentUserEmail={auth?.email} />}
-      {view === "settings" && <SettingsPage state={state} onChanged={() => void refresh()} isAdmin={auth?.isAdmin} />}
+      {view === "settings" && <SettingsPage state={state} onChanged={() => void refresh()} isAdmin={auth?.isAdmin} userEmail={auth?.email} />}
     </Layout>
   );
 }

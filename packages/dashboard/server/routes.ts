@@ -9,6 +9,12 @@ import { isKakaoConfigured, searchAddresses } from "./addressSearch.js";
 import { getMonthsInRange, normalizeTransaction } from "./transactions.js";
 import type { ComparisonCriteria, RuleInput, SystemConfig } from "./types.js";
 import { upsertTransactionBatch, makeGraphDedupeKey, getCachedApartments, saveCachedApartments, searchDbRegions, getLocalTransactionsCount, getLocalApartmentPrices, getUserSettings, saveUserSettings, insertActivityLog, getActivityLogs, getActivityStats } from "@myhome/shared";
+export type GraphFilter = {
+  /** 기존 단일 법정동 코드 */
+  lawdCode?: string;
+  /** 다중 법정동 코드 (콤마 구분) */
+  lawdCodes?: string[];
+};
 import type { BatchUpsertItem } from "@myhome/shared";
 import { adminRequired } from "./authRoutes.js";
 
@@ -210,7 +216,14 @@ export function createRouter() {
 
   router.get("/transactions", async (req, res, next) => {
     try {
-      const lawdCode = String(req.query.lawd_cd || "");
+      const lawdCodeParam = String(req.query.lawd_cd || "");
+      // 지원: 단일 코드 혹은 콤마 구분 다중 코드
+      const lawdCodes = lawdCodeParam
+        .split(",")
+        .map((c) => c.trim())
+        .filter(Boolean);
+      // 기존 단일 코드 로직을 유지하기 위해 첫 번째 코드를 기본 lawdCode 로 사용
+      const lawdCode = lawdCodes[0] || "";
       const dealMonth = String(req.query.deal_ymd || "");
       const startMonth = String(req.query.start_ymd || "");
       const endMonth = String(req.query.end_ymd || "");
@@ -244,53 +257,56 @@ export function createRouter() {
         return;
       }
 
-      const records = [];
+      const records: any[] = [];
+      // 다중 지역 처리: 각 region에 대해 데이터를 수집
+      const regionCodes = lawdCodes.length > 0 ? lawdCodes : [lawdCode];
       const now = new Date();
       const currentYm = now.getFullYear() * 100 + (now.getMonth() + 1);
       let isCacheHitOnly = true;
+      const cacheHitMonths: { region: string; month: string }[] = [];
+      const apiFetchMonths: { region: string; month: string }[] = [];
 
-      const cacheHitMonths: string[] = [];
-      const apiFetchMonths: string[] = [];
-
-      for (const month of months) {
-        const targetYm = parseInt(month);
-        const diffMonths = (Math.floor(currentYm / 100) - Math.floor(targetYm / 100)) * 12 
-                         + (currentYm % 100 - targetYm % 100);
-        const localCount = getLocalTransactionsCount(lawdCode, month);
-
-        if (!forceRefresh && diffMonths > 3 && localCount > 0) {
-          cacheHitMonths.push(month);
-        } else {
-          apiFetchMonths.push(month);
+      // Determine cache vs API fetch per region/month
+      for (const region of lawdCodes.length > 0 ? lawdCodes : [lawdCode]) {
+        for (const month of months) {
+          const targetYm = parseInt(month);
+          const diffMonths = (Math.floor(currentYm / 100) - Math.floor(targetYm / 100)) * 12 + (currentYm % 100 - targetYm % 100);
+          const localCount = getLocalTransactionsCount(region, month);
+          if (!forceRefresh && diffMonths > 3 && localCount > 0) {
+            cacheHitMonths.push({ region, month });
+          } else {
+            apiFetchMonths.push({ region, month });
+          }
         }
       }
 
-      for (const month of cacheHitMonths) {
-        const localRecords = getLocalApartmentPrices(lawdCode, month);
+      // Serve cached data
+      for (const { region, month } of cacheHitMonths) {
+        const localRecords = getLocalApartmentPrices(region, month);
         records.push(...localRecords);
-        console.log(`[Cache Hit] ${lawdCode}/${month} - 로컬 DB 적재 데이터 서빙 (건수: ${localRecords.length})`);
+        console.log(`[Cache Hit] ${region}/${month} - 로컬 DB 적재 데이터 서빙 (건수: ${localRecords.length})`);
       }
 
+      // Fetch from API with concurrency limit
       if (apiFetchMonths.length > 0) {
         isCacheHitOnly = false;
         const concurrencyLimit = 5;
         for (let i = 0; i < apiFetchMonths.length; i += concurrencyLimit) {
           const chunk = apiFetchMonths.slice(i, i + concurrencyLimit);
           const chunkResults = await Promise.all(
-            chunk.map(async (month) => {
+            chunk.map(async ({ region, month }) => {
               try {
-                const prices = await getApartmentPrices(lawdCode, month);
-                return { month, transactions: prices.transactions, success: true };
+                const prices = await getApartmentPrices(region, month);
+                return { region, month, transactions: prices.transactions, success: true };
               } catch (err: any) {
-                console.error(`❌ [API Error] ${lawdCode}/${month} 호출 실패:`, err.message);
-                return { month, transactions: [], success: false };
+                console.error(`❌ [API Error] ${region}/${month} 호출 실패:`, err.message);
+                return { region, month, transactions: [], success: false };
               }
             })
           );
-
           for (const resObj of chunkResults) {
             if (!resObj.success) continue;
-            const apiRecords = [];
+            const apiRecords: any[] = [];
             for (const item of resObj.transactions) {
               const normalized = normalizeTransaction(item, resObj.month);
               if (normalized) {
@@ -298,17 +314,19 @@ export function createRouter() {
                 apiRecords.push(normalized);
               }
             }
-            console.log(`[Cache Miss/Refresh] ${lawdCode}/${resObj.month} - 국토부 API 호출 (반환: ${apiRecords.length}건)`);
+            console.log(`[Cache Miss/Refresh] ${resObj.region}/${resObj.month} - 국토부 API 호출 (반환: ${apiRecords.length}건)`);
           }
         }
       }
 
+      // Return aggregated records
       res.json(records);
 
+      // Optional graph DB upsert when fresh data fetched
       if (process.env.GRAPH_DB_ENABLED === "true" && records.length > 0 && !isCacheHitOnly) {
-        const regionInfo = { lawdCode, displayName: regionDisplayName };
-        const batchItems: BatchUpsertItem[] = records.map((rec) => {
-          const rawObj = ((rec as any).raw && typeof (rec as any).raw === 'object') ? (rec as any).raw as Record<string, unknown> : {};
+        const regionInfo = { lawdCode: lawdCodes.length > 0 ? lawdCodes[0] : lawdCode, displayName: regionDisplayName };
+        const batchItems: BatchUpsertItem[] = records.map(rec => {
+          const rawObj = (rec as any).raw && typeof (rec as any).raw === "object" ? (rec as any).raw as Record<string, unknown> : {};
           return {
             complexName: rec.apartmentName,
             tx: {

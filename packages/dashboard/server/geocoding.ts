@@ -12,6 +12,7 @@ import {
   getComplexesWithoutCoords,
   updateComplexCoords,
 } from "@myhome/shared";
+import { fetchApartmentPricesDirect } from "@myhome/shared";
 
 // ──────────────────────────────────────────────────
 // Haversine 거리 계산
@@ -244,6 +245,22 @@ export interface NearbyComplex {
   distanceM: number;
   dongName: string | null;
   jibun: string | null;
+  /** DB에 실거래 집계가 있는 단지이면 true */
+  hasDbData?: boolean;
+}
+
+/** 실시간 국토부 API로 발견된 단지 (좌표 포함 가능) */
+export interface LiveNearbyComplex {
+  name: string;
+  lawdCode: string;
+  regionName: string;
+  lat: number | null;
+  lng: number | null;
+  distanceM: number | null;
+  dongName: string | null;
+  jibun: string | null;
+  /** DB에 실거래 집계가 있는 단지이면 true */
+  hasDbData: boolean;
 }
 
 export interface NearbyStationResult {
@@ -254,11 +271,52 @@ export interface NearbyStationResult {
   };
   radiusM: number;
   complexes: NearbyComplex[];
+  /** 실시간 국토부 API로 발견된 단지 목록 (반경 필터 적용) */
+  liveComplexes: LiveNearbyComplex[];
+  /** 역 주소 기반으로 추출한 법정동코드 */
+  stationLawdCode: string | null;
   geocodeStats: {
     total: number;
     geocoded: number;
     pending: number;
   };
+}
+
+// ──────────────────────────────────────────────────
+// 실시간 단지 목록 수집 (국토부 API)
+// ──────────────────────────────────────────────────
+
+/**
+ * 특정 지역의 최근 N개월 국토부 실거래 API에서 단지명 목록 수집
+ * @param lawdCode 법정동코드 (5자리)
+ * @param months 조회할 월 수 (기본 3개월)
+ */
+export async function fetchLiveComplexList(
+  lawdCode: string,
+  months = 3
+): Promise<{ name: string; dongName: string | null; jibun: string | null }[]> {
+  const names = new Map<string, { dongName: string | null; jibun: string | null }>();
+  const now = new Date();
+
+  for (let i = 0; i < months; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const month = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}`;
+    try {
+      const transactions = await fetchApartmentPricesDirect(lawdCode, month);
+      for (const t of transactions) {
+        if (t.apartmentName && !names.has(t.apartmentName.trim())) {
+          names.set(t.apartmentName.trim(), {
+            dongName: t.dongName ?? null,
+            jibun: t.jibun ?? null,
+          });
+        }
+      }
+    } catch (err) {
+      console.warn(`[fetchLiveComplexList] ${lawdCode}/${month} 조회 실패:`, err);
+    }
+  }
+
+  return Array.from(names.entries()).map(([name, info]) => ({ name, ...info }));
 }
 
 /**
@@ -268,7 +326,8 @@ export interface NearbyStationResult {
  * 1. 역 좌표 확보 (카카오 API)
  * 2. DB에서 좌표 있는 단지 → Haversine 필터
  * 3. 좌표 없는 단지 → Geocoding → DB 저장 → 필터
- * 4. 거리순 정렬 반환
+ * 4. [신규] 국토부 API 실시간 단지 목록 병합
+ * 5. 거리순 정렬 반환
  */
 export async function findComplexesNearStation(
   stationName: string,
@@ -352,8 +411,88 @@ export async function findComplexesNearStation(
   nearbyComplexes.sort((a, b) => a.distanceM - b.distanceM);
 
   // Geocoding 현황 통계
-  const { getGeocodeStats } = await import("@myhome/shared");
+  const { getGeocodeStats, searchComplexNames } = await import("@myhome/shared");
   const geocodeStats = getGeocodeStats();
+
+  // 5. [신규] 실시간 단지 목록 수집 (국토부 API) - targetLawdCode가 있을 때만
+  const liveComplexes: LiveNearbyComplex[] = [];
+  if (targetLawdCode) {
+    try {
+      console.log(`[NearbyStation] 실시간 단지 목록 수집 시작: ${targetLawdCode}`);
+      const liveList = await fetchLiveComplexList(targetLawdCode, 3);
+
+      // DB 등록 단지명 Set (중복 체크용)
+      const dbComplexNames = new Set(nearbyComplexes.map((c) => c.name));
+
+      // DB에서 해당 지역의 단지 집계 여부 확인용
+      const dbComplexesInRegion = (await searchComplexNames("", targetLawdCode)).map((c: any) => c.name);
+      const dbComplexSet = new Set(dbComplexesInRegion);
+
+      for (const live of liveList) {
+        const hasDbData = dbComplexSet.has(live.name);
+
+        // 이미 DB 단지로 표시된 경우: hasDbData 뱃지만 업데이트
+        if (dbComplexNames.has(live.name)) {
+          const existing = nearbyComplexes.find((c) => c.name === live.name);
+          if (existing) existing.hasDbData = hasDbData;
+          continue;
+        }
+
+        // 좌표 확보 시도 (카카오 geocoding)
+        let lat: number | null = null;
+        let lng: number | null = null;
+        let distanceM: number | null = null;
+
+        const regionName = stationCoords.address?.split(" ").slice(0, 2).join(" ") ?? stationName;
+        const query = live.dongName && live.jibun
+          ? `${regionName} ${live.dongName} ${live.jibun}`
+          : live.dongName
+          ? `${regionName} ${live.dongName}`
+          : `${regionName} ${live.name.replace(/\(.*?\)/g, "").trim()}`;
+
+        const geoResult = await geocodeAddress(query);
+        if (geoResult) {
+          lat = geoResult.lat;
+          lng = geoResult.lng;
+          const dist = haversineDistance(stationCoords.lat, stationCoords.lng, lat, lng);
+          distanceM = Math.round(dist);
+
+          // 반경 초과 시 건너뜀
+          if (dist > radiusM) {
+            await new Promise((resolve) => setTimeout(resolve, 100));
+            continue;
+          }
+        }
+
+        liveComplexes.push({
+          name: live.name,
+          lawdCode: targetLawdCode,
+          regionName: stationCoords.address?.split(" ").slice(0, 3).join(" ") ?? stationName,
+          lat,
+          lng,
+          distanceM,
+          dongName: live.dongName,
+          jibun: live.jibun,
+          hasDbData,
+        });
+
+        // Rate Limit 방지
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+
+      // 거리순 정렬 (좌표 없는 단지는 뒤로)
+      liveComplexes.sort((a, b) => {
+        if (a.distanceM === null && b.distanceM === null) return 0;
+        if (a.distanceM === null) return 1;
+        if (b.distanceM === null) return -1;
+        return a.distanceM - b.distanceM;
+      });
+
+      console.log(`[NearbyStation] 실시간 단지 ${liveComplexes.length}개 수집 완료 (lawdCode: ${targetLawdCode})`);
+    } catch (err) {
+      console.error("[NearbyStation] 실시간 단지 목록 수집 실패:", err);
+    }
+  }
 
   return {
     station: {
@@ -363,6 +502,8 @@ export async function findComplexesNearStation(
     },
     radiusM,
     complexes: nearbyComplexes,
+    liveComplexes,
+    stationLawdCode: targetLawdCode ?? null,
     geocodeStats,
   };
 }

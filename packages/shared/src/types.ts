@@ -45,6 +45,7 @@ export type GraphFilter = {
   startDate?: string;
   endDate?: string;
   lawdCode?: string;
+  lawdCodes?: string[];
   regionName?: string;
   complexName?: string;
   minArea?: number;

@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { AlertCircle, Home, Sun, Moon } from "lucide-react";
 import { useTheme } from "../useTheme";
 import ShaderBackground from "../components/ui/ShaderBackground";
+import { loginLocal } from "../api";
 
 const SAVE_EMAIL_KEY = "myhome_saved_email";
 const REMEMBER_KEY = "myhome_remember_email";
@@ -106,16 +107,21 @@ export function LoginPage() {
     window.location.href = "/api/auth/google";
   };
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
     
-    // Email login mock error
-    setTimeout(() => {
-      setError(t.emailNotSupported);
+    try {
+      const res = await loginLocal(email, password);
+      if (res.ok) {
+        window.location.href = "/";
+      }
+    } catch (err: any) {
+      setError(err.message || (locale === "ko" ? "로그인에 실패했습니다." : "Login failed. Please check your credentials."));
+    } finally {
       setLoading(false);
-    }, 800);
+    }
   };
 
   const handleMfaSubmit = (e: FormEvent) => {

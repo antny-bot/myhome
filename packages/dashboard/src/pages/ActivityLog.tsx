@@ -248,7 +248,17 @@ export function ActivityLogPage() {
                         boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.05)"
                       }}
                     />
-                    <Legend verticalAlign="top" height={36} iconType="circle" style={{ fontSize: 10 }} />
+                    <Legend
+                      verticalAlign="top"
+                      height={36}
+                      iconType="circle"
+                      iconSize={8}
+                      formatter={(value) => (
+                        <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                          {value}
+                        </span>
+                      )}
+                    />
                     <Area type="monotone" dataKey="logCount" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#colorLogCount)" name="활동량 (로그 수)" />
                     <Area type="monotone" dataKey="userCount" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorUserCount)" name="액티브 사용자 (명)" />
                   </AreaChart>
@@ -282,6 +292,7 @@ export function ActivityLogPage() {
                         outerRadius={70}
                         paddingAngle={3}
                         dataKey="value"
+                        stroke="none"
                       >
                         {pieChartData.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -372,7 +383,7 @@ export function ActivityLogPage() {
                   {logs.map((log) => (
                     <div key={log.id} className="p-4 space-y-2 text-xs">
                       <div className="flex justify-between items-start">
-                        <span className="font-bold text-strong text-[11px] px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
+                        <span className="font-bold text-[11px] px-2 py-0.5 rounded bg-primary/10 text-primary">
                           {formatActivityType(log.activityType).split(" ")[0]}
                         </span>
                         <span className="text-[10px] text-assistive font-mono">
@@ -426,7 +437,7 @@ export function ActivityLogPage() {
                             {log.userEmail}
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap">
-                            <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-primary/10 text-primary border border-primary/20">
+                            <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-primary/10 text-primary">
                               {formatActivityType(log.activityType)}
                             </span>
                           </td>

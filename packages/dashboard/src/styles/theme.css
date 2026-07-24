@@ -1,0 +1,23 @@
+/* src/styles/theme.css */
+:root {
+  /* Primary color (HSL) */
+  --color-primary: hsl(210, 30%, 45%);
+  --color-primary-dark: hsl(210, 30%, 55%);
+  /* Background elevations */
+  --bg-elevated: hsl(210, 30%, 18%);
+  --bg-muted: hsl(210, 30%, 22%);
+  --bg-dark: hsl(210, 30%, 12%);
+  /* Accent and status */
+  --color-good: hsl(150, 40%, 45%);
+  --color-warn: hsl(30, 80%, 50%);
+  --color-danger: hsl(0, 80%, 50%);
+}
+[data-theme="dark"] {
+  --bg-elevated: var(--bg-dark);
+  --bg-muted: hsl(210, 30%, 16%);
+  --color-primary: hsl(210, 30%, 55%);
+}
+/* Global transition for smooth theme switch */
+html {
+  transition: background-color 0.3s ease, color 0.3s ease;
+}

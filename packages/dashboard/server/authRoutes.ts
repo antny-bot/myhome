@@ -1,6 +1,20 @@
 import express from "express";
 import crypto from "node:crypto";
-import { saveSession, getSession, deleteSession } from "@myhome/shared";
+import { saveSession, getSession, deleteSession, getUserPasswordHash, updateUserCredentials } from "@myhome/shared";
+
+function hashPassword(password: string): string {
+  const salt = crypto.randomBytes(16).toString("hex");
+  const hash = crypto.pbkdf2Sync(password, salt, 100000, 64, "sha512").toString("hex");
+  return `${salt}:${hash}`;
+}
+
+function verifyPassword(password: string, storedHash: string): boolean {
+  const parts = storedHash.split(":");
+  if (parts.length !== 2) return false;
+  const [salt, hash] = parts;
+  const calcHash = crypto.pbkdf2Sync(password, salt, 100000, 64, "sha512").toString("hex");
+  return calcHash === hash;
+}
 
 // Express.Request 인터페이스 확장
 declare global {
@@ -227,6 +241,84 @@ export function createAuthRouter() {
     res.json({ ok: true });
   });
 
+  router.post("/login-local", (req, res) => {
+    const { email, password } = req.body;
+    if (!email || !password || typeof email !== "string" || typeof password !== "string") {
+      res.status(400).json({ error: "이메일과 비밀번호를 입력해주세요." });
+      return;
+    }
+
+    const lowerEmail = email.trim().toLowerCase();
+    const storedHash = getUserPasswordHash(lowerEmail);
+
+    if (!storedHash) {
+      res.status(401).json({ error: "가입되지 않았거나 이메일/비밀번호가 다릅니다." });
+      return;
+    }
+
+    const isValid = verifyPassword(password, storedHash);
+    if (!isValid) {
+      res.status(401).json({ error: "가입되지 않았거나 이메일/비밀번호가 다릅니다." });
+      return;
+    }
+
+    // 세션 생성
+    const sessionId = crypto.randomUUID();
+    const maxAgeSeconds = 30 * 24 * 60 * 60; // 30일
+    const expiresAt = Math.floor(Date.now() / 1000) + maxAgeSeconds;
+
+    saveSession(sessionId, lowerEmail, expiresAt);
+
+    // HTTP-Only 쿠키
+    res.setHeader(
+      "Set-Cookie",
+      `session_id=${sessionId}; Path=/; HttpOnly; Max-Age=${maxAgeSeconds}; SameSite=Lax`
+    );
+
+    res.json({ ok: true, email: lowerEmail });
+  });
+
+  router.post("/credentials", (req, res) => {
+    const sessionId = getSessionIdFromCookies(req.headers.cookie);
+    if (!sessionId) {
+      res.status(401).json({ error: "로그인이 필요합니다." });
+      return;
+    }
+    const session = getSession(sessionId);
+    if (!session) {
+      res.status(401).json({ error: "유효하지 않은 세션입니다." });
+      return;
+    }
+
+    const { email, password } = req.body;
+    if (!email || typeof email !== "string") {
+      res.status(400).json({ error: "이메일은 필수 입력 항목입니다." });
+      return;
+    }
+
+    const currentEmail = session.email;
+    const newEmail = email.trim().toLowerCase();
+    
+    let passwordHash: string | null = null;
+    if (password && typeof password === "string" && password.trim().length > 0) {
+      passwordHash = hashPassword(password);
+    }
+
+    try {
+      updateUserCredentials(currentEmail, newEmail, passwordHash);
+
+      // 세션 내부 이메일도 변경해줌
+      const maxAgeSeconds = 30 * 24 * 60 * 60;
+      const expiresAt = Math.floor(Date.now() / 1000) + maxAgeSeconds;
+      saveSession(sessionId, newEmail, expiresAt);
+
+      res.json({ ok: true, email: newEmail });
+    } catch (err: any) {
+      console.error("❌ Failed to update credentials:", err);
+      res.status(500).json({ error: err.message || "설정 변경에 실패했습니다." });
+    }
+  });
+
   return router;
 }
 
@@ -238,6 +330,7 @@ export function authMiddleware(req: express.Request, res: express.Response, next
     path === "/auth/google" ||
     path === "/auth/google/callback" ||
     path === "/auth/me" ||
+    path === "/auth/login-local" ||
     path === "/config"; // 시스템 설정 감지용 config 엔드포인트는 인증없이 읽을 수 있도록 허용
 
   if (isWhiteListed) {
