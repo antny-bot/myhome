@@ -19,11 +19,67 @@ function App() {
   const [auth, setAuth] = useState<{ isAuthenticated: boolean; email?: string; isAdmin?: boolean } | null>(null);
   const [state, setState] = useState<DashboardState | undefined>();
   const [error, setError] = useState("");
-  const [view, setView] = useState<View>("dashboard");
+  const [view, setView] = useState<View>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const viewParam = params.get("view") as View;
+    const validViews: View[] = [
+      "dashboard",
+      "rules",
+      "explore",
+      "settings",
+      "analytics",
+      "complexAnalysis",
+      "dbAdmin",
+      "collect",
+      "nearby",
+      "allowedAccounts",
+      "activityLog"
+    ];
+    return validViews.includes(viewParam) ? viewParam : "dashboard";
+  });
   const [rulesInitData, setRulesInitData] = useState<{ regionName: string; regionCode?: string; apartmentKeywords: string[] } | null>(null);
   const [complexAnalysisInitData, setComplexAnalysisInitData] = useState<{ complexName: string; lawdCode?: string } | null>(null);
   const [drilldownFromOverview, setDrilldownFromOverview] = useState(false);
   
+  // 뒤로가기 / 앞으로가기 (popstate) 이벤트 감지 및 처리
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      if (event.state && typeof event.state === "object" && "view" in event.state) {
+        setView(event.state.view as View);
+      } else {
+        const params = new URLSearchParams(window.location.search);
+        const viewParam = params.get("view") as View;
+        const validViews: View[] = [
+          "dashboard", "rules", "explore", "settings", "analytics", 
+          "complexAnalysis", "dbAdmin", "collect", "nearby", "allowedAccounts", "activityLog"
+        ];
+        if (validViews.includes(viewParam)) {
+          setView(viewParam);
+        } else {
+          setView("dashboard");
+        }
+      }
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, []);
+
+  // view 상태 변경 시 브라우저 히스토리(history state) 동기화
+  useEffect(() => {
+    if (auth?.isAuthenticated) {
+      const currentState = window.history.state;
+      const url = `?view=${view}`;
+      
+      if (!currentState) {
+        window.history.replaceState({ view }, "", url);
+      } else if (currentState.view !== view) {
+        window.history.pushState({ view }, "", url);
+      }
+    }
+  }, [view, auth?.isAuthenticated]);
+
   const adminViews: View[] = ["collect", "activityLog", "dbAdmin", "allowedAccounts"];
   useEffect(() => {
     if (auth?.isAuthenticated && !auth.isAdmin && adminViews.includes(view)) {
@@ -79,6 +135,8 @@ function App() {
     try {
       await logout();
       setAuth({ isAuthenticated: false });
+      setView("dashboard");
+      window.history.pushState({}, "", "/");
     } catch (err) {
       console.error("로그아웃 실패:", err);
     }
