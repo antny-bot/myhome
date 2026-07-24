@@ -30,7 +30,8 @@ const ruleSchema = z.object({
   minArea: z.number().positive().optional(),
   maxArea: z.number().positive().optional(),
   comparisonCriteria: z.enum(comparisonValues),
-  intervalMinutes: z.number().int().min(10),
+  intervalMinutes: z.number().int().min(10).optional(),
+  alertTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
   channels: z.array(z.enum(["telegram", "kakao"])).min(1),
   enabled: z.boolean()
 });

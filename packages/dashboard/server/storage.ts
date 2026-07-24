@@ -165,7 +165,8 @@ export async function upsertRule(input: RuleInput, id?: string, email: string = 
     updatedAt: now,
     regionCode: input.regionCode ?? existing?.regionCode,
     lastCheckedAt: existing?.lastCheckedAt,
-    ...input
+    ...input,
+    intervalMinutes: input.intervalMinutes ?? 1440
   };
 
   upsertRuleDb(email, rule);

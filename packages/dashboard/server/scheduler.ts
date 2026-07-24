@@ -5,10 +5,29 @@ import { getAllRules } from "@myhome/shared";
 import { batchGeocodeComplexes } from "./geocoding.js";
 
 
-function isDue(lastCheckedAt: string | undefined, intervalMinutes: number) {
-  if (!lastCheckedAt) return true;
-  const elapsedMs = Date.now() - new Date(lastCheckedAt).getTime();
-  return elapsedMs >= intervalMinutes * 60 * 1000;
+function isAlertDue(lastCheckedAt: string | undefined, alertTime: string | undefined): boolean {
+  // alertTime이 명시적으로 지정되지 않은 레거시 데이터는 기본적으로 오전 9시 알림으로 대치
+  const targetAlertTime = alertTime || "09:00";
+  
+  const now = new Date();
+  const [targetHour, targetMin] = targetAlertTime.split(":").map(Number);
+  
+  // 오늘 기준 타겟 알림 설정 시각 Date 객체 생성
+  const targetTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), targetHour, targetMin, 0, 0);
+
+  // 현재 시간이 오늘 타겟 시각보다 전이면 아직 실행 주기 미도달
+  if (now.getTime() < targetTime.getTime()) {
+    return false;
+  }
+
+  // 마지막 체크 기록이 없으면 최초 실행
+  if (!lastCheckedAt) {
+    return true;
+  }
+
+  // 마지막으로 체크한 시간이 오늘 설정된 타겟 시각 이전이면 오늘 체크를 미수행했으므로 실행
+  const lastChecked = new Date(lastCheckedAt);
+  return lastChecked.getTime() < targetTime.getTime();
 }
 
 let running = false;
@@ -47,7 +66,7 @@ export async function runDueRules() {
   running = true;
   try {
     const rules = getAllRules();
-    const dueRules = rules.filter((rule) => rule.enabled && isDue(rule.lastCheckedAt, rule.intervalMinutes));
+    const dueRules = rules.filter((rule) => rule.enabled && isAlertDue(rule.lastCheckedAt, rule.alertTime));
 
     for (const rule of dueRules) {
       try {

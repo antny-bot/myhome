@@ -20,6 +20,7 @@ export type WatchRule = {
   maxArea?: number;
   comparisonCriteria: ComparisonCriteria;
   intervalMinutes: number;
+  alertTime?: string;
   channels: AlertChannel[];
   enabled: boolean;
   lastCheckedAt?: string;
@@ -38,7 +39,8 @@ export type RuleInput = {
   minArea?: number;
   maxArea?: number;
   comparisonCriteria: ComparisonCriteria;
-  intervalMinutes: number;
+  intervalMinutes?: number;
+  alertTime?: string;
   channels: AlertChannel[];
   enabled: boolean;
 };

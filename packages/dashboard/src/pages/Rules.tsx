@@ -14,6 +14,18 @@ import { TelegramGuideModal } from "../components/TelegramGuideModal";
 const locale = "ko";
 const t = copy[locale];
 
+const ALERT_TIME_OPTIONS = Array.from({ length: 24 }, (_, i) => {
+  const hour = i.toString().padStart(2, "0");
+  const timeStr = `${hour}:00`;
+  const period = i < 12 ? "오전" : "오후";
+  const displayHour = i === 0 ? 12 : i > 12 ? i - 12 : i;
+  return {
+    value: timeStr,
+    label: `${period} ${displayHour}시 (${timeStr})`,
+    labelEn: `${i < 12 ? "AM" : "PM"} ${displayHour === 0 ? 12 : displayHour}:00 (${timeStr})`
+  };
+});
+
 const initialForm: RuleInput = {
   name: "",
   regionName: "",
@@ -24,7 +36,8 @@ const initialForm: RuleInput = {
   minArea: undefined,
   maxArea: undefined,
   comparisonCriteria: "none",
-  intervalMinutes: 720,
+  intervalMinutes: 1440,
+  alertTime: "09:00",
   channels: ["telegram"],
   enabled: true
 };
@@ -92,7 +105,8 @@ function RuleForm({
         minArea: editingRule.minArea,
         maxArea: editingRule.maxArea,
         comparisonCriteria: editingRule.comparisonCriteria,
-        intervalMinutes: editingRule.intervalMinutes,
+        intervalMinutes: editingRule.intervalMinutes ?? 1440,
+        alertTime: editingRule.alertTime ?? "09:00",
         channels: editingRule.channels,
         enabled: editingRule.enabled
       });
@@ -559,13 +573,17 @@ function RuleForm({
 
               <label className="space-y-1.5">
                 <span className="text-sm font-semibold text-strong">{t.checkInterval}</span>
-                <input
-                  className="w-full rounded-lg border border-normal bg-normal px-4 py-2 text-sm text-strong focus:border-primary outline-none"
-                  type="number"
-                  min={10}
-                  value={form.intervalMinutes}
-                  onChange={(event) => setForm({ ...form, intervalMinutes: Number(event.target.value) })}
-                />
+                <select
+                  className="w-full rounded-lg border border-normal bg-normal px-3 py-2 text-sm text-strong focus:border-primary outline-none appearance-none"
+                  value={form.alertTime || "09:00"}
+                  onChange={(event) => setForm({ ...form, alertTime: event.target.value })}
+                >
+                  {ALERT_TIME_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {locale === "ko" ? opt.label : opt.labelEn}
+                    </option>
+                  ))}
+                </select>
               </label>
 
               <div className="space-y-1.5 sm:col-span-2 flex items-end">
@@ -754,7 +772,11 @@ function RuleList({
                 </p>
                 <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral">
                   <span className="bg-alternative border border-normal px-1.5 py-0.5 rounded leading-none">{comparisonLabels[rule.comparisonCriteria]}</span>
-                  <span>{rule.intervalMinutes}{t.ruleIntervalSuffix}</span>
+                  <span>
+                    {locale === "ko" 
+                      ? `${rule.alertTime || "09:00"} 알림` 
+                      : `Alert at ${rule.alertTime || "09:00"}`}
+                  </span>
                   <span className="flex items-center gap-1">
                      <History className="h-3 w-3" /> {formatDate(rule.lastCheckedAt)} {t.ruleLastChecked}
                   </span>

@@ -92,6 +92,7 @@ export function initDb(): void {
       max_area REAL,
       comparison_criteria TEXT NOT NULL,
       interval_minutes INTEGER NOT NULL,
+      alert_time TEXT DEFAULT '09:00',
       channels TEXT NOT NULL,
       enabled INTEGER DEFAULT 1,
       last_checked_at TEXT,
@@ -208,6 +209,13 @@ export function initDb(): void {
   const userSettingsColNames = new Set(userSettingsCols.map((c: any) => c.name));
   if (!userSettingsColNames.has('password_hash')) {
     db.exec('ALTER TABLE user_settings ADD COLUMN password_hash TEXT');
+  }
+
+  // -- rules 테이블 alert_time 컬럼 마이그레이션 (기존 DB 호환)
+  const rulesCols = db.prepare("PRAGMA table_info(rules)").all() as { name: string }[];
+  const rulesColNames = new Set(rulesCols.map((c: any) => c.name));
+  if (!rulesColNames.has('alert_time')) {
+    db.exec("ALTER TABLE rules ADD COLUMN alert_time TEXT DEFAULT '09:00'");
   }
 }
 
@@ -1383,6 +1391,7 @@ function parseRuleRow(row: any) {
     maxArea: row.max_area !== null ? row.max_area : undefined,
     comparisonCriteria: row.comparison_criteria,
     intervalMinutes: row.interval_minutes,
+    alertTime: row.alert_time || "09:00",
     channels: channels,
     enabled: Boolean(row.enabled),
     lastCheckedAt: row.last_checked_at || undefined,
@@ -1426,9 +1435,9 @@ export function upsertRuleDb(email: string, rule: any): void {
     INSERT INTO rules (
       id, user_email, name, region_name, region_code, apartment_keywords,
       min_price_eok, max_price_eok, min_area, max_area, comparison_criteria,
-      interval_minutes, channels, enabled, last_checked_at, created_at, updated_at
+      interval_minutes, alert_time, channels, enabled, last_checked_at, created_at, updated_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       name = excluded.name,
       region_name = excluded.region_name,
@@ -1440,6 +1449,7 @@ export function upsertRuleDb(email: string, rule: any): void {
       max_area = excluded.max_area,
       comparison_criteria = excluded.comparison_criteria,
       interval_minutes = excluded.interval_minutes,
+      alert_time = excluded.alert_time,
       channels = excluded.channels,
       enabled = excluded.enabled,
       last_checked_at = COALESCE(excluded.last_checked_at, rules.last_checked_at),
@@ -1457,6 +1467,7 @@ export function upsertRuleDb(email: string, rule: any): void {
     rule.maxArea !== undefined ? rule.maxArea : null,
     rule.comparisonCriteria,
     rule.intervalMinutes,
+    rule.alertTime || "09:00",
     channelsStr,
     rule.enabled ? 1 : 0,
     rule.lastCheckedAt || null,
