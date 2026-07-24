@@ -1,7 +1,7 @@
 import { ArrowDownRight, ArrowUpRight, ChevronDown, LayoutGrid, TableProperties, RefreshCw, Search, MapPin, History, Plus, Trash2, Calendar, Database, Building2, TrendingUp } from "lucide-react";
 import React, { useMemo, useState, useEffect } from "react";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip } from "recharts";
-import { searchTransactions, searchComplexNames, getApartments, fetchDbRegionsSummary, addDbRegion, deleteDbRegion } from "../api";
+import { searchTransactions, searchComplexNames, getApartments, fetchDbRegionsSummary, addDbRegion, deleteDbRegion, logActivity } from "../api";
 
 import { RegionSearchInput } from "../components/RegionSearchInput";
 import { SectionCard } from "../components/SectionCard";
@@ -173,6 +173,13 @@ export function ExplorePage() {
     setUiFeedback({ message: "", type: "success" });
     try {
       await addDbRegion(searchLawdCode, searchResolvedName);
+      
+      // 사용자 활동 로그
+      void logActivity("region_add", `수집 지역 추가: ${searchResolvedName} (${searchLawdCode})`, {
+        lawdCode: searchLawdCode,
+        displayName: searchResolvedName
+      });
+
       setUiFeedback({
         message: `${searchResolvedName} (코드: ${searchLawdCode}) ${t.addRegionSuccess}`,
         type: "success"
@@ -198,6 +205,13 @@ export function ExplorePage() {
     if (!window.confirm(`'${name}' ${t.deleteConfirm}`)) return;
     try {
       await deleteDbRegion(lawdCode);
+      
+      // 사용자 활동 로그
+      void logActivity("region_delete", `수집 지역 삭제: ${name} (${lawdCode})`, {
+        lawdCode,
+        displayName: name
+      });
+
       setUiFeedback({
         message: `'${name}' ${t.deleteRegionSuccess}`,
         type: "success"
@@ -342,6 +356,17 @@ export function ExplorePage() {
       setResults(records);
       setSearchedRegion(selectedDisplayName);
       setNameFilter(complexQuery);
+
+      // 사용자 활동 로그
+      const periodStr = isRange ? `${startMonth}~${endMonth}` : dealMonth;
+      const detailsStr = complexQuery ? ` (단지명: ${complexQuery})` : "";
+      void logActivity("search_transactions", `${selectedDisplayName} 실거래 검색 (${periodStr})${detailsStr}`, {
+        lawdCode: selectedLawdCode,
+        regionName: selectedDisplayName,
+        period: isRange ? { startMonth, endMonth } : { dealMonth },
+        complexQuery: complexQuery || undefined,
+        count: records.length
+      });
 
       // DB 집계 결과가 갱신되었으므로, 상단 수집 지역 목록도 실시간으로 다시 로딩하여 통계 및 기간 반영
       await loadRegions();

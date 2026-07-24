@@ -87,3 +87,14 @@ export interface RegionCollectStat {
   regionName: string;
   count: number;
 }
+
+export interface UserActivityLog {
+  id: string;
+  userEmail: string;
+  activityType: string;
+  description: string;
+  payload?: string;
+  ipAddress?: string;
+  userAgent?: string;
+  createdAt: string;
+}

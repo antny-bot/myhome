@@ -1,4 +1,4 @@
-import type { AppConfig, CheckRun, NotificationRecord, RegionSearchResult, RuleInput, TransactionRecord, WatchRule, ApartmentListResponse } from "./types";
+import type { AppConfig, CheckRun, NotificationRecord, RegionSearchResult, RuleInput, TransactionRecord, WatchRule, ApartmentListResponse, UserActivityLog, ActivityStats } from "./types";
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
@@ -417,6 +417,34 @@ export function addDbRegion(lawdCode: string, displayName: string) {
     method: "POST",
     body: JSON.stringify({ lawdCode, displayName })
   });
+}
+
+export function logActivity(activityType: string, description: string, payload?: any) {
+  return request<{ ok: boolean }>("/api/logs", {
+    method: "POST",
+    body: JSON.stringify({ activityType, description, payload })
+  }).catch((err) => {
+    console.warn("Failed to log activity:", err);
+    return { ok: false };
+  });
+}
+
+export function fetchActivityLogs(params: {
+  limit?: number;
+  offset?: number;
+  userEmail?: string;
+  activityType?: string;
+}) {
+  const query = new URLSearchParams();
+  if (params.limit !== undefined) query.set("limit", String(params.limit));
+  if (params.offset !== undefined) query.set("offset", String(params.offset));
+  if (params.userEmail) query.set("userEmail", params.userEmail);
+  if (params.activityType) query.set("activityType", params.activityType);
+  return request<{ logs: UserActivityLog[]; total: number }>(`/api/logs?${query.toString()}`);
+}
+
+export function fetchActivityStats() {
+  return request<ActivityStats>("/api/logs/stats");
 }
 
 

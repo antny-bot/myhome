@@ -127,3 +127,20 @@ export type ComplexSearchResult = {
   lawdCode: string;
   regionName: string;
 };
+
+export interface UserActivityLog {
+  id: string;
+  userEmail: string;
+  activityType: string;
+  description: string;
+  payload?: string;
+  ipAddress?: string;
+  userAgent?: string;
+  createdAt: string;
+}
+
+export interface ActivityStats {
+  activityByType: { activityType: string; count: number }[];
+  activityByDate: { date: string; count: number }[];
+  topUsers: { userEmail: string; count: number }[];
+}

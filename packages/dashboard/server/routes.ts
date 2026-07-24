@@ -8,7 +8,7 @@ import { getApartmentList, getApartmentPrices } from "./mcpClient.js";
 import { isKakaoConfigured, searchAddresses } from "./addressSearch.js";
 import { getMonthsInRange, normalizeTransaction } from "./transactions.js";
 import type { ComparisonCriteria, RuleInput, SystemConfig } from "./types.js";
-import { upsertTransactionBatch, makeGraphDedupeKey, getCachedApartments, saveCachedApartments, searchDbRegions, getLocalTransactionsCount, getLocalApartmentPrices, getUserSettings, saveUserSettings } from "@myhome/shared";
+import { upsertTransactionBatch, makeGraphDedupeKey, getCachedApartments, saveCachedApartments, searchDbRegions, getLocalTransactionsCount, getLocalApartmentPrices, getUserSettings, saveUserSettings, insertActivityLog, getActivityLogs, getActivityStats } from "@myhome/shared";
 import type { BatchUpsertItem } from "@myhome/shared";
 import { adminRequired } from "./authRoutes.js";
 
@@ -456,6 +456,54 @@ export function createRouter() {
       const email = req.user?.email || "bootstrap-admin@myhome.local";
       const state = await readStateForUser(email);
       res.json(state.notifications);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/logs", async (req, res, next) => {
+    try {
+      const email = req.user?.email || "anonymous";
+      const { activityType, description, payload } = req.body;
+      
+      if (!activityType || !description) {
+        res.status(400).json({ error: "activityType and description are required" });
+        return;
+      }
+      
+      insertActivityLog({
+        userEmail: email,
+        activityType,
+        description,
+        payload: payload ? (typeof payload === 'string' ? payload : JSON.stringify(payload)) : undefined,
+        ipAddress: req.ip || req.headers["x-forwarded-for"] as string || undefined,
+        userAgent: req.headers["user-agent"] || undefined
+      });
+      
+      res.json({ ok: true });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/logs", adminRequired, async (req, res, next) => {
+    try {
+      const limit = parseInt(req.query.limit as string || "20");
+      const offset = parseInt(req.query.offset as string || "0");
+      const userEmail = req.query.userEmail as string || undefined;
+      const activityType = req.query.activityType as string || undefined;
+      
+      const result = getActivityLogs(limit, offset, userEmail, activityType);
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/logs/stats", adminRequired, async (req, res, next) => {
+    try {
+      const stats = getActivityStats();
+      res.json(stats);
     } catch (error) {
       next(error);
     }

@@ -1,7 +1,7 @@
 import { Check, ChevronLeft, ChevronRight, History, Pencil, Play, RefreshCw, Search, Send, Trash2, X, Bell, HelpCircle, ShieldAlert } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState, useRef } from "react";
 import { useBreakpoint } from "../useBreakpoint";
-import { createRule, deleteRule, getApartments, patchRule, runRule, searchRegions } from "../api";
+import { createRule, deleteRule, getApartments, patchRule, runRule, searchRegions, logActivity } from "../api";
 
 import { RegionSearchInput } from "../components/RegionSearchInput";
 import { SectionCard } from "../components/SectionCard";
@@ -229,8 +229,10 @@ function RuleForm({
     try {
       if (editingRule) {
         await patchRule(editingRule.id, form);
+        void logActivity("rule_update", `알림 규칙 수정: ${form.name}`, { ruleId: editingRule.id, form });
       } else {
-        await createRule(form);
+        const newRule = await createRule(form);
+        void logActivity("rule_create", `알림 규칙 생성: ${form.name}`, { ruleId: newRule.id, form });
       }
       onSave();
     } catch (err) {
@@ -676,6 +678,8 @@ function RuleList({
     setError("");
     try {
       await runRule(id);
+      const rule = rules.find((r) => r.id === id);
+      void logActivity("rule_test", `알림 규칙 즉시 실행 테스트: ${rule?.name || id}`, { ruleId: id });
       onChanged();
     } catch (err) {
       setError(err instanceof Error ? err.message : "체크 실행에 실패했습니다.");
@@ -687,7 +691,9 @@ function RuleList({
   async function remove(id: string) {
     if (!confirm(t.deleteConfirm)) return;
     try {
+      const rule = rules.find((r) => r.id === id);
       await deleteRule(id);
+      void logActivity("rule_delete", `알림 규칙 삭제: ${rule?.name || id}`, { ruleId: id });
       onChanged();
     } catch (err) {
       setError("삭제에 실패했습니다.");
@@ -776,7 +782,9 @@ function RuleList({
                     rule.enabled ? "bg-elevated border-normal text-strong hover:bg-alternative" : "bg-primary border-primary text-white hover:opacity-90 active:scale-95"
                   )}
                   onClick={async () => {
-                    await patchRule(rule.id, { enabled: !rule.enabled });
+                    const nextEnabled = !rule.enabled;
+                    await patchRule(rule.id, { enabled: nextEnabled });
+                    void logActivity("rule_update", `알림 규칙 상태 변경 (${nextEnabled ? "활성화" : "일시정지"}): ${rule.name}`, { ruleId: rule.id, enabled: nextEnabled });
                     onChanged();
                   }}
                 >

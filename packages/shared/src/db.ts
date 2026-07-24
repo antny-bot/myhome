@@ -1,6 +1,6 @@
 import { DatabaseSync } from "node:sqlite";
 import { join } from "node:path";
-import { TransactionNode, RegionInfo, TrendPoint, GraphStats, GraphFilter, GraphTopologyData, ComplexSearchResult, DailyCollectStat, RegionCollectStat } from "./types.js";
+import { TransactionNode, RegionInfo, TrendPoint, GraphStats, GraphFilter, GraphTopologyData, ComplexSearchResult, DailyCollectStat, RegionCollectStat, UserActivityLog } from "./types.js";
 
 let _db: DatabaseSync | null = null;
 
@@ -163,6 +163,20 @@ export function initDb(): void {
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS user_activity_logs (
+      id TEXT PRIMARY KEY,
+      user_email TEXT NOT NULL,
+      activity_type TEXT NOT NULL,
+      description TEXT NOT NULL,
+      payload TEXT,
+      ip_address TEXT,
+      user_agent TEXT,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_user_activity_logs_created_at ON user_activity_logs(created_at);
+    CREATE INDEX IF NOT EXISTS idx_user_activity_logs_user_email ON user_activity_logs(user_email);
   `);
 
   // -- complexes 테이블 주소·좌표 컬럼 마이그레이션 (기존 DB 호환)
@@ -1784,5 +1798,101 @@ export function saveSystemConfigDb(config: Record<string, string>): void {
     db.exec("ROLLBACK");
     throw err;
   }
+}
+
+export function insertActivityLog(log: Omit<UserActivityLog, "id" | "createdAt">): void {
+  const db = getDb();
+  const id = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2) + Date.now().toString(36);
+  const now = new Date().toISOString();
+  
+  const stmt = db.prepare(`
+    INSERT INTO user_activity_logs (id, user_email, activity_type, description, payload, ip_address, user_agent, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  
+  stmt.run(
+    id,
+    log.userEmail,
+    log.activityType,
+    log.description,
+    log.payload ?? null,
+    log.ipAddress ?? null,
+    log.userAgent ?? null,
+    now
+  );
+}
+
+export function getActivityLogs(
+  limit: number,
+  offset: number,
+  userEmail?: string,
+  activityType?: string
+): { logs: UserActivityLog[]; total: number } {
+  const db = getDb();
+  
+  let countSql = "SELECT COUNT(*) AS count FROM user_activity_logs WHERE 1=1";
+  let selectSql = "SELECT id, user_email AS userEmail, activity_type AS activityType, description, payload, ip_address AS ipAddress, user_agent AS userAgent, created_at AS createdAt FROM user_activity_logs WHERE 1=1";
+  const params: any[] = [];
+  
+  if (userEmail) {
+    countSql += " AND user_email = ?";
+    selectSql += " AND user_email = ?";
+    params.push(userEmail);
+  }
+  
+  if (activityType) {
+    countSql += " AND activity_type = ?";
+    selectSql += " AND activity_type = ?";
+    params.push(activityType);
+  }
+  
+  const totalRow = db.prepare(countSql).get(...params) as { count: number };
+  const total = totalRow ? totalRow.count : 0;
+  
+  selectSql += " ORDER BY created_at DESC LIMIT ? OFFSET ?";
+  const selectParams = [...params, limit, offset];
+  const logs = db.prepare(selectSql).all(...selectParams) as unknown as UserActivityLog[];
+  
+  return { logs, total };
+}
+
+export function getActivityStats(): {
+  activityByType: { activityType: string; count: number }[];
+  activityByDate: { date: string; count: number }[];
+  topUsers: { userEmail: string; count: number }[];
+} {
+  const db = getDb();
+  
+  // 1. 유형별 로그 수
+  const byTypeRows = db.prepare(`
+    SELECT activity_type AS activityType, COUNT(*) AS count
+    FROM user_activity_logs
+    GROUP BY activity_type
+    ORDER BY count DESC
+  `).all() as unknown as { activityType: string; count: number }[];
+  
+  // 2. 최근 14일 일자별 로그 수
+  const byDateRows = db.prepare(`
+    SELECT date(created_at) AS date, COUNT(*) AS count
+    FROM user_activity_logs
+    WHERE created_at >= date('now', '-14 days')
+    GROUP BY date
+    ORDER BY date ASC
+  `).all() as unknown as { date: string; count: number }[];
+  
+  // 3. 사용자별 로그 수 상위 10
+  const topUsersRows = db.prepare(`
+    SELECT user_email AS userEmail, COUNT(*) AS count
+    FROM user_activity_logs
+    GROUP BY user_email
+    ORDER BY count DESC
+    LIMIT 10
+  `).all() as unknown as { userEmail: string; count: number }[];
+  
+  return {
+    activityByType: byTypeRows,
+    activityByDate: byDateRows,
+    topUsers: topUsersRows
+  };
 }
 

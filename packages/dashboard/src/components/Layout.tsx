@@ -1,11 +1,11 @@
-import { Bell, History, LayoutDashboard, Menu, X, LucideIcon, BarChart3, Database, ClipboardList, Compass, Home, LogOut, UserCheck, Sun, Moon, Monitor, ShieldCheck, Star, Settings, Building2 } from "lucide-react";
+import { Bell, History, LayoutDashboard, Menu, X, LucideIcon, BarChart3, Database, ClipboardList, Compass, Home, LogOut, UserCheck, Sun, Moon, Monitor, ShieldCheck, Star, Settings, Building2, Activity } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { classNames } from "../lib/format";
 import { useBreakpoint } from "../useBreakpoint";
 import { useTheme } from "../useTheme";
 import packageJson from "../../package.json";
 
-export type View = "dashboard" | "rules" | "explore" | "settings" | "analytics" | "complexAnalysis" | "dbAdmin" | "collect" | "nearby" | "allowedAccounts";
+export type View = "dashboard" | "rules" | "explore" | "settings" | "analytics" | "complexAnalysis" | "dbAdmin" | "collect" | "nearby" | "allowedAccounts" | "activityLog";
 
 interface NavItemMeta {
   key: View;
@@ -23,6 +23,7 @@ const NAV_ITEMS: NavItemMeta[] = [
   { key: "nearby", label: "역세권 분석", compactLabel: "역세권", adminOnly: false, Icon: Compass },
   { key: "rules", label: "알림 규칙", compactLabel: "알림", adminOnly: false, Icon: Bell },
   { key: "collect", label: "수집 현황", compactLabel: "수집", adminOnly: true, Icon: ClipboardList },
+  { key: "activityLog", label: "활동 로그", compactLabel: "로그", adminOnly: true, Icon: Activity },
   { key: "dbAdmin", label: "데이터베이스", compactLabel: "DB", adminOnly: true, Icon: Database },
   { key: "allowedAccounts", label: "승인 계정", compactLabel: "승인", adminOnly: true, Icon: UserCheck },
   { key: "settings", label: "환경 설정", compactLabel: "설정", adminOnly: false, Icon: Settings }
@@ -36,6 +37,7 @@ const DEFAULT_ORDER: View[] = [
   "rules",
   "nearby",
   "collect",
+  "activityLog",
   "dbAdmin",
   "allowedAccounts",
   "settings"

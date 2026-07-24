@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { loadDashboard, checkAuth, logout } from "./api";
+import { loadDashboard, checkAuth, logout, logActivity } from "./api";
 import { Layout, type View } from "./components/Layout";
 import { DashboardPage } from "./pages/Dashboard";
 import { LoginPage } from "./pages/Login";
@@ -12,6 +12,7 @@ import NearbyStationTab from "./pages/graph/NearbyStationTab";
 import { DatabaseAdminPage } from "./pages/DatabaseAdmin";
 import { CollectPage } from "./pages/Collect";
 import { AllowedAccountsPage } from "./pages/AllowedAccountsPage";
+import { ActivityLogPage } from "./pages/ActivityLog";
 import type { DashboardState } from "./types";
 
 function App() {
@@ -23,7 +24,7 @@ function App() {
   const [complexAnalysisInitData, setComplexAnalysisInitData] = useState<{ complexName: string; lawdCode?: string } | null>(null);
   const [drilldownFromOverview, setDrilldownFromOverview] = useState(false);
   
-  const adminViews: View[] = ["collect", "dbAdmin", "allowedAccounts"];
+  const adminViews: View[] = ["collect", "activityLog", "dbAdmin", "allowedAccounts"];
   useEffect(() => {
     if (auth?.isAuthenticated && !auth.isAdmin && adminViews.includes(view)) {
       setView("dashboard");
@@ -53,6 +54,26 @@ function App() {
     }
     void initAuth();
   }, []);
+
+  useEffect(() => {
+    if (auth?.isAuthenticated && view) {
+      const viewNames: Record<View, string> = {
+        dashboard: "대시보드",
+        rules: "알림 규칙",
+        explore: "실거래 집계",
+        settings: "환경 설정",
+        analytics: "종합 현황",
+        complexAnalysis: "단지 분석",
+        dbAdmin: "데이터베이스 관리",
+        collect: "수집 현황",
+        nearby: "역세권 분석",
+        allowedAccounts: "승인 계정 관리",
+        activityLog: "활동 로그"
+      };
+      const name = viewNames[view] || view;
+      void logActivity("page_view", `${name} 페이지 조회`, { view });
+    }
+  }, [view, auth?.isAuthenticated]);
 
   const handleLogout = async () => {
     try {
@@ -131,6 +152,7 @@ function App() {
         />
       )}
       {view === "collect" && <CollectPage />}
+      {view === "activityLog" && <ActivityLogPage />}
       {view === "dbAdmin" && <DatabaseAdminPage />}
       {view === "allowedAccounts" && <AllowedAccountsPage onChanged={() => void refresh()} currentUserEmail={auth?.email} />}
       {view === "settings" && <SettingsPage state={state} onChanged={() => void refresh()} isAdmin={auth?.isAdmin} />}

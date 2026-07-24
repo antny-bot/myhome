@@ -308,7 +308,23 @@ export const copy = {
     telegramOpenGetIdsBot: "@getidsbot 바로가기",
     telegramCopy: "복사",
     telegramCopied: "복사 완료!",
-    telegramClose: "닫기"
+    telegramClose: "닫기",
+    activityLog: "활동 로그",
+    activityLogTitle: "활동 로그 모니터링",
+    activityLogSubtitle: "대시보드 내 사용자의 페이지 방문, 실거래 검색, 수집 지역 변경 등의 활동 로그를 모니터링합니다.",
+    activityType: "활동 유형",
+    activityDescription: "활동 내용",
+    ipAddress: "IP 주소",
+    userAgent: "User Agent",
+    time: "시간",
+    filterUser: "사용자 이메일 필터",
+    filterType: "활동 유형 필터",
+    allTypes: "전체 유형",
+    noActivityLogs: "기록된 활동 로그가 없습니다.",
+    activityTrends: "최근 활동 추이 (14일)",
+    activityDistribution: "활동 유형별 분포",
+    payload: "추가 정보",
+    viewPayload: "상세 데이터"
   },
   en: {
     // Navigation / Breadcrumb Parents
@@ -609,7 +625,23 @@ export const copy = {
     telegramOpenGetIdsBot: "Go to @getidsbot",
     telegramCopy: "Copy",
     telegramCopied: "Copied!",
-    telegramClose: "Close"
+    telegramClose: "Close",
+    activityLog: "Activity Log",
+    activityLogTitle: "Activity Log Monitoring",
+    activityLogSubtitle: "Monitor user activities including page views, transaction searches, and region updates.",
+    activityType: "Activity Type",
+    activityDescription: "Description",
+    ipAddress: "IP Address",
+    userAgent: "User Agent",
+    time: "Time",
+    filterUser: "Filter User Email",
+    filterType: "Filter Activity Type",
+    allTypes: "All Types",
+    noActivityLogs: "No activity logs recorded.",
+    activityTrends: "Recent Activity Trends (14 days)",
+    activityDistribution: "Activity Distribution",
+    payload: "Payload",
+    viewPayload: "View Details"
   }
 } as const;
 
