@@ -55,11 +55,9 @@ function cleanRegionDisplayName(displayName: string): string {
   return address;
 }
 
-const isDev = process.env.NODE_ENV !== "production";
-
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: isDev ? 10000 : 100, // 개발 환경에서는 요청 한도를 10,000회로 대폭 늘려 HMR 및 새로고침으로 인한 429 에러 방지
+  max: 10000, // 개발 및 운영 환경 전체에서 HMR, 다중 API 호출, 대시보드 새로고침으로 인한 429 에러 방지를 위해 한도를 10,000회로 상향 조정
   message: "요청이 너무 많습니다. 잠시 후 다시 시도해주세요. (Too many requests from this IP, please try again later.)",
   standardHeaders: true,
   legacyHeaders: false,
