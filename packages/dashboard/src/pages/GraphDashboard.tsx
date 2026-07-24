@@ -38,10 +38,10 @@ export default function GraphDashboard({ onNavigateToRules, onSelectComplex, con
   const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const fetchTransactions = async () => {
+  const fetchTransactions = async (currentFilter: GraphFilter = filter) => {
     setLoading(true);
     try {
-      const data = await searchGraphTransactions(filter);
+      const data = await searchGraphTransactions(currentFilter);
       setTransactions(data);
     } catch (err) {
       console.error("Failed to load transactions for overview", err);
@@ -60,8 +60,8 @@ export default function GraphDashboard({ onNavigateToRules, onSelectComplex, con
     setRegionName(newRegionName);
   };
 
-  const handleApply = () => {
-    fetchTransactions();
+  const handleApply = (appliedFilter?: GraphFilter) => {
+    fetchTransactions(appliedFilter || filter);
   };
 
   /** 종합 현황 차트에서 단지 클릭 → 단지 분석 페이지로 드릴다운 */

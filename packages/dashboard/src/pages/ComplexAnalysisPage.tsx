@@ -58,7 +58,7 @@ export default function ComplexAnalysisPage({
     setRegionName(newRegionName);
   };
 
-  const handleApply = () => {
+  const handleApply = (appliedFilter?: GraphFilter) => {
     // ComplexTab은 filter prop 변경 시 자동으로 다시 조회하므로 별도 fetch 불필요
   };
 

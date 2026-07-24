@@ -25,7 +25,7 @@ interface FilterPanelProps {
   filter: GraphFilter;
   regionName: string;
   onFilterChange: (filter: GraphFilter, regionName: string) => void;
-  onApply: () => void;
+  onApply: (appliedFilter: GraphFilter) => void;
   /** true이면 단지명·평형 필터 UI 숨김 (종합 현황 모드) */
   hideComplexSearch?: boolean;
   locale?: "ko" | "en";
@@ -228,20 +228,27 @@ export default function FilterPanel({
     setEndDate(end);
     setPeriod(`${years}year`);
 
-    // 부모 필터 즉시 업데이트
-    onFilterChange(
-      {
-        lawdCode: filter.lawdCode,
-        regionName: regionName,
-        complexName: complexName || undefined,
-        startDate: start,
-        endDate: end,
-        minArea: minArea ? Number(minArea) : undefined,
-        maxArea: maxArea ? Number(maxArea) : undefined,
-      },
-      regionName
-    );
-    onApply();
+    const nextFilter: GraphFilter = hideComplexSearch
+      ? {
+          lawdCodes: selectedRegions.map((r) => r.lawdCode),
+          startDate: start,
+          endDate: end,
+        }
+      : {
+          lawdCode: filter.lawdCode,
+          complexName: complexName || undefined,
+          startDate: start,
+          endDate: end,
+          minArea: minArea ? Number(minArea) : undefined,
+          maxArea: maxArea ? Number(maxArea) : undefined,
+        };
+
+    const targetRegionName = hideComplexSearch
+      ? selectedRegions.map((r) => r.regionName).join(", ")
+      : regionName;
+
+    onFilterChange(nextFilter, targetRegionName);
+    onApply(nextFilter);
   };
 
   // preset에서 시작/종료 년월이 변경되면 로컬 상태 동기화
@@ -398,19 +405,17 @@ export default function FilterPanel({
     setComplexName(item.name);
     setShowSuggestions(false);
     setRegionText(item.regionName);
-    onFilterChange(
-      {
-        lawdCode: item.lawdCode,
-        regionName: item.regionName,
-        complexName: item.name,
-        startDate: startDate || undefined,
-        endDate: endDate || undefined,
-        minArea: minArea ? Number(minArea) : undefined,
-        maxArea: maxArea ? Number(maxArea) : undefined,
-      },
-      item.regionName
-    );
-    setTimeout(() => onApply(), 50);
+    const nextFilter: GraphFilter = {
+      lawdCode: item.lawdCode,
+      regionName: item.regionName,
+      complexName: item.name,
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
+      minArea: minArea ? Number(minArea) : undefined,
+      maxArea: maxArea ? Number(maxArea) : undefined,
+    };
+    onFilterChange(nextFilter, item.regionName);
+    setTimeout(() => onApply(nextFilter), 50);
   };
 
   const handleToggleRegion = (lawdCode: string, name: string) => {
@@ -448,31 +453,28 @@ export default function FilterPanel({
   };
 
   const handleApply = () => {
+    let nextFilter: GraphFilter;
     if (hideComplexSearch) {
       const selectedCodes = selectedRegions.map((r) => r.lawdCode);
       const selectedNames = selectedRegions.map((r) => r.regionName).join(", ");
-      onFilterChange(
-        {
-          lawdCodes: selectedCodes,
-          startDate: startDate || undefined,
-          endDate: endDate || undefined,
-        },
-        selectedNames
-      );
+      nextFilter = {
+        lawdCodes: selectedCodes,
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+      };
+      onFilterChange(nextFilter, selectedNames);
     } else {
-      onFilterChange(
-        {
-          lawdCode: filter.lawdCode,
-          complexName: complexName || undefined,
-          startDate: startDate || undefined,
-          endDate: endDate || undefined,
-          minArea: minArea ? Number(minArea) : undefined,
-          maxArea: maxArea ? Number(maxArea) : undefined,
-        },
-        regionName
-      );
+      nextFilter = {
+        lawdCode: filter.lawdCode,
+        complexName: complexName || undefined,
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+        minArea: minArea ? Number(minArea) : undefined,
+        maxArea: maxArea ? Number(maxArea) : undefined,
+      };
+      onFilterChange(nextFilter, regionName);
     }
-    onApply();
+    onApply(nextFilter);
   };
 
   const handleReset = () => {
@@ -568,6 +570,7 @@ export default function FilterPanel({
       setStartDate(f.startDate || "");
       setEndDate(f.endDate || "");
       onFilterChange(f, f.regionName || preset.name);
+      onApply(f);
     } else {
       const p = preset as any;
       setRegionText(p.regionName || "");
@@ -575,18 +578,18 @@ export default function FilterPanel({
       setMinArea(p.areaM2 ? String(p.areaM2) : "");
       setMaxArea(p.areaM2 ? String(p.areaM2) : "");
 
-      onFilterChange(
-        {
-          lawdCode: filter.lawdCode,
-          regionName: p.regionName,
-          complexName: p.buildingName,
-          startDate: startDate || undefined,
-          endDate: endDate || undefined,
-          minArea: p.areaM2 || undefined,
-          maxArea: p.areaM2 || undefined,
-        },
-        p.regionName || preset.name
-      );
+      const nextFilter: GraphFilter = {
+        lawdCode: filter.lawdCode,
+        regionName: p.regionName,
+        complexName: p.buildingName,
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+        minArea: p.areaM2 || undefined,
+        maxArea: p.areaM2 || undefined,
+      };
+
+      onFilterChange(nextFilter, p.regionName || preset.name);
+      onApply(nextFilter);
     }
   };
 
