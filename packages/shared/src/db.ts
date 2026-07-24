@@ -1522,6 +1522,12 @@ export async function savePresetCore(preset: any, email: string, type: 'overview
   const now = new Date().toISOString();
   const id = preset.id ?? `preset_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
+  // 외래키 무결성을 위해 우선 user_settings 레코드 확보
+  const user = getUserSettings(email);
+  if (!user) {
+    saveUserSettings(email, {});
+  }
+
   if (type === 'overview') {
     const filterStr = JSON.stringify(preset.filter || {});
     const stmt = db.prepare(`INSERT INTO graph_presets_overview (id, user_email, name, filter_data, created_at) VALUES (?, ?, ?, ?, ?) 
