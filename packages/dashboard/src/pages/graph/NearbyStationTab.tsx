@@ -97,10 +97,12 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [showGeocodeAdmin, setShowGeocodeAdmin] = useState(false);
-  const [activeListTab, setActiveListTab] = useState<"db" | "live">("live");
+  const [activeListTab, setActiveListTab] = useState<"db" | "live">("db");
+  const [enableLive, setEnableLive] = useState(false);
 
   // 최근 검색어 상태 추가
   const [recentStations, setRecentStations] = useState<string[]>([]);
+  const [showAllRecent, setShowAllRecent] = useState(false);
   const [showSuggest, setShowSuggest] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -134,7 +136,7 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
 
   const query = stationName.trim().toLowerCase();
   const displayedStations = recentStations.filter((station) => {
-    if (!query) return true;
+    if (showAllRecent || !query) return true;
     return station.toLowerCase().includes(query);
   });
 
@@ -212,9 +214,10 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
     setFetchResult(null);
     setFetchError(null);
     setSelectedLiveComplex(null);
+    setShowAllRecent(false);
 
     try {
-      const result = await loadNearbyStation(queryStr, radiusM);
+      const result = await loadNearbyStation(queryStr, radiusM, enableLive);
       setSearchResult({
         station: result.station,
         radiusM: result.radiusM,
@@ -223,8 +226,8 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
         stationLawdCode: result.stationLawdCode ?? null,
       });
 
-      // 실시간 단지가 있으면 live 탭 기본 선택, 없으면 db 탭
-      if ((result.liveComplexes || []).length > 0) {
+      // 실시간 검색이 활성화되어 있고 실시간 단지가 있으면 live 탭 기본 선택, 없으면 db 탭
+      if (enableLive && (result.liveComplexes || []).length > 0) {
         setActiveListTab("live");
       } else {
         setActiveListTab("db");
@@ -528,10 +531,12 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
                     onChange={(e) => {
                       setStationName(e.target.value);
                       setShowSuggest(true);
+                      setShowAllRecent(false);
                     }}
                     onFocus={() => {
                       setRecentStations(loadRecentStations());
                       setShowSuggest(true);
+                      setShowAllRecent(true);
                     }}
                     onBlur={() => {
                       setTimeout(() => {
@@ -622,6 +627,21 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
                   {loading ? <RefreshCw size={14} className="animate-spin" /> : <Search size={14} />}
                   <span>{loading ? (t.loading || "조회 중...") : (t.searchButton || "조회하기")}</span>
                 </button>
+              </div>
+
+              <div className="flex items-center gap-2 mt-1">
+                <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-neutral">
+                  <input
+                    type="checkbox"
+                    checked={enableLive}
+                    onChange={(e) => setEnableLive(e.target.checked)}
+                    className="rounded border-normal text-primary focus:ring-primary h-3.5 w-3.5"
+                  />
+                  <span>{t.enableLiveLabel || "실시간 국토부 API 연동 조회"}</span>
+                </label>
+                <span className="text-[10px] text-neutral/70">
+                  ({t.liveSearchDesc || "국토부 API 실시간 호출로 검색 시간이 5초 이상 소요될 수 있으며, 최근 3개월 거래 단지만 표시됩니다."})
+                </span>
               </div>
 
               {errorMsg && (

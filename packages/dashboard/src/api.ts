@@ -117,7 +117,11 @@ export function loadGraphRegionTrend(lawdCode: string) {
 
 export function searchGraphTransactions(filter: GraphFilter) {
   const params = new URLSearchParams();
-  if (filter.lawdCode) params.set("lawdCode", filter.lawdCode);
+  if (filter.lawdCodes && filter.lawdCodes.length > 0) {
+    filter.lawdCodes.forEach((code) => params.append("lawdCodes", code));
+  } else if (filter.lawdCode) {
+    params.set("lawdCode", filter.lawdCode);
+  }
   if (filter.complexName) params.set("complexName", filter.complexName);
   if (filter.startDate) params.set("startDate", filter.startDate);
   if (filter.endDate) params.set("endDate", filter.endDate);
@@ -368,8 +372,8 @@ export function loadRegionCollectionStats(dateOrMonth: string, type: "daily" | "
 
 // 🚇 역세권 / Geocoding API 추가
 
-export function loadNearbyStation(station: string, radius = 500) {
-  const params = new URLSearchParams({ station, radius: String(radius) });
+export function loadNearbyStation(station: string, radius = 500, live = false) {
+  const params = new URLSearchParams({ station, radius: String(radius), live: String(live) });
   return request<{ 
     station: { name: string; lat: number; lng: number };
     radiusM: number;

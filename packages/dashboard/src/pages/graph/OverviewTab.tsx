@@ -631,12 +631,11 @@ export default function OverviewTab({
       counts.set(rName, (counts.get(rName) || 0) + 1);
     });
     
-    const top7Names = Array.from(counts.entries())
+    const topNames = Array.from(counts.entries())
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 7)
       .map(([name]) => name);
       
-    const regionAvgPrices = top7Names.map((name) => {
+    const regionAvgPrices = topNames.map((name) => {
       const regionTransactions = filteredData.filter(
         (d) => (d.regionName ? d.regionName.split(" ").slice(-1)[0] : "기타") === name
       );

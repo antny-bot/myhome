@@ -14,7 +14,8 @@ import {
   savePresetAnalysis,
   deletePresetAnalysis,
   searchComplexNames as searchComplexNamesApi,
-  fetchComplexesByRegion
+  fetchComplexesByRegion,
+  fetchDbRegions
 } from "../../api";
 import { Play, Save, RotateCcw, X, ChevronDown, ChevronUp } from "lucide-react";
 import { useBreakpoint } from "../../useBreakpoint";
@@ -59,7 +60,7 @@ const filterCopy = {
     presetSelectOverview: "종합 프리셋",
     presetSelectAnalysis: "단지 프리셋",
     presetSaveBtn: "프리셋 저장",
-    presetModalTitle: "💾 조회 조건 프리셋 저장",
+    presetModalTitle: "조회 조건 프리셋 저장",
     presetModalDesc: "현재 설정된 필터 조건에 이름을 붙여 저장합니다.",
     presetNameLabel: "프리셋 이름",
     presetNamePlaceholder: "예: 강남구 84타입 최근 거래",
@@ -99,7 +100,7 @@ const filterCopy = {
     presetSelectOverview: "Overview Presets",
     presetSelectAnalysis: "Complex Presets",
     presetSaveBtn: "Save Preset",
-    presetModalTitle: "💾 Save Filter Preset",
+    presetModalTitle: "Save Filter Preset",
     presetModalDesc: "Save the current filter criteria as a preset.",
     presetNameLabel: "Preset Name",
     presetNamePlaceholder: "e.g., Gangnam 84 Type Recent",
@@ -140,6 +141,63 @@ export default function FilterPanel({
     }
     return [];
   });
+
+  // DB에 등록된 수집 지역 목록
+  const [dbRegions, setDbRegions] = useState<Array<{ lawdCode: string; displayName: string }>>([]);
+  const [showRegionDropdown, setShowRegionDropdown] = useState(false);
+  const regionDropdownRef = useRef<HTMLDivElement>(null);
+
+  // 단지 분석 모드 지역 선택 드롭다운 상태
+  const [showAnalysisRegionDropdown, setShowAnalysisRegionDropdown] = useState(false);
+  const analysisRegionDropdownRef = useRef<HTMLDivElement>(null);
+
+  // 드롭다운 내 키인 서치용 검색어 상태
+  const [overviewSearchQuery, setOverviewSearchQuery] = useState("");
+  const [analysisSearchQuery, setAnalysisSearchQuery] = useState("");
+
+  // 수집 지역 로드
+  useEffect(() => {
+    (async () => {
+      try {
+        const list = await fetchDbRegions();
+        setDbRegions(list);
+      } catch (err) {
+        console.error("Failed to load db regions", err);
+      }
+    })();
+  }, []);
+
+  // 외부 클릭 시 드롭다운 닫기
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (regionDropdownRef.current && !regionDropdownRef.current.contains(event.target as Node)) {
+        setShowRegionDropdown(false);
+      }
+      if (analysisRegionDropdownRef.current && !analysisRegionDropdownRef.current.contains(event.target as Node)) {
+        setShowAnalysisRegionDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  // filter 변경 시 selectedRegions 로컬 상태 동기화
+  useEffect(() => {
+    if (filter.lawdCodes && filter.lawdCodes.length > 0) {
+      const mapped = filter.lawdCodes.map((code) => {
+        const found = dbRegions.find((r) => r.lawdCode === code);
+        return { lawdCode: code, regionName: found ? found.displayName : "" };
+      });
+      setSelectedRegions(mapped);
+    } else if (filter.lawdCode) {
+      const found = dbRegions.find((r) => r.lawdCode === filter.lawdCode);
+      setSelectedRegions([{ lawdCode: filter.lawdCode, regionName: found ? found.displayName : (regionName || "") }]);
+    } else {
+      setSelectedRegions([]);
+    }
+  }, [filter.lawdCodes, filter.lawdCode, dbRegions, regionName]);
 
   // 전역 단지 검색 자동완성
   const [globalSuggestions, setGlobalSuggestions] = useState<Array<{ name: string; lawdCode: string; regionName: string }>>([]);
@@ -355,18 +413,65 @@ export default function FilterPanel({
     setTimeout(() => onApply(), 50);
   };
 
+  const handleToggleRegion = (lawdCode: string, name: string) => {
+    const isChecked = selectedRegions.some((r) => r.lawdCode === lawdCode);
+    if (isChecked) {
+      setSelectedRegions((prev) => prev.filter((r) => r.lawdCode !== lawdCode));
+    } else {
+      if (selectedRegions.length >= 10) {
+        alert("최대 10개 지역까지만 선택할 수 있습니다.");
+        return;
+      }
+      setSelectedRegions((prev) => [...prev, { lawdCode, regionName: name }]);
+    }
+  };
+
+  const handleSelectAllRegions = () => {
+    if (dbRegions.length > 10) {
+      alert("수집된 지역이 10개를 초과합니다. 상위 10개 지역만 선택됩니다.");
+      const top10 = dbRegions.slice(0, 10).map((r) => ({ lawdCode: r.lawdCode, regionName: r.displayName }));
+      setSelectedRegions(top10);
+    } else {
+      const all = dbRegions.map((r) => ({ lawdCode: r.lawdCode, regionName: r.displayName }));
+      setSelectedRegions(all);
+    }
+  };
+
+  const handleClearAllRegions = () => {
+    setSelectedRegions([]);
+  };
+
+  const getSelectedRegionsText = () => {
+    if (selectedRegions.length === 0) return "전체 지역 (선택 없음)";
+    if (selectedRegions.length === 1) return selectedRegions[0].regionName;
+    return `${selectedRegions[0].regionName} 외 ${selectedRegions.length - 1}개 지역`;
+  };
+
   const handleApply = () => {
-    onFilterChange(
-      {
-        lawdCode: filter.lawdCode,
-        complexName: complexName || undefined,
-        startDate: startDate || undefined,
-        endDate: endDate || undefined,
-        minArea: minArea ? Number(minArea) : undefined,
-        maxArea: maxArea ? Number(maxArea) : undefined,
-      },
-      regionName
-    );
+    if (hideComplexSearch) {
+      const selectedCodes = selectedRegions.map((r) => r.lawdCode);
+      const selectedNames = selectedRegions.map((r) => r.regionName).join(", ");
+      onFilterChange(
+        {
+          lawdCodes: selectedCodes,
+          startDate: startDate || undefined,
+          endDate: endDate || undefined,
+        },
+        selectedNames
+      );
+    } else {
+      onFilterChange(
+        {
+          lawdCode: filter.lawdCode,
+          complexName: complexName || undefined,
+          startDate: startDate || undefined,
+          endDate: endDate || undefined,
+          minArea: minArea ? Number(minArea) : undefined,
+          maxArea: maxArea ? Number(maxArea) : undefined,
+        },
+        regionName
+      );
+    }
     onApply();
   };
 
@@ -379,6 +484,7 @@ export default function FilterPanel({
     setMaxArea("");
     setPeriod('none');
     setSelectedPresetId("");
+    setSelectedRegions([]);
     onFilterChange({}, "");
   };
 
@@ -391,8 +497,8 @@ export default function FilterPanel({
       if (hideComplexSearch) {
         // 종합 현황 프리셋 저장
         const currentFilter: GraphFilter = {
-          lawdCode: filter.lawdCode,
-          regionName: regionName,
+          lawdCodes: selectedRegions.map((r) => r.lawdCode),
+          regionName: selectedRegions.map((r) => r.regionName).join(", "),
           startDate: startDate || undefined,
           endDate: endDate || undefined,
         };
@@ -447,7 +553,18 @@ export default function FilterPanel({
 
     if (hideComplexSearch) {
       const f = (preset as GraphPreset).filter;
-      setRegionText(f.regionName || "");
+      if (f.lawdCodes && f.lawdCodes.length > 0) {
+        const mapped = f.lawdCodes.map((code) => {
+          const found = dbRegions.find((r) => r.lawdCode === code);
+          return { lawdCode: code, regionName: found ? found.displayName : "" };
+        });
+        setSelectedRegions(mapped);
+      } else if (f.lawdCode) {
+        const found = dbRegions.find((r) => r.lawdCode === f.lawdCode);
+        setSelectedRegions([{ lawdCode: f.lawdCode, regionName: found ? found.displayName : (f.regionName || "") }]);
+      } else {
+        setSelectedRegions([]);
+      }
       setStartDate(f.startDate || "");
       setEndDate(f.endDate || "");
       onFilterChange(f, f.regionName || preset.name);
@@ -593,20 +710,80 @@ export default function FilterPanel({
                   </div>
                 </div>
 
-                {/* 지역 검색 */}
-                <div className="flex flex-col gap-1 flex-grow min-w-0">
-                  <label className="text-[11px] font-semibold text-neutral">{t.regionLabel}</label>
-                  <RegionSearchInput
-                    value={regionText}
-                    onChange={setRegionText}
-                    onSelect={(candidate: RegionSearchResult) => {
-                      setRegionText(candidate.displayName);
-                      onFilterChange({ ...filter, lawdCode: candidate.lawdCode, regionName: candidate.displayName }, candidate.displayName);
-                    }}
-                    placeholder={t.regionPlaceholder}
-                    className="w-full bg-normal border border-normal rounded-lg px-2.5 py-1.5 text-xs text-strong focus:outline-none focus:ring-1 focus:ring-primary"
-                    locale={locale}
-                  />
+                {/* 지역 다중 선택 드롭다운 */}
+                <div className="flex flex-col gap-1 flex-grow min-w-0 relative" ref={regionDropdownRef}>
+                  <label className="text-[11px] font-semibold text-neutral">{t.regionLabel} (최대 10개)</label>
+                  <button
+                    type="button"
+                    onClick={() => setShowRegionDropdown(!showRegionDropdown)}
+                    className="w-full bg-normal border border-normal rounded-lg px-2.5 py-1.5 text-xs text-strong focus:outline-none focus:ring-1 focus:ring-primary text-left flex items-center justify-between h-[30px]"
+                  >
+                    <span className="truncate">{getSelectedRegionsText()}</span>
+                    <ChevronDown size={14} className="text-neutral shrink-0 ml-1" />
+                  </button>
+
+                  {showRegionDropdown && (
+                    <div className="absolute z-[40] left-0 mt-8 w-full min-w-[240px] max-w-[320px] rounded-lg border border-normal bg-elevated shadow-lg p-2.5 text-xs space-y-2">
+                      {/* 검색어 입력창 */}
+                      <input
+                        type="text"
+                        value={overviewSearchQuery}
+                        onChange={(e) => setOverviewSearchQuery(e.target.value)}
+                        placeholder="지역명 검색..."
+                        className="w-full bg-normal border border-normal rounded-md px-2 py-1 text-[11px] text-strong focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
+
+                      {/* 전체 선택 / 해제 버튼 */}
+                      <div className="flex items-center gap-2 border-b border-normal pb-2 mb-1 select-none">
+                        <button
+                          type="button"
+                          onClick={handleSelectAllRegions}
+                          className="text-[10px] font-bold text-primary hover:underline"
+                        >
+                          전체 선택
+                        </button>
+                        <span className="text-assistive">|</span>
+                        <button
+                          type="button"
+                          onClick={handleClearAllRegions}
+                          className="text-[10px] font-bold text-neutral hover:underline"
+                        >
+                          전체 해제
+                        </button>
+                        <span className="text-assistive ml-auto">({selectedRegions.length}/10)</span>
+                      </div>
+
+                      {/* 수집 지역 리스트 */}
+                      <div className="max-h-48 overflow-y-auto space-y-1.5 scrollbar-thin">
+                        {dbRegions
+                          .filter((reg) => reg.displayName.toLowerCase().includes(overviewSearchQuery.toLowerCase()))
+                          .map((reg) => {
+                            const isChecked = selectedRegions.some((r) => r.lawdCode === reg.lawdCode);
+                            const isDisabled = !isChecked && selectedRegions.length >= 10;
+                            return (
+                              <label
+                                key={reg.lawdCode}
+                                className={`flex items-center gap-2 py-1 px-1.5 rounded hover:bg-alternative transition-colors cursor-pointer select-none ${
+                                  isDisabled ? "opacity-40 cursor-not-allowed" : ""
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  disabled={isDisabled}
+                                  onChange={() => handleToggleRegion(reg.lawdCode, reg.displayName)}
+                                  className="rounded border-normal text-primary focus:ring-primary w-3.5 h-3.5 cursor-pointer disabled:cursor-not-allowed"
+                                />
+                                <span className="text-strong truncate">{reg.displayName}</span>
+                              </label>
+                            );
+                          })}
+                        {dbRegions.filter((reg) => reg.displayName.toLowerCase().includes(overviewSearchQuery.toLowerCase())).length === 0 && (
+                          <div className="text-center py-4 text-assistive">검색 결과가 없습니다.</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -748,20 +925,59 @@ export default function FilterPanel({
                     </div>
                   </div>
 
-                  {/* 지역 검색 */}
-                  <div className="flex flex-col gap-1 flex-grow min-w-0">
+                  {/* 지역 선택 단일 드롭다운 */}
+                  <div className="flex flex-col gap-1 flex-grow min-w-0 relative" ref={analysisRegionDropdownRef}>
                     <label className="text-[11px] font-semibold text-neutral">{t.regionLabel}</label>
-                    <RegionSearchInput
-                      value={regionText}
-                      onChange={setRegionText}
-                      onSelect={(candidate: RegionSearchResult) => {
-                        setRegionText(candidate.displayName);
-                        onFilterChange({ ...filter, lawdCode: candidate.lawdCode, regionName: candidate.displayName }, candidate.displayName);
-                      }}
-                      placeholder={t.regionPlaceholder}
-                      className="w-full bg-normal border border-normal rounded-lg px-2.5 py-1.5 text-xs text-strong focus:outline-none focus:ring-1 focus:ring-primary"
-                      locale={locale}
-                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowAnalysisRegionDropdown(!showAnalysisRegionDropdown)}
+                      className="w-full bg-normal border border-normal rounded-lg px-2.5 py-1.5 text-xs text-strong focus:outline-none focus:ring-1 focus:ring-primary text-left flex items-center justify-between h-[30px]"
+                    >
+                      <span className="truncate">{regionText || "지역 선택 (선택 없음)"}</span>
+                      <ChevronDown size={14} className="text-neutral shrink-0 ml-1" />
+                    </button>
+
+                    {showAnalysisRegionDropdown && (
+                      <div className="absolute z-[40] left-0 mt-8 w-full min-w-[240px] max-w-[320px] rounded-lg border border-normal bg-elevated shadow-lg p-2.5 text-xs space-y-2">
+                        {/* 검색어 입력창 */}
+                        <input
+                          type="text"
+                          value={analysisSearchQuery}
+                          onChange={(e) => setAnalysisSearchQuery(e.target.value)}
+                          placeholder="지역명 검색..."
+                          className="w-full bg-normal border border-normal rounded-md px-2 py-1 text-[11px] text-strong focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+
+                        {/* 수집 지역 리스트 */}
+                        <div className="max-h-48 overflow-y-auto space-y-1 scrollbar-thin">
+                          {dbRegions
+                            .filter((reg) => reg.displayName.toLowerCase().includes(analysisSearchQuery.toLowerCase()))
+                            .map((reg) => {
+                              const isSelected = filter.lawdCode === reg.lawdCode;
+                              return (
+                                <div
+                                  key={reg.lawdCode}
+                                  onClick={() => {
+                                    setRegionText(reg.displayName);
+                                    onFilterChange({ ...filter, lawdCode: reg.lawdCode, regionName: reg.displayName }, reg.displayName);
+                                    setShowAnalysisRegionDropdown(false);
+                                    setAnalysisSearchQuery("");
+                                  }}
+                                  className={`py-1.5 px-2 rounded hover:bg-alternative transition-colors cursor-pointer text-strong truncate flex items-center justify-between ${
+                                    isSelected ? "bg-primary/10 text-primary font-bold" : ""
+                                  }`}
+                                >
+                                  <span>{reg.displayName}</span>
+                                  {isSelected && <span className="text-[10px] text-primary">✓</span>}
+                                </div>
+                              );
+                            })}
+                          {dbRegions.filter((reg) => reg.displayName.toLowerCase().includes(analysisSearchQuery.toLowerCase())).length === 0 && (
+                            <div className="text-center py-4 text-assistive">검색 결과가 없습니다.</div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -945,7 +1161,10 @@ export default function FilterPanel({
       {showPresetModal && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm pointer-events-auto">
           <div className="bg-elevated border border-normal w-full max-w-md p-5 rounded-xl shadow-lg relative z-[51] mx-4 animate-in fade-in zoom-in-95 duration-150 text-strong">
-            <h3 className="text-base font-bold text-strong mb-1">{t.presetModalTitle}</h3>
+            <h3 className="text-base font-bold text-strong mb-1 flex items-center gap-1.5">
+              <Save size={16} className="text-primary shrink-0" />
+              <span>{t.presetModalTitle}</span>
+            </h3>
             <p className="text-xs text-neutral mb-3">{t.presetModalDesc}</p>
 
             <div className="flex flex-col gap-1.5 mb-4">

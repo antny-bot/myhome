@@ -510,7 +510,11 @@ export async function searchTransactions(filter: GraphFilter): Promise<any[]> {
   `;
   const params: any[] = [];
 
-  if (filter.lawdCode) {
+  if (filter.lawdCodes && filter.lawdCodes.length > 0) {
+    const placeholders = filter.lawdCodes.map(() => "?").join(",");
+    queryStr += ` AND r.lawd_code IN (${placeholders})`;
+    params.push(...filter.lawdCodes);
+  } else if (filter.lawdCode) {
     queryStr += " AND r.lawd_code LIKE ? || '%'";
     params.push(filter.lawdCode);
   }

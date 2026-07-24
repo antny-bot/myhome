@@ -149,8 +149,18 @@ export function createGraphRouter(): Router {
   /** GET /api/graph/search — 필터 조건 검색 */
   router.get("/search", async (req, res) => {
     try {
+      let lawdCodes: string[] | undefined = undefined;
+      if (req.query.lawdCodes) {
+        if (Array.isArray(req.query.lawdCodes)) {
+          lawdCodes = req.query.lawdCodes as string[];
+        } else if (typeof req.query.lawdCodes === "string") {
+          lawdCodes = (req.query.lawdCodes as string).split(",").map((s) => s.trim()).filter(Boolean);
+        }
+      }
+
       const filter: GraphFilter = {
         lawdCode: req.query.lawdCode as string | undefined,
+        lawdCodes,
         complexName: req.query.complexName as string | undefined,
         startDate: req.query.startDate as string | undefined,
         endDate: req.query.endDate as string | undefined,
@@ -576,7 +586,8 @@ ${contextText}
         res.status(400).json({ error: "radius는 100~5000 사이여야 합니다." });
         return;
       }
-      const result = await findComplexesNearStation(station, radius);
+      const live = req.query.live === "true";
+      const result = await findComplexesNearStation(station, radius, live);
       res.json(result);
     } catch (err: any) {
       res.status(500).json({ error: err?.message ?? "내부 오류" });

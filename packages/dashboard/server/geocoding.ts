@@ -331,7 +331,8 @@ export async function fetchLiveComplexList(
  */
 export async function findComplexesNearStation(
   stationName: string,
-  radiusM = 500
+  radiusM = 500,
+  enableLive = false
 ): Promise<NearbyStationResult> {
   // 1. 지하철역 좌표 확보
   const stationCoords = await geocodeSubwayStation(stationName);
@@ -379,7 +380,8 @@ export async function findComplexesNearStation(
   }
 
   // 3. 좌표 미확보 단지 → Lazy Geocoding (지하철역과 동일 지역구 단지로만 한정하여 504 Timeout 방지)
-  const pendingComplexes = targetLawdCode ? getComplexesWithoutCoords(targetLawdCode) : [];
+  // enableLive가 활성화된 경우에만 실시간 Geocoding 루프를 수행합니다.
+  const pendingComplexes = (targetLawdCode && enableLive) ? getComplexesWithoutCoords(targetLawdCode) : [];
   for (const c of pendingComplexes) {
     // 사전 필터: 법정동이 다른 지역이면 Geocoding 스킵 (API 절약)
     const query = buildGeocodeQuery(c.regionName, c.dongName, c.jibun, c.name);
@@ -414,9 +416,9 @@ export async function findComplexesNearStation(
   const { getGeocodeStats, searchComplexNames } = await import("@myhome/shared");
   const geocodeStats = getGeocodeStats();
 
-  // 5. [신규] 실시간 단지 목록 수집 (국토부 API) - targetLawdCode가 있을 때만
+  // 5. [신규] 실시간 단지 목록 수집 (국토부 API) - targetLawdCode가 있고 enableLive가 활성화된 경우만
   const liveComplexes: LiveNearbyComplex[] = [];
-  if (targetLawdCode) {
+  if (targetLawdCode && enableLive) {
     try {
       console.log(`[NearbyStation] 실시간 단지 목록 수집 시작: ${targetLawdCode}`);
       const liveList = await fetchLiveComplexList(targetLawdCode, 3);
