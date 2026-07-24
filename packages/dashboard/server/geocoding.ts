@@ -49,23 +49,33 @@ interface GeocoordResult {
 }
 
 // 메모리 캐시 (서버 수명 동안 유지)
+export interface GeocodeDetailResult {
+  success: boolean;
+  lat?: number;
+  lng?: number;
+  reason?: string;
+}
+
 const geocodeCache = new Map<string, GeocoordResult | null>();
 
 /**
- * 카카오 REST API로 주소 → 좌표 변환
- * 1차: 주소 검색 (v2/local/search/address.json)
- * 2차: 키워드 검색 (v2/local/search/keyword.json) — 주소 검색 실패 시 폴백
+ * 카카오 REST API로 주소 → 상세 정보(성공 여부 및 에러 사유 포함) 변환
  */
-export async function geocodeAddress(address: string): Promise<GeocoordResult | null> {
+export async function geocodeAddressDetailed(address: string): Promise<GeocodeDetailResult> {
   // 메모리 캐시 히트
   if (geocodeCache.has(address)) {
-    return geocodeCache.get(address) ?? null;
+    const cached = geocodeCache.get(address);
+    if (cached) {
+      return { success: true, lat: cached.lat, lng: cached.lng };
+    }
+    return { success: false, reason: "이전 요청 실패로 캐시된 데이터 (검색 결과 없음)" };
   }
 
   const apiKey = process.env.KAKAO_REST_API_KEY;
   if (!apiKey) {
-    console.warn("[Geocoding] KAKAO_REST_API_KEY가 설정되지 않았습니다.");
-    return null;
+    const reason = "카카오 API 키(KAKAO_REST_API_KEY) 설정이 누락되었습니다.";
+    console.warn(`[Geocoding] ${reason}`);
+    return { success: false, reason };
   }
 
   const headers = { Authorization: `KakaoAK ${apiKey}` };
@@ -78,17 +88,19 @@ export async function geocodeAddress(address: string): Promise<GeocoordResult | 
       signal: AbortSignal.timeout(5000),
     });
 
-    if (addrRes.ok) {
-      const body = await addrRes.json();
-      if (body.documents && body.documents.length > 0) {
-        const doc = body.documents[0];
-        const result: GeocoordResult = {
-          lat: parseFloat(doc.y),
-          lng: parseFloat(doc.x),
-        };
-        geocodeCache.set(address, result);
-        return result;
-      }
+    if (!addrRes.ok) {
+      return { success: false, reason: `카카오 주소 API 호출 실패 (HTTP 상태코드: ${addrRes.status})` };
+    }
+
+    const addrBody = await addrRes.json();
+    if (addrBody.documents && addrBody.documents.length > 0) {
+      const doc = addrBody.documents[0];
+      const result: GeocoordResult = {
+        lat: parseFloat(doc.y),
+        lng: parseFloat(doc.x),
+      };
+      geocodeCache.set(address, result);
+      return { success: true, ...result };
     }
 
     // 2차: 키워드 검색 (주소 검색 실패 시)
@@ -98,23 +110,39 @@ export async function geocodeAddress(address: string): Promise<GeocoordResult | 
       signal: AbortSignal.timeout(5000),
     });
 
-    if (kwRes.ok) {
-      const body = await kwRes.json();
-      if (body.documents && body.documents.length > 0) {
-        const doc = body.documents[0];
-        const result: GeocoordResult = {
-          lat: parseFloat(doc.y),
-          lng: parseFloat(doc.x),
-        };
-        geocodeCache.set(address, result);
-        return result;
-      }
+    if (!kwRes.ok) {
+      return { success: false, reason: `카카오 키워드 API 호출 실패 (HTTP 상태코드: ${kwRes.status})` };
     }
-  } catch (err) {
+
+    const kwBody = await kwRes.json();
+    if (kwBody.documents && kwBody.documents.length > 0) {
+      const doc = kwBody.documents[0];
+      const result: GeocoordResult = {
+        lat: parseFloat(doc.y),
+        lng: parseFloat(doc.x),
+      };
+      geocodeCache.set(address, result);
+      return { success: true, ...result };
+    }
+  } catch (err: any) {
+    const errMsg = err?.message || String(err);
     console.error(`[Geocoding] 주소 변환 실패 (${address}):`, err);
+    geocodeCache.set(address, null);
+    return { success: false, reason: `네트워크 오류 또는 타임아웃 (${errMsg})` };
   }
 
   geocodeCache.set(address, null);
+  return { success: false, reason: "카카오맵 주소 및 키워드 검색 결과가 존재하지 않습니다." };
+}
+
+/**
+ * 카카오 REST API로 주소 → 좌표 변환 (하위 호환 래퍼)
+ */
+export async function geocodeAddress(address: string): Promise<GeocoordResult | null> {
+  const result = await geocodeAddressDetailed(address);
+  if (result.success && result.lat !== undefined && result.lng !== undefined) {
+    return { lat: result.lat, lng: result.lng };
+  }
   return null;
 }
 
@@ -191,19 +219,26 @@ function buildGeocodeQuery(
   return `${regionName} ${cleanName}`;
 }
 
+export interface GeocodeFailureDetail {
+  name: string;
+  query: string;
+  reason: string;
+}
+
 /**
  * 좌표 미확보 단지를 일괄 Geocoding하여 DB에 저장
  * @param lawdCode 특정 지역만 처리할 경우 지역코드 지정
- * @returns { total, success, failed }
+ * @returns { total, success, failed, failedDetails }
  */
 export async function batchGeocodeComplexes(
   lawdCode?: string,
   maxLimit = 30
-): Promise<{ total: number; success: number; failed: number }> {
+): Promise<{ total: number; success: number; failed: number; failedDetails: GeocodeFailureDetail[] }> {
   const pendingAll = getComplexesWithoutCoords(lawdCode);
   const pending = pendingAll.slice(0, maxLimit);
   let success = 0;
   let failed = 0;
+  const failedDetails: GeocodeFailureDetail[] = [];
 
   console.log(`[Geocoding] 일괄 Geocoding 시작: ${pending.length}개 단지 (전체 미확보: ${pendingAll.length}개)`);
 
@@ -215,21 +250,28 @@ export async function batchGeocodeComplexes(
       complex.name
     );
 
-    const result = await geocodeAddress(query);
-    if (result) {
+    const result = await geocodeAddressDetailed(query);
+    if (result.success && result.lat !== undefined && result.lng !== undefined) {
       updateComplexCoords(complex.id, result.lat, result.lng);
       success++;
     } else {
       failed++;
-      console.warn(`[Geocoding] 변환 실패: ${complex.name} (${query})`);
+      failedDetails.push({
+        name: complex.name,
+        query,
+        reason: result.reason || "알 수 없는 오류",
+      });
+      console.warn(`[Geocoding] 변환 실패: ${complex.name} (${query}) - 사유: ${result.reason}`);
     }
 
-    // 카카오 API Rate Limit 방지 (200ms 딜레이)
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    // 카카오 API Rate Limit 방지 (200ms 딜레이, 1개 초과 처리 시에만 딜레이 부여)
+    if (pending.length > 1) {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
   }
 
-  console.log(`[Geocoding] 일괄 완료: 성공 ${success}, 실패 ${failed} / 총 ${pending.length} (잔여 미확보: ${pendingAll.length - success}개)`);
-  return { total: pendingAll.length, success, failed };
+  console.log(`[Geocoding] 일괄 완료: 성공 ${success}, failed ${failed} / 총 ${pending.length} (잔여 미확보: ${pendingAll.length - success}개)`);
+  return { total: pendingAll.length, success, failed, failedDetails };
 }
 
 // ──────────────────────────────────────────────────

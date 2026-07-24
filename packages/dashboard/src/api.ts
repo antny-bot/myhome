@@ -424,10 +424,15 @@ export function fetchComplexData(complexName: string, lawdCode: string, regionNa
 }
 
 
-export function triggerGeocodeBatch(lawdCode?: string) {
-  return request<{ total: number; success: number; failed: number }>("/api/graph/geocode-batch", {
+export function triggerGeocodeBatch(lawdCode?: string, limit?: number) {
+  return request<{
+    total: number;
+    success: number;
+    failed: number;
+    failedDetails: { name: string; query: string; reason: string }[];
+  }>("/api/graph/geocode-batch", {
     method: "POST",
-    body: JSON.stringify({ lawdCode })
+    body: JSON.stringify({ lawdCode, limit })
   });
 }
 

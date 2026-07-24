@@ -179,6 +179,15 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
   } | null>(null);
   const [batchLoading, setBatchLoading] = useState(false);
   const [batchResult, setBatchResult] = useState<{ total: number; success: number; failed: number } | null>(null);
+  const [batchProgress, setBatchProgress] = useState<{
+    processed: number;
+    total: number;
+    success: number;
+    failed: number;
+    failures: { name: string; query: string; reason: string }[];
+  } | null>(null);
+  const [shouldStopBatch, setShouldStopBatch] = useState(false);
+  const shouldStopRef = useRef(false);
 
   // 지도 레퍼런스
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -272,22 +281,103 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
     }
   };
 
-  // 3. 일괄 Geocoding 실행
+  // 3. 일괄 Geocoding 실행 (루프 방식)
   const handleGeocodeBatch = async () => {
     if (batchLoading) return;
-    setBatchLoading(true);
-    setBatchResult(null);
+
+    let currentPending = 0;
     try {
-      const res = await triggerGeocodeBatch();
-      setBatchResult(res);
-      await fetchGeocodeStats();
-      // 검색 결과도 갱신하여 새로운 좌표 단지 반영
-      await handleSearch();
-    } catch (err: any) {
-      setErrorMsg(err.message || t.geocodeBatchFailed || "Geocoding 배치 실행에 실패했습니다.");
-    } finally {
-      setBatchLoading(false);
+      const stats = await loadGeocodeStats();
+      setGeocodeStats(stats);
+      currentPending = stats.pending;
+    } catch (err) {
+      console.error("Failed to load geocode stats before batch", err);
+      return;
     }
+
+    if (currentPending === 0) {
+      alert("수집할 미확보 단지가 없습니다.");
+      return;
+    }
+
+    const totalToProcess = Math.min(currentPending, 30); // 한 번에 최대 30개 수집
+    setBatchLoading(true);
+    shouldStopRef.current = false;
+    setShouldStopBatch(false);
+    setBatchResult(null);
+
+    const progressState = {
+      processed: 0,
+      total: totalToProcess,
+      success: 0,
+      failed: 0,
+      failures: [] as { name: string; query: string; reason: string }[]
+    };
+    setBatchProgress(progressState);
+
+    for (let i = 0; i < totalToProcess; i++) {
+      if (shouldStopRef.current) {
+        break;
+      }
+
+      try {
+        const res = await triggerGeocodeBatch(undefined, 1);
+        
+        progressState.processed += 1;
+        progressState.success += res.success;
+        progressState.failed += res.failed;
+        if (res.failedDetails && res.failedDetails.length > 0) {
+          progressState.failures.push(...res.failedDetails);
+        }
+
+        setBatchProgress({ ...progressState });
+
+        // 실시간으로 통계 상태도 갱신하여 바 차트 등에 반영
+        setGeocodeStats(prev => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            geocoded: prev.geocoded + res.success,
+            pending: prev.pending - res.success
+          };
+        });
+      } catch (err: any) {
+        console.error("Geocoding step failed:", err);
+        progressState.processed += 1;
+        progressState.failed += 1;
+        progressState.failures.push({
+          name: `단지 ${i + 1}`,
+          query: "N/A",
+          reason: err.message || "네트워크 통신 오류",
+        });
+        setBatchProgress({ ...progressState });
+      }
+
+      if (totalToProcess > 1 && i < totalToProcess - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+    }
+
+    setBatchLoading(false);
+    setBatchResult({
+      total: progressState.processed,
+      success: progressState.success,
+      failed: progressState.failed
+    });
+
+    await fetchGeocodeStats();
+
+    // 검색 결과도 갱신하여 새로운 좌표 단지 반영
+    try {
+      await handleSearch();
+    } catch (err) {
+      console.error("Failed to refresh search results after batch geocoding", err);
+    }
+  };
+
+  const handleStopBatch = () => {
+    shouldStopRef.current = true;
+    setShouldStopBatch(true);
   };
 
   // 4. 카카오 지도 초기화 및 마커 렌더링
@@ -679,18 +769,31 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
                   <p className="text-[11px] text-neutral leading-relaxed">
                     {(t.geocodeRequiredDesc || "현재 DB에 등록된 아파트 중 {pending}개 단지의 위도·경도 좌표가 없습니다...").replace("{pending}", String(geocodeStats.pending))}
                   </p>
-                  <button
-                    onClick={handleGeocodeBatch}
-                    disabled={batchLoading}
-                    className="w-full py-2.5 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-500 active:scale-95 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 disabled:opacity-50"
-                  >
-                    {batchLoading ? (
-                      <RefreshCw size={15} className="animate-spin" />
-                    ) : (
+                  {batchLoading ? (
+                    <div className="flex gap-2">
+                      <div className="flex-1 py-2.5 rounded-xl bg-emerald-600/20 text-emerald-600 font-bold flex items-center justify-center gap-2 border border-emerald-500/20 text-sm">
+                        <RefreshCw size={15} className="animate-spin text-emerald-600 shrink-0" />
+                        <span>{t.loading || "수집 중..."} ({batchProgress?.processed} / {batchProgress?.total})</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleStopBatch}
+                        disabled={shouldStopBatch}
+                        className="px-4 py-2.5 rounded-xl bg-red-500 text-white font-bold hover:bg-red-600 active:scale-95 transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-red-500/20 disabled:opacity-50 text-sm shrink-0"
+                      >
+                        중단
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleGeocodeBatch}
+                      className="w-full py-2.5 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-500 active:scale-95 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 text-sm"
+                    >
                       <Play size={15} />
-                    )}
-                    <span>{batchLoading ? (t.loading || "수집 중...") : (t.runGeocodeBatchBtn || "좌표 미확보 단지 일괄 수집")}</span>
-                  </button>
+                      <span>{t.runGeocodeBatchBtn || "좌표 미확보 단지 일괄 수집"}</span>
+                    </button>
+                  )}
                 </div>
               ) : (
                 <p className="text-[11px] text-emerald-500 font-semibold flex items-center gap-1.5 py-2">
@@ -698,9 +801,52 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
                 </p>
               )}
 
-              {batchResult && (
+              {batchProgress && (
+                <div className="text-[11px] font-semibold text-neutral flex justify-between bg-alternative/40 p-2 rounded-lg border border-normal/50">
+                  <span>진행 수치</span>
+                  <span>
+                    성공: <span className="text-emerald-500 font-bold">{batchProgress.success}</span> | 실패: <span className="text-red-500 font-bold">{batchProgress.failed}</span>
+                  </span>
+                </div>
+              )}
+
+              {batchProgress && batchProgress.failures.length > 0 && (
+                <div className="border border-red-500/20 rounded-lg bg-red-500/5 p-3 space-y-2">
+                  <div className="flex justify-between items-center text-xs font-bold text-red-600">
+                    <span>⚠️ 좌표 수집 실패 목록 ({batchProgress.failures.length}건)</span>
+                  </div>
+                  <div className="overflow-y-auto max-h-40 border border-normal rounded bg-elevated text-[10px]">
+                    <table className="w-full text-left border-collapse border-spacing-0">
+                      <thead>
+                        <tr className="bg-alternative text-neutral border-b border-normal">
+                          <th className="p-1.5 font-bold">단지명</th>
+                          <th className="p-1.5 font-bold">검색 주소</th>
+                          <th className="p-1.5 font-bold">실패 사유</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {batchProgress.failures.map((fail, idx) => (
+                          <tr key={idx} className="border-b border-normal/30 last:border-b-0 hover:bg-alternative/30">
+                            <td className="p-1.5 font-semibold text-strong max-w-[120px] truncate" title={fail.name}>
+                              {fail.name}
+                            </td>
+                            <td className="p-1.5 text-neutral truncate max-w-[150px]" title={fail.query}>
+                              {fail.query}
+                            </td>
+                            <td className="p-1.5 text-red-500 max-w-[150px] truncate" title={fail.reason}>
+                              {fail.reason}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {batchResult && !batchLoading && (
                 <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-[11px] text-emerald-600 font-bold space-y-1">
-                  <p>✓ {t.batchGeocodeCompleted || "Geocoding 수집 배치 완료"}</p>
+                  <p>✓ {t.batchGeocodeCompleted || "Geocoding 수집 배치 완료"} {shouldStopBatch && "(사용자 요청으로 중단됨)"}</p>
                   <p>- {(t.batchGeocodeCountInfo || "대상: {total}건 / 성공: {success}건 / 실패: {failed}건").replace("{total}", String(batchResult.total)).replace("{success}", String(batchResult.success)).replace("{failed}", String(batchResult.failed))}</p>
                 </div>
               )}

@@ -722,7 +722,8 @@ ${contextText}
   router.post("/geocode-batch", async (req, res) => {
     try {
       const lawdCode = req.body?.lawdCode as string | undefined;
-      const result = await batchGeocodeComplexes(lawdCode);
+      const limit = typeof req.body?.limit === "number" ? req.body.limit : undefined;
+      const result = await batchGeocodeComplexes(lawdCode, limit);
       res.json(result);
     } catch (err: any) {
       res.status(500).json({ error: err?.message ?? "내부 오류" });
