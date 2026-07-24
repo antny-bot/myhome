@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { Activity, ShieldAlert, CheckCircle, Search, Calendar, ChevronLeft, ChevronRight, Eye, RefreshCw, X, User } from "lucide-react";
+import { Activity, ShieldAlert, CheckCircle, Search, Calendar, ChevronLeft, ChevronRight, Eye, RefreshCw, X, User, Users, UserCheck, Database } from "lucide-react";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend } from "recharts";
 import { useBreakpoint } from "../useBreakpoint";
 import { SectionCard } from "../components/SectionCard";
+import { StatCard } from "../components/StatCard";
 import { fetchActivityLogs, fetchActivityStats } from "../api";
 import { UserActivityLog, ActivityStats } from "../types";
 import { copy } from "../locales/ko";
@@ -121,7 +122,8 @@ export function ActivityLogPage() {
   // 라인 차트 데이터 가공
   const areaChartData = stats?.activityByDate.map((item) => ({
     date: item.date.substring(5), // YYYY-MM-DD -> MM-DD
-    count: item.count
+    logCount: item.logCount,
+    userCount: item.userCount
   })) || [];
 
   return (
@@ -160,6 +162,53 @@ export function ActivityLogPage() {
         </div>
       )}
 
+      {/* 통계 요약 카드 섹션 */}
+      {stats && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* DAU */}
+          <div className="rounded-xl border border-normal bg-elevated p-4 shadow-sm relative overflow-hidden transition-all hover:shadow-md">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-neutral">일간 활성 사용자 (DAU)</span>
+              <UserCheck className="h-5 w-5 text-emerald-500" />
+            </div>
+            <div className="mt-2 text-2xl font-black text-strong">{stats.dau}명</div>
+            <div className="mt-1 text-[10px] text-assistive">KST 오늘 활동한 고유 사용자</div>
+          </div>
+
+          {/* WAU */}
+          <div className="rounded-xl border border-normal bg-elevated p-4 shadow-sm relative overflow-hidden transition-all hover:shadow-md">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-neutral">주간 활성 사용자 (WAU)</span>
+              <Users className="h-5 w-5 text-indigo-500" />
+            </div>
+            <div className="mt-2 text-2xl font-black text-strong">{stats.wau}명</div>
+            <div className="mt-1 text-[10px] text-assistive">최근 7일 동안 활동한 고유 사용자</div>
+          </div>
+
+          {/* MAU */}
+          <div className="rounded-xl border border-normal bg-elevated p-4 shadow-sm relative overflow-hidden transition-all hover:shadow-md">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-neutral">월간 활성 사용자 (MAU)</span>
+              <Users className="h-5 w-5 text-blue-500" />
+            </div>
+            <div className="mt-2 text-2xl font-black text-strong">{stats.mau}명</div>
+            <div className="mt-1 text-[10px] text-assistive">최근 30일 동안 활동한 고유 사용자</div>
+          </div>
+
+          {/* Cumulative Stats */}
+          <div className="rounded-xl border border-normal bg-elevated p-4 shadow-sm relative overflow-hidden transition-all hover:shadow-md">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-neutral">누적 사용자 / 전체 로그</span>
+              <Database className="h-5 w-5 text-amber-500" />
+            </div>
+            <div className="mt-2 text-2xl font-black text-strong">
+              {stats.totalUsers}명 <span className="text-sm font-normal text-neutral">/</span> {stats.totalLogs}건
+            </div>
+            <div className="mt-1 text-[10px] text-assistive">시스템 내 등록된 누적 수치</div>
+          </div>
+        </div>
+      )}
+
       {/* 통계 차트 그리드 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* 최근 활동 추이 그래프 */}
@@ -178,9 +227,13 @@ export function ActivityLogPage() {
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={areaChartData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
                     <defs>
-                      <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2}/>
+                      <linearGradient id="colorLogCount" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.15}/>
                         <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                      </linearGradient>
+                      <linearGradient id="colorUserCount" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.15}/>
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(148, 163, 184, 0.15)" />
@@ -191,11 +244,13 @@ export function ActivityLogPage() {
                         backgroundColor: "rgba(255, 255, 255, 0.95)",
                         border: "1px solid #e2e8f0",
                         borderRadius: "8px",
-                        fontSize: "12px",
+                        fontSize: "11px",
                         boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.05)"
                       }}
                     />
-                    <Area type="monotone" dataKey="count" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#colorCount)" name="활동 수" />
+                    <Legend verticalAlign="top" height={36} iconType="circle" style={{ fontSize: 10 }} />
+                    <Area type="monotone" dataKey="logCount" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#colorLogCount)" name="활동량 (로그 수)" />
+                    <Area type="monotone" dataKey="userCount" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorUserCount)" name="액티브 사용자 (명)" />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>

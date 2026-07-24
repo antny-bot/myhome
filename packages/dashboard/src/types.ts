@@ -141,6 +141,11 @@ export interface UserActivityLog {
 
 export interface ActivityStats {
   activityByType: { activityType: string; count: number }[];
-  activityByDate: { date: string; count: number }[];
+  activityByDate: { date: string; logCount: number; userCount: number }[];
   topUsers: { userEmail: string; count: number }[];
+  dau: number;
+  wau: number;
+  mau: number;
+  totalUsers: number;
+  totalLogs: number;
 }

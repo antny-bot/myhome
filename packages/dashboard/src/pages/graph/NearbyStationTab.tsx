@@ -292,7 +292,7 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
                     value={stationName}
                     onChange={(e) => setStationName(e.target.value)}
                     placeholder={t.stationPlaceholder || "예: 판교역, 강남역"}
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-normal bg-elevated text-strong font-semibold focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                    className="w-full pl-10 pr-4 py-1.5 h-[38px] rounded-lg border border-normal bg-normal text-strong text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-primary focus:border-transparent transition-all"
                   />
                 </div>
                 <div className="flex items-center gap-2 min-w-[200px]">
@@ -300,7 +300,7 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
                   <select
                     value={radiusM}
                     onChange={(e) => setRadiusM(Number(e.target.value))}
-                    className="w-full px-3 py-2.5 rounded-xl border border-normal bg-elevated text-strong font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full px-3 py-1.5 h-[38px] rounded-lg border border-normal bg-normal text-strong text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-primary"
                   >
                     <option value={300}>{t.nearbyRadius300m}</option>
                     <option value={500}>{t.nearbyRadius500m}</option>
@@ -313,7 +313,7 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
                 <button
                   type="submit"
                   disabled={loading}
-                  className="flex items-center justify-center gap-1 px-5 py-2 bg-primary hover:bg-primary/80 text-white text-sm font-semibold rounded-lg shadow-lg shadow-primary/20 transition disabled:opacity-50"
+                  className="flex items-center justify-center gap-1.5 px-4 h-[38px] bg-primary hover:bg-primary/80 text-white text-xs font-bold rounded-lg shadow-sm shadow-primary/20 transition-all disabled:opacity-50 whitespace-nowrap"
                 >
                   {loading ? <RefreshCw size={14} className="animate-spin" /> : <Search size={14} />}
                   <span>{loading ? (t.loading || "조회 중...") : (t.searchButton || "조회하기")}</span>
