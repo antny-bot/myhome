@@ -1,6 +1,6 @@
 # [01] myhome 프로젝트 개요
 
-> **아파트 알림 서비스 (Apartment Alert)** — 국토부 오픈 API 직접 호출 및 알림 자동화 + SQLite 실거래 분석 대시보드 (v0.3.0)
+> **아파트 알림 서비스 (Apartment Alert)** — 국토부 오픈 API 직접 호출 및 알림 자동화 + SQLite 실거래 분석 대시보드 (v0.3.5)
 
 ## 기술 스택
 
@@ -42,7 +42,9 @@ myhome/                            ← 모노레포 루트
 │   ├── 07_REGION_SEARCH.md        ← 지역 검색 및 주소 자동완성 기능
 │   ├── 08_RONE_API.md             ← 부동산원 OpenAPI 명세 및 호출 가이드
 │   ├── 08-1_RONE_API_LIST.md      ← 부동산원 통계표 코드 목록
-│   └── 08-2_RONE_API_REGION_CODE.md ← 부동산원 지역코드 마스터 목록
+│   ├── 08-2_RONE_API_REGION_CODE.md ← 부동산원 지역코드 마스터 목록
+│   ├── 09_ARCHITECTURE.md         ← 시스템 아키텍처 가이드 (컴포넌트·데이터 흐름·외부 연동)
+│   └── archived/                  ← 완료 또는 지난 참조 문서 보관
 │
 ├── packages/
 │   ├── shared/                    ← @myhome/shared 공통 모듈
@@ -71,7 +73,7 @@ myhome/                            ← 모노레포 루트
 │       │   ├── ruleEngine.ts      ← 매물 매칭 + SQLite upsert
 │       │   ├── storage.ts         ← JSON 파일 기반 상태 저장소 (Rules)
 │       │   ├── graphPresets.ts    ← 조회 프리셋 CRUD
-│       │   └── graphInsights.ts   ← LLM 인사이트 CRUD
+│       │   ├── graphInsights.ts   ← LLM 인사이트 CRUD
 │       └── src/                   ← React 프론트엔드
 │           ├── main.tsx           ← 엔트리
 │           ├── App.tsx            ← 메인 UI + 뷰 라우팅
@@ -115,6 +117,7 @@ myhome/                            ← 모노레포 루트
 | 부동산원 API 명세 및 호출 가이드 | `docs/08_RONE_API.md` |
 | 부동산원 통계표 코드 목록 | `docs/08-1_RONE_API_LIST.md` |
 | 부동산원 지역코드 마스터 목록 | `docs/08-2_RONE_API_REGION_CODE.md` |
+| 시스템 아키텍처 전체 파악 | `docs/09_ARCHITECTURE.md` |
 
 
 
@@ -128,6 +131,6 @@ myhome/                            ← 모노레포 루트
 - **Phase 7B** (분석 대시보드 4탭 및 SQLite 집계 쿼리 연동) 완료 ✓
 - **Phase 7C** (통합 수집 스케줄러 및 data/myhome.db 구축) 완료 ✓
 - **Phase 7D** (Docker 컨테이너화 및 GitHub Actions CI/CD) 완료 ✓
-- **Phase 7E** (국토부 API 단일화 + MCP 자연어 전용 분리 + UX 개선) 완료 ✓
-- **Phase 8** (직접 LLM API 연동 및 인사이트 자동화) 계획 📋
-- **Phase 9** (MCP 서버 - SQLite 데이터 노출 + 자연어 NL 질의 처리) 계획 📋
+- **Phase 7E** (국토부 API 단일화 + MCP 자연어 전용 분리 + 역세권/어드민/활동로그 UX 개선) 완료 ✓
+- **Phase 8** (Gemini API 직접 연동 및 AI 인사이트 자동화) 완료 ✓
+- **Phase 9** (MCP 서버 — SQLite 데이터 노출 + 자연어 NL 질의 처리) 계획 📋

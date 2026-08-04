@@ -4,7 +4,7 @@
 
 ---
 
-## 현황 요약 (2026-07)
+## 현황 요약 (2026-08)
 
 | Phase | 내용 | 상태 |
 |-------|------|------|
@@ -18,7 +18,8 @@
 | **Phase 7B** | **SQLite DB 분석 대시보드 (4탭 리포트)** | ✅ 완료 |
 | **Phase 7C** | **데이터 수집 봇 (Collector) 단일 서버 스케줄러 통합** | ✅ 완료 |
 | **Phase 7D** | **Docker 컨테이너화 및 GitHub Actions CI/CD 구축** | ✅ 완료 |
-| Phase 8 | LLM API 직접 연동 (Gemini/OpenAI) | 📋 계획 |
+| **Phase 7E** | **국토부 API 단일화 + MCP 자연어 전용 분리 + 역세권/어드민/활동로그 UX 개선** | ✅ 완료 |
+| **Phase 8** | **LLM API 직접 연동 (Gemini API + AI 인사이트 자동화)** | ✅ 완료 |
 | Phase 9 | MCP 서버 (SQLite 데이터 외부 LLM 노출) | 📋 계획 |
 | Phase 10 | 매물·호가 데이터 확장 (실거래 외 소스 추가) | 📋 계획 |
 | Phase 11 | Kakao 알림 활성화 | 📋 계획 |
@@ -102,13 +103,28 @@ Synology Container Manager 배포 지원용 모노레포 Docker 이미지화, Gi
 
 ---
 
-## Phase 8 — LLM API 직접 연동
+## Phase 7E — 국토부 API 단일화 + MCP 자연어 전용 분리 + UX 개선 (완료)
 
 ### 목표
-인사이트 탭 OpenAI/Gemini API 연동. SQLite 월별 추이, 시계열 가격 데이터 컨텍스트 기반 실거래 트렌드 진단 및 투자 적정성 리포트 자동 생성 지능화.
+인증 시스템(Google OAuth 2.0), 역세권 분석, 데이터베이스 웹 어드민, 활동 로그 등 대규모 UX 업그레이드.
 
-* **Text-to-SQL**: 자연어 질문 기반 SQLite SQL 쿼리 생성/실행 및 결과 분석 구현 예정.
-* **주간 분석 리포트**: 텔레그램 주기적 자동 분석 보고서 발송 크론 스케줄 추가 계획.
+* **Google OAuth 2.0 로그인**: 외부 무단 접근 차단. `ALLOWED_EMAILS` 화이트리스트 접근 제어 및 세션 관리.
+* **활동 로그 (`ActivityLogPage`)**: 사용자 포이지 조회, 검색, 규칙 생성 등 다국어 기반 활동 로그 적재.
+* **데이터베이스 웹 어드민**: 웹 SQL 콘솔, 단지 좌표 일괄 Geocoding, `CoordPickerMap` 수동 충정 툴.
+* **역세권 분석 (Nearby Station)**: 카카오 지도 API 연동, 지하철 반경 내 아파트 단지 실시간 매핑.
+* **수집 현황 대시보드 (Collect Page)**: 일별/월별 실거래 수집 시계열 차트 및 드릴다운.
+* **API 버전 관리**: 듀얼 라우팅 `/api/v1/...` (권장) 및 `/api/...` (Legacy) 동시 지원.
+
+---
+
+## Phase 8 — LLM API 직접 연동 (완료)
+
+### 목표
+인사이트 탭 Gemini API 연동. SQLite 월별 추이, 시계열 가격 데이터 컨텍스트 기반 실거래 트렌드 진단 및 투자 적정성 리포트 자동 생성 완료.
+
+* **Gemini API 직접 호출**: `GEMINI_API_KEY` 환경변수 기반, SDK를 통한 실거래 요약 컨텍스트 자동 생성 및 AI 인사이트 생성.
+* **인사이트 이력 관리 (`graphInsights.ts`)**: AI 생성 리포트 SQLite 저장 및 CRUD API 제공.
+* **컨텍스트 API (`/api/graph/context`)**: LLM 프롬프트 입력용 DB 요약 텍스트 자동 생성 API.
 
 ---
 
