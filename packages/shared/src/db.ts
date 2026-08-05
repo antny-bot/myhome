@@ -194,17 +194,22 @@ function resolveComplexName(db: DatabaseSync, complexName: string, lawdCode?: st
       return (exactRow as any).name;
     }
 
-    // 2. 부분 일치하는 단지 중 실거래가 가장 많은 단지 1개 매칭
+    // 2. FTS5 가상 테이블을 활용해 1차 후보군을 MATCH로 선정하고,
+    // 해당 후보 아파트들의 실거래량을 카운트하여 가장 많은 단지 1개를 매칭
+    const tokens = complexName.trim().split(/\s+/).filter(Boolean);
+    const matchQuery = tokens.map(t => `${t}*`).join(" AND ");
+
     const fuzzyQuery = db.prepare(`
-      SELECT c.name, COUNT(t.dedupe_key) AS cnt
-      FROM complexes c
+      SELECT c.name, COUNT(*) AS cnt
+      FROM complexes_fts f
+      JOIN complexes c ON f.complex_id = c.id
       JOIN transactions t ON c.id = t.complex_id
-      WHERE c.name LIKE '%' || ? || '%' ${lawdCode ? "AND c.lawd_code = ?" : ""}
+      WHERE complexes_fts MATCH ? ${lawdCode ? "AND c.lawd_code = ?" : ""}
       GROUP BY c.name
       ORDER BY cnt DESC
       LIMIT 1
     `);
-    const fuzzyRow = lawdCode ? fuzzyQuery.get(complexName, lawdCode) : fuzzyQuery.get(complexName);
+    const fuzzyRow = lawdCode ? fuzzyQuery.get(matchQuery, lawdCode) : fuzzyQuery.get(matchQuery);
     if (fuzzyRow) {
       return (fuzzyRow as any).name;
     }
@@ -701,11 +706,14 @@ export async function searchComplexNames(
 
   let queryStr = `
     SELECT DISTINCT c.id, c.name, c.lawd_code AS lawdCode, r.display_name AS regionName, c.lat, c.lng
-    FROM complexes c
+    FROM complexes_fts f
+    JOIN complexes c ON f.complex_id = c.id
     JOIN regions r ON c.lawd_code = r.lawd_code
-    WHERE c.name LIKE ?
+    WHERE complexes_fts MATCH ?
   `;
-  const params: any[] = [`%${query.trim()}%`];
+  const tokens = query.trim().split(/\s+/).filter(Boolean);
+  const matchQuery = tokens.map(t => `${t}*`).join(" AND ");
+  const params: any[] = [matchQuery];
   if (lawdCode) {
     queryStr += ` AND c.lawd_code LIKE ? || '%'`;
     params.push(lawdCode);
@@ -878,12 +886,18 @@ export function getDbRegionsSummary(): {
     SELECT r.lawd_code AS lawdCode,
            r.display_name AS displayName,
            r.created_at AS createdAt,
-           COUNT(t.dedupe_key) AS transactionCount,
-           MIN(t.deal_date) AS minDealDate,
-           MAX(t.deal_date) AS maxDealDate
+           COALESCE(t.cnt, 0) AS transactionCount,
+           t.minDealDate AS minDealDate,
+           t.maxDealDate AS maxDealDate
     FROM regions r
-    LEFT JOIN transactions t ON r.lawd_code = t.lawd_code
-    GROUP BY r.lawd_code, r.display_name, r.created_at
+    LEFT JOIN (
+      SELECT lawd_code,
+             COUNT(*) AS cnt,
+             MIN(deal_date) AS minDealDate,
+             MAX(deal_date) AS maxDealDate
+      FROM transactions
+      GROUP BY lawd_code
+    ) t ON r.lawd_code = t.lawd_code
     ORDER BY r.display_name ASC
   `).all() as any[];
 
@@ -1010,9 +1024,8 @@ export function getLocalTransactionsCount(lawdCode: string, dealMonth: string): 
   const dealMonthHyphen = `${dealMonth.slice(0, 4)}-${dealMonth.slice(4, 6)}`;
   const row = db.prepare(`
     SELECT COUNT(*) AS count
-    FROM transactions t
-    JOIN complexes c ON t.complex_id = c.id
-    WHERE c.lawd_code = ? AND t.deal_date LIKE ?
+    FROM transactions
+    WHERE lawd_code = ? AND deal_date LIKE ?
   `).get(lawdCode, `${dealMonthHyphen}%`) as { count: number } | undefined;
   return row?.count ?? 0;
 }
@@ -1050,7 +1063,7 @@ export function getLocalApartmentPrices(
            c.lng AS lng
     FROM transactions t
     JOIN complexes c ON t.complex_id = c.id
-    WHERE c.lawd_code = ? AND t.deal_date LIKE ?
+    WHERE t.lawd_code = ? AND t.deal_date LIKE ?
     ORDER BY t.deal_date ASC
   `).all(lawdCode, `${dealMonthHyphen}%`) as any[];
   return rows;
