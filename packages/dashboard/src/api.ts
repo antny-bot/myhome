@@ -521,12 +521,14 @@ export function fetchActivityLogs(params: {
   offset?: number;
   userEmail?: string;
   activityType?: string;
+  date?: string;
 }) {
   const query = new URLSearchParams();
   if (params.limit !== undefined) query.set("limit", String(params.limit));
   if (params.offset !== undefined) query.set("offset", String(params.offset));
   if (params.userEmail) query.set("userEmail", params.userEmail);
   if (params.activityType) query.set("activityType", params.activityType);
+  if (params.date) query.set("date", params.date);
   return request<{ logs: UserActivityLog[]; total: number }>(`/api/logs?${query.toString()}`);
 }
 

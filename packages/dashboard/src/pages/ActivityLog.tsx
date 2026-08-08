@@ -64,6 +64,7 @@ export function ActivityLogPage() {
   // 필터 및 페이징 상태
   const [filterUser, setFilterUser] = useState("");
   const [filterType, setFilterType] = useState("");
+  const [filterDate, setFilterDate] = useState("");
   const [debouncedUser, setDebouncedUser] = useState("");
   const [limit] = useState(15);
   const [page, setPage] = useState(1);
@@ -103,7 +104,8 @@ export function ActivityLogPage() {
         limit,
         offset,
         userEmail: debouncedUser.trim() || undefined,
-        activityType: filterType || undefined
+        activityType: filterType || undefined,
+        date: filterDate || undefined
       });
       setLogs(data.logs);
       setTotal(data.total);
@@ -121,7 +123,7 @@ export function ActivityLogPage() {
 
   useEffect(() => {
     void loadLogs();
-  }, [page, debouncedUser, filterType]);
+  }, [page, debouncedUser, filterType, filterDate]);
 
   // 전체 페이지 수 계산
   const totalPages = Math.max(1, Math.ceil(total / limit));
@@ -148,6 +150,45 @@ export function ActivityLogPage() {
     void loadLogs();
   };
 
+  const handleDateClick = (clickedDate: string) => {
+    if (!clickedDate) return;
+    setFilterDate((prev) => (prev === clickedDate ? "" : clickedDate));
+    setPage(1);
+  };
+
+  const handleChartClick = (state: any) => {
+    if (!state) return;
+    
+    // 1. activePayload 확인
+    if (state.activePayload && state.activePayload.length > 0) {
+      const payloadObj = state.activePayload[0].payload;
+      const d = payloadObj?.fullDate || payloadObj?.date;
+      if (d) {
+        const full = areaChartData.find(item => item.fullDate === d || item.date === d)?.fullDate || d;
+        handleDateClick(full);
+        return;
+      }
+    }
+
+    // 2. activeTooltipIndex 확인
+    if (state.activeTooltipIndex !== undefined && state.activeTooltipIndex !== null && areaChartData[state.activeTooltipIndex]) {
+      const d = areaChartData[state.activeTooltipIndex]?.fullDate;
+      if (d) {
+        handleDateClick(d);
+        return;
+      }
+    }
+
+    // 3. activeLabel 확인
+    if (state.activeLabel) {
+      const found = areaChartData.find(item => item.fullDate === state.activeLabel || item.date === state.activeLabel);
+      if (found?.fullDate) {
+        handleDateClick(found.fullDate);
+        return;
+      }
+    }
+  };
+
   // 파이 차트 데이터 가공
   const pieChartData = stats?.activityByType.map((item) => ({
     name: formatActivityType(item.activityType),
@@ -157,6 +198,7 @@ export function ActivityLogPage() {
   // 라인 차트 데이터 가공
   const areaChartData = stats?.activityByDate.map((item) => ({
     date: item.date.substring(5), // YYYY-MM-DD -> MM-DD
+    fullDate: item.date, // YYYY-MM-DD
     logCount: item.logCount,
     userCount: item.userCount
   })) || [];
@@ -258,41 +300,118 @@ export function ActivityLogPage() {
                 활동 내역 데이터가 충분하지 않습니다.
               </div>
             ) : (
-              <div className="h-64 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={areaChartData} margin={{ top: 10, right: 5, left: -10, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="colorLogCount" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.15}/>
-                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                      </linearGradient>
-                      <linearGradient id="colorUserCount" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.15}/>
-                        <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(148, 163, 184, 0.15)" />
-                    <XAxis dataKey="date" tickLine={false} axisLine={false} style={{ fontSize: 10, fill: "#94a3b8" }} />
-                    <YAxis yAxisId="left" tickLine={false} axisLine={false} style={{ fontSize: 10, fill: "#94a3b8" }} width={35} allowDecimals={false} />
-                    <YAxis yAxisId="right" orientation="right" tickLine={false} axisLine={false} style={{ fontSize: 10, fill: "#94a3b8" }} width={30} allowDecimals={false} />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "rgba(255, 255, 255, 0.95)",
-                        border: "1px solid #e2e8f0",
-                        borderRadius: "8px",
-                        fontSize: "11px",
-                        boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.05)"
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-neutral px-1">
+                  <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                    💡 {t.activityChartClickHint || "그래프의 일자를 클릭하면 해당 일자의 상세 활동 로그만 필터링됩니다."}
+                  </span>
+                  {filterDate && (
+                    <button
+                      onClick={() => {
+                        setFilterDate("");
+                        setPage(1);
                       }}
-                    />
-                    <Legend
-                      verticalAlign="top"
-                      height={36}
-                      content={<CustomLegend />}
-                    />
-                    <Area yAxisId="left" type="monotone" dataKey="logCount" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#colorLogCount)" name={t.activityVolume || "활동량 (로그 수)"} />
-                    <Bar yAxisId="right" dataKey="userCount" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={20} name={t.activeUsers || "액티브 사용자 (명)"} />
-                  </ComposedChart>
-                </ResponsiveContainer>
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-primary/10 text-primary hover:bg-primary/20 text-[11px] font-bold transition-colors"
+                      title={t.clearDateFilter || "일자 필터 초기화"}
+                    >
+                      <Calendar size={11} />
+                      <span>{filterDate}</span>
+                      <X size={12} className="ml-0.5" />
+                    </button>
+                  )}
+                </div>
+
+                <div className="h-64 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart
+                      data={areaChartData}
+                      margin={{ top: 10, right: 5, left: -10, bottom: 0 }}
+                      onClick={handleChartClick}
+                      className="cursor-pointer select-none"
+                    >
+                      <defs>
+                        <linearGradient id="colorLogCount" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.15}/>
+                          <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                        </linearGradient>
+                        <linearGradient id="colorUserCount" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.15}/>
+                          <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(148, 163, 184, 0.15)" />
+                      <XAxis
+                        dataKey="fullDate"
+                        tickFormatter={(v: string) => (v ? v.substring(5) : "")}
+                        tickLine={false}
+                        axisLine={false}
+                        style={{ fontSize: 10, fill: "#94a3b8" }}
+                      />
+                      <YAxis yAxisId="left" tickLine={false} axisLine={false} style={{ fontSize: 10, fill: "#94a3b8" }} width={35} allowDecimals={false} />
+                      <YAxis yAxisId="right" orientation="right" tickLine={false} axisLine={false} style={{ fontSize: 10, fill: "#94a3b8" }} width={30} allowDecimals={false} />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: "rgba(255, 255, 255, 0.95)",
+                          border: "1px solid #e2e8f0",
+                          borderRadius: "8px",
+                          fontSize: "11px",
+                          boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.05)"
+                        }}
+                        labelFormatter={(label, payload) => {
+                          const fullDate = payload?.[0]?.payload?.fullDate || label;
+                          return fullDate ? `${fullDate} (클릭하여 필터링)` : label;
+                        }}
+                      />
+                      <Legend
+                        verticalAlign="top"
+                        height={36}
+                        content={<CustomLegend />}
+                      />
+                      <Area
+                        yAxisId="left"
+                        type="monotone"
+                        dataKey="logCount"
+                        stroke="#3b82f6"
+                        strokeWidth={2}
+                        fillOpacity={1}
+                        fill="url(#colorLogCount)"
+                        name={t.activityVolume || "활동량 (로그 수)"}
+                        onClick={(entry: any) => {
+                          const target = entry?.payload?.fullDate || entry?.fullDate;
+                          if (target) handleDateClick(target);
+                        }}
+                      />
+                      <Bar
+                        yAxisId="right"
+                        dataKey="userCount"
+                        radius={[4, 4, 0, 0]}
+                        maxBarSize={20}
+                        name={t.activeUsers || "액티브 사용자 (명)"}
+                        onClick={(entry: any) => {
+                          const target = entry?.payload?.fullDate || entry?.fullDate;
+                          if (target) handleDateClick(target);
+                        }}
+                      >
+                        {areaChartData.map((entry, index) => {
+                          const isSelected = filterDate === entry.fullDate;
+                          return (
+                            <Cell
+                              key={`bar-cell-${index}`}
+                              fill={isSelected ? "#059669" : (filterDate ? "#a7f3d0" : "#10b981")}
+                              stroke={isSelected ? "#047857" : "none"}
+                              strokeWidth={isSelected ? 1.5 : 0}
+                              className="cursor-pointer"
+                              onClick={(e: any) => {
+                                e?.stopPropagation?.();
+                                handleDateClick(entry.fullDate);
+                              }}
+                            />
+                          );
+                        })}
+                      </Bar>
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
             )}
           </SectionCard>
@@ -355,8 +474,36 @@ export function ActivityLogPage() {
       </div>
 
       {/* 상세 로그 필터 및 목록 */}
-      <SectionCard title="상세 활동 로그 목록">
+      <SectionCard
+        title={
+          filterDate
+            ? (t.filteredByDate ? t.filteredByDate.replace("{date}", filterDate) : `상세 활동 로그 목록 (${filterDate})`)
+            : "상세 활동 로그 목록"
+        }
+      >
         <div className="space-y-4">
+          {/* 선택된 일자 필터 알림 배너 */}
+          {filterDate && (
+            <div className="flex items-center justify-between bg-primary/10 border border-primary/20 rounded-xl px-4 py-2.5 text-xs text-primary font-medium">
+              <div className="flex items-center gap-2">
+                <Calendar size={15} />
+                <span>
+                  <b>{filterDate}</b> 일자의 활동 로그만 필터링되어 표시 중입니다. (총 <b>{total}</b>건)
+                </span>
+              </div>
+              <button
+                onClick={() => {
+                  setFilterDate("");
+                  setPage(1);
+                }}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary/20 hover:bg-primary/30 text-xs font-bold transition-colors text-primary"
+              >
+                <X size={13} />
+                <span>필터 해제</span>
+              </button>
+            </div>
+          )}
+
           {/* 필터 바 */}
           <div className="flex flex-wrap items-center gap-3">
             {/* 사용자 이메일 검색 */}
@@ -372,7 +519,7 @@ export function ActivityLogPage() {
             </div>
             
             {/* 활동 유형 필터 */}
-            <div className="w-full sm:w-[220px]">
+            <div className="w-full sm:w-[200px]">
               <select
                 value={filterType}
                 onChange={(e) => {
@@ -393,6 +540,36 @@ export function ActivityLogPage() {
                 <option value="preset_create">{formatActivityType("preset_create")}</option>
                 <option value="preset_delete">{formatActivityType("preset_delete")}</option>
               </select>
+            </div>
+
+            {/* 일자 필터 */}
+            <div className="flex items-center gap-2">
+              <div className="relative flex items-center">
+                <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-assistive pointer-events-none" />
+                <input
+                  type="date"
+                  value={filterDate}
+                  onChange={(e) => {
+                    setFilterDate(e.target.value);
+                    setPage(1);
+                  }}
+                  className="bg-normal border border-normal rounded-lg pl-8 pr-2.5 py-2 text-xs text-strong outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                  title={t.filterDate || "일자 필터"}
+                />
+              </div>
+              {filterDate && (
+                <button
+                  onClick={() => {
+                    setFilterDate("");
+                    setPage(1);
+                  }}
+                  className="inline-flex items-center gap-1 px-2.5 py-2 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 text-xs font-bold transition-colors shrink-0"
+                  title={t.clearDateFilter || "일자 필터 초기화"}
+                >
+                  <X size={13} />
+                  <span>{t.allDates || "전체 일자"}</span>
+                </button>
+              )}
             </div>
           </div>
 

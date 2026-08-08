@@ -1882,7 +1882,8 @@ export function getActivityLogs(
   limit: number,
   offset: number,
   userEmail?: string,
-  activityType?: string
+  activityType?: string,
+  date?: string
 ): { logs: UserActivityLog[]; total: number } {
   const db = getDb();
   
@@ -1901,6 +1902,12 @@ export function getActivityLogs(
     selectSql += " AND activity_type = ?";
     params.push(activityType);
   }
+
+  if (date) {
+    countSql += " AND date(created_at, '+9 hours') = ?";
+    selectSql += " AND date(created_at, '+9 hours') = ?";
+    params.push(date);
+  }
   
   const totalRow = db.prepare(countSql).get(...params) as { count: number };
   const total = totalRow ? totalRow.count : 0;
@@ -1911,6 +1918,7 @@ export function getActivityLogs(
   
   return { logs, total };
 }
+
 
 export function getActivityStats(): {
   activityByType: { activityType: string; count: number }[];

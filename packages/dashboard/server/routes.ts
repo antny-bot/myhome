@@ -573,8 +573,9 @@ export function createRouter() {
       const offset = parseInt(req.query.offset as string || "0");
       const userEmail = req.query.userEmail as string || undefined;
       const activityType = req.query.activityType as string || undefined;
+      const date = req.query.date as string || undefined;
       
-      const result = getActivityLogs(limit, offset, userEmail, activityType);
+      const result = getActivityLogs(limit, offset, userEmail, activityType, date);
       res.json(result);
     } catch (error) {
       next(error);
