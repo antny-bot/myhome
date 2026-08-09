@@ -53,6 +53,55 @@ interface RegionMapPageProps {
 
 type SortOption = "txCount" | "latestDeal" | "priceHigh" | "priceLow" | "name";
 
+function useDragScroll() {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const isDownRef = useRef(false);
+  const startXRef = useRef(0);
+  const scrollLeftRef = useRef(0);
+  const hasDraggedRef = useRef(false);
+
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!containerRef.current) return;
+    isDownRef.current = true;
+    hasDraggedRef.current = false;
+    startXRef.current = e.pageX - containerRef.current.offsetLeft;
+    scrollLeftRef.current = containerRef.current.scrollLeft;
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isDownRef.current || !containerRef.current) return;
+    e.preventDefault();
+    const x = e.pageX - containerRef.current.offsetLeft;
+    const walk = (x - startXRef.current) * 1.5;
+    if (Math.abs(walk) > 4) {
+      hasDraggedRef.current = true;
+      if (!isDragging) setIsDragging(true);
+    }
+    containerRef.current.scrollLeft = scrollLeftRef.current - walk;
+  };
+
+  const handleMouseUpOrLeave = () => {
+    isDownRef.current = false;
+    setIsDragging(false);
+    setTimeout(() => {
+      hasDraggedRef.current = false;
+    }, 80);
+  };
+
+  return {
+    ref: containerRef,
+    isDragging,
+    hasDraggedRef,
+    events: {
+      onMouseDown: handleMouseDown,
+      onMouseMove: handleMouseMove,
+      onMouseUp: handleMouseUpOrLeave,
+      onMouseLeave: handleMouseUpOrLeave,
+    },
+  };
+}
+
 export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapPageProps) {
   const { t } = useLocale();
   const { loaded: mapLoaded, error: mapError } = useKakaoMap();
@@ -95,41 +144,9 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
   const polylinesRef = useRef<any[]>([]);
   const [avoidCollision, setAvoidCollision] = useState(true);
 
-  // 지역 선택 칩 가로 드래그 스크롤 상태 및 핸들러
-  const chipContainerRef = useRef<HTMLDivElement>(null);
-  const [isDraggingChips, setIsDraggingChips] = useState(false);
-  const isDownRef = useRef(false);
-  const startXRef = useRef(0);
-  const scrollLeftRef = useRef(0);
-  const hasDraggedRef = useRef(false);
-
-  const handleChipMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!chipContainerRef.current) return;
-    isDownRef.current = true;
-    hasDraggedRef.current = false;
-    startXRef.current = e.pageX - chipContainerRef.current.offsetLeft;
-    scrollLeftRef.current = chipContainerRef.current.scrollLeft;
-  };
-
-  const handleChipMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isDownRef.current || !chipContainerRef.current) return;
-    e.preventDefault();
-    const x = e.pageX - chipContainerRef.current.offsetLeft;
-    const walk = (x - startXRef.current) * 1.5;
-    if (Math.abs(walk) > 5) {
-      hasDraggedRef.current = true;
-      if (!isDraggingChips) setIsDraggingChips(true);
-    }
-    chipContainerRef.current.scrollLeft = scrollLeftRef.current - walk;
-  };
-
-  const handleChipMouseUpOrLeave = () => {
-    isDownRef.current = false;
-    setIsDraggingChips(false);
-    setTimeout(() => {
-      hasDraggedRef.current = false;
-    }, 80);
-  };
+  // 가로 드래그 스크롤 훅 (지역 칩, 동 필터 칩)
+  const regionDrag = useDragScroll();
+  const dongDrag = useDragScroll();
 
   // 1. DB 적재 지역 목록 로드
   useEffect(() => {
@@ -589,13 +606,10 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
 
         {/* 가로 마우스 드래그 스크롤 가능한 지역 칩 리스트 (스크롤바 숨김) */}
         <div
-          ref={chipContainerRef}
-          onMouseDown={handleChipMouseDown}
-          onMouseMove={handleChipMouseMove}
-          onMouseUp={handleChipMouseUpOrLeave}
-          onMouseLeave={handleChipMouseUpOrLeave}
+          ref={regionDrag.ref}
+          {...regionDrag.events}
           className={`flex items-center gap-2 overflow-x-auto pb-1 pt-0.5 scrollbar-none select-none ${
-            isDraggingChips ? "cursor-grabbing" : "cursor-grab"
+            regionDrag.isDragging ? "cursor-grabbing" : "cursor-grab"
           }`}
         >
           {regions.map((reg) => {
@@ -604,7 +618,7 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
               <button
                 key={reg.lawdCode}
                 onClick={() => {
-                  if (hasDraggedRef.current) return;
+                  if (regionDrag.hasDraggedRef.current) return;
                   handleSelectRegion(reg.lawdCode);
                 }}
                 className={`flex items-center gap-2 shrink-0 px-3.5 py-2 rounded-xl text-xs font-medium transition-all duration-200 border select-none ${
@@ -715,12 +729,21 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
               )}
             </div>
 
-            {/* 법정동 필터 칩 */}
+            {/* 법정동 필터 칩 (가로 마우스 드래그 스크롤 지원) */}
             {dongList.length > 0 && (
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none shrink-0">
+              <div
+                ref={dongDrag.ref}
+                {...dongDrag.events}
+                className={`flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none shrink-0 select-none ${
+                  dongDrag.isDragging ? "cursor-grabbing" : "cursor-grab"
+                }`}
+              >
                 <button
-                  onClick={() => setSelectedDong("ALL")}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold whitespace-nowrap transition-colors ${
+                  onClick={() => {
+                    if (dongDrag.hasDraggedRef.current) return;
+                    setSelectedDong("ALL");
+                  }}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold whitespace-nowrap transition-colors select-none ${
                     selectedDong === "ALL"
                       ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900"
                       : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200"
@@ -731,8 +754,11 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
                 {dongList.map((dong) => (
                   <button
                     key={dong}
-                    onClick={() => setSelectedDong(dong)}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold whitespace-nowrap transition-colors ${
+                    onClick={() => {
+                      if (dongDrag.hasDraggedRef.current) return;
+                      setSelectedDong(dong);
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold whitespace-nowrap transition-colors select-none ${
                       selectedDong === dong
                         ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900"
                         : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200"
