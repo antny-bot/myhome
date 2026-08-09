@@ -191,17 +191,48 @@ import { BarChart3 } from "lucide-react";
 3. **토글 연계 조건부 렌더링 규격**:
    - 사용자가 범례 필터에서 레이어를 토글할 때마다 투명 가이드 Line의 데이터를 다음과 같이 스위칭하여 Y축이 최적의 높이로 조절(밀착)되도록 유도합니다.
    ```tsx
-   {!hideWhisker ? (
-     <>
-       <Line yAxisId="left" dataKey="max" stroke="none" dot={false} activeDot={false} legendType="none" />
-       <Line yAxisId="left" dataKey="min" stroke="none" dot={false} activeDot={false} legendType="none" />
-     </>
-   ) : !hideBox ? (
-     <>
-       <Line yAxisId="left" dataKey="q3" stroke="none" dot={false} activeDot={false} legendType="none" />
-       <Line yAxisId="left" dataKey="q1" stroke="none" dot={false} activeDot={false} legendType="none" />
-     </>
-   ) : (
-     <Line yAxisId="left" dataKey="mean" stroke="none" dot={false} activeDot={false} legendType="none" />
-   )}
-   ```
+    {!hideWhisker ? (
+      <>
+        <Line yAxisId="left" dataKey="max" stroke="none" dot={false} activeDot={false} legendType="none" />
+        <Line yAxisId="left" dataKey="min" stroke="none" dot={false} activeDot={false} legendType="none" />
+      </>
+    ) : !hideBox ? (
+      <>
+        <Line yAxisId="left" dataKey="q3" stroke="none" dot={false} activeDot={false} legendType="none" />
+        <Line yAxisId="left" dataKey="q1" stroke="none" dot={false} activeDot={false} legendType="none" />
+      </>
+    ) : (
+      <Line yAxisId="left" dataKey="mean" stroke="none" dot={false} activeDot={false} legendType="none" />
+    )}
+    ```
+
+---
+
+## 10. 지도 시각화 및 마커 컬러 테마 디자인 표준 (Map Theme Standard)
+
+서비스 내 모든 카카오 지도 뷰(`KakaoMap`, `RegionMapPage`, `NearbyStationTab`, `ComplexTab`, `Dashboard`)는 일관된 시각적 경험을 제공하기 위해 공통 모듈(`packages/dashboard/src/lib/mapTheme.ts`)을 기반으로 통일된 컬러 테마와 폼팩터를 준수합니다.
+
+### 1. 단지 마커 시맨틱 4단계 가격대 컬러 시스템
+아파트 단지 마커(풀 카드, 미니 도트 핀, 지시선)는 가격 수준을 직관적으로 인지할 수 있도록 4단계 컬러 체계를 통일하여 적용합니다.
+
+| 가격대 | 테마 컬러 | Tailwind 클래스 | 지시선/꼬리표 HEX |
+|---|---|---|---|
+| **15억 이상** | Premium Indigo | `bg-indigo-600 border-indigo-500` | `#4f46e5` |
+| **10억 ~ 15억** | Coral Rose | `bg-rose-500 border-rose-400` | `#f43f5e` |
+| **5억 ~ 10억** | Sky Blue | `bg-blue-600 border-blue-500` | `#2563eb` |
+| **5억 미만** | Emerald Green | `bg-emerald-600 border-emerald-500` | `#059669` |
+| **가격 미등록** | Neutral Slate | `bg-slate-600 border-slate-500` | `#64748b` |
+
+### 2. 선택/포커스 하이라이트 규격
+- **선택된 단지 마커**: `bg-amber-500 border-amber-300 ring-[3px] ring-white dark:ring-slate-900 shadow-xl scale-108 text-slate-950`
+- **지시선**: `#f59e0b` (Amber-500)
+- **우선순위(z-index)**: 선택 단지(`z-50`) > 일반 풀 카드(`z-20~30`) > 미니 도트 핀(`z-5`)
+
+### 3. 주요 거점 및 반경 가이드 스타일
+- **지하철역 (Station POI)**: `bg-slate-900 dark:bg-slate-800 text-white border-2 border-indigo-400` 라운드 뱃지 + 노란색 핑 애니메이션 도트 (`createStationMarkerHtml`)
+- **반경 원 (Radius Circle)**:
+  - 500m 반경: `strokeColor: "#4f46e5"`, `fillColor: "#6366f1"`, `fillOpacity: 0.08`, `strokeStyle: "dashed"`
+  - 1000m 반경: `strokeColor: "#059669"`, `fillColor: "#10b981"`, `fillOpacity: 0.05`, `strokeStyle: "dashed"`
+
+### 4. 범례 (Legend) 표준
+- 지도 좌하단에 플로팅되는 일관된 형태의 `MapLegend` 공통 컴포넌트(`packages/dashboard/src/components/MapLegend.tsx`)를 배치하여 가격대 및 상태 기준을 명시합니다.

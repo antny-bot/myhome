@@ -3,6 +3,8 @@ import { useKakaoMap } from "../useKakaoMap";
 import { copy } from "../locales/ko";
 import type { TransactionRecord } from "../types";
 import { MapPin, ZoomIn, ZoomOut, Compass } from "lucide-react";
+import { createComplexMarkerHtml } from "../lib/mapTheme";
+import { MapLegend } from "./MapLegend";
 
 const locale = "ko";
 const t = copy[locale];
@@ -180,37 +182,17 @@ export function KakaoMap({
         const container = document.createElement("div");
         container.className = "relative -translate-y-[100%] select-none pointer-events-auto";
 
-        // 오버레이 디자인 (Tailwind 클래스 적용)
-        // 가격대별 색상 매핑
-        let colorClass = "bg-emerald-600 shadow-emerald-500/20";
-        if (summary.avgPrice >= 15) {
-          colorClass = "bg-indigo-700 shadow-indigo-500/30";
-        } else if (summary.avgPrice >= 10) {
-          colorClass = "bg-rose-500 shadow-rose-500/25";
-        } else if (summary.avgPrice >= 5) {
-          colorClass = "bg-blue-600 shadow-blue-500/20";
-        }
-
         const borderClass = isSelected
-          ? "ring-[3px] ring-white scale-108 z-20 border-[2px] border-primary"
+          ? "scale-108 z-20"
           : "hover:scale-105 active:scale-95 z-10";
 
-        container.innerHTML = `
-          <div class="flex flex-col items-center cursor-pointer transition-all duration-200 ${borderClass}">
-            <div class="px-2.5 py-1.5 rounded-xl text-white font-bold flex flex-col items-center text-center shadow-lg ${colorClass}">
-              <span class="text-[10px] opacity-90 truncate max-w-[110px] leading-tight font-medium">${summary.apartmentName}</span>
-              <div class="flex items-baseline gap-0.5 mt-0.5">
-                <span class="text-xs font-black tracking-tight">${summary.avgPrice.toFixed(1)}</span>
-                <span class="text-[10px] font-bold opacity-80">${t.unitDeal}</span>
-              </div>
-              <span class="text-[9px] mt-0.5 px-1 py-0.2 bg-black/20 rounded font-semibold">${summary.count}${t.unitCount}</span>
-            </div>
-            <!-- 꼬리표 삼각형 -->
-            <div class="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] ${
-              isSelected ? "border-t-primary" : summary.avgPrice >= 15 ? "border-t-indigo-700" : summary.avgPrice >= 10 ? "border-t-rose-500" : summary.avgPrice >= 5 ? "border-t-blue-600" : "border-t-emerald-600"
-            }"></div>
-          </div>
-        `;
+        container.innerHTML = createComplexMarkerHtml({
+          name: summary.apartmentName,
+          priceEok: summary.avgPrice,
+          priceText: `${summary.avgPrice.toFixed(1)}${t.unitDeal}`,
+          subText: `${summary.count}${t.unitCount}`,
+          isSelected,
+        });
 
         // 오버레이 클릭 이벤트 연동
         container.addEventListener("click", (e) => {
@@ -369,25 +351,11 @@ export function KakaoMap({
 
       {/* 가격대별 범례 설명 (지도 하단) */}
       {mapInitialized && complexSummaries.length > 0 && (
-        <div className="absolute z-20 left-3 bottom-3 flex flex-wrap gap-x-3 gap-y-1.5 rounded-xl border border-normal bg-elevated/95 backdrop-blur-sm px-3 py-2 text-[10px] font-bold text-neutral shadow-md max-w-[calc(100%-24px)] md:max-w-md">
-          <span className="text-[9px] font-extrabold uppercase text-strong border-r border-normal pr-2 flex items-center">범례 (평균가)</span>
-          <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-indigo-700 shadow shadow-indigo-500/20" />
-            <span>15억↑</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shadow shadow-rose-500/20" />
-            <span>10억~15억</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-blue-600 shadow shadow-blue-500/20" />
-            <span>5억~10억</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 shadow shadow-emerald-500/20" />
-            <span>5억↓</span>
-          </div>
-        </div>
+        <MapLegend
+          className="absolute z-20 left-3 bottom-3"
+          title="범례 (평균가)"
+          showSelected={!!selectedApartment}
+        />
       )}
     </div>
   );

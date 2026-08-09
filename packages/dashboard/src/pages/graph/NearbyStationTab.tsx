@@ -6,6 +6,8 @@ import { PageHeader } from "../../components/PageHeader";
 import { loadNearbyStation, triggerGeocodeBatch, loadGeocodeStats, fetchComplexData } from "../../api";
 import { MapPin, Search, Map, Compass, Play, RefreshCw, AlertTriangle, ArrowRight, Bell, Settings, CheckCircle2, X, Clock, Database, Download, Loader2, ChevronRight, Zap, SlidersHorizontal } from "lucide-react";
 import { copy } from "../../locales/ko";
+import { createComplexMarkerHtml, createStationMarkerHtml, getPriceTheme, MAP_CIRCLE_STYLES } from "../../lib/mapTheme";
+import { MapLegend } from "../../components/MapLegend";
 
 const LOCAL_STORAGE_KEY_STATIONS = "myhome_recent_stations";
 
@@ -573,12 +575,16 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
         }
       }
 
+      // DB 적재 여부 및 거리에 따른 마커 테마 (hasDbData인 경우 에메랄드/블루 테마 대신 통일된 가격 테마 또는 시맨틱 테마)
+      const themeHex = c.hasDbData ? "#059669" : "#2563eb";
+      const dotBg = c.hasDbData ? "bg-emerald-600" : "bg-blue-600";
+
       // 1. 지시선(Leader line) 렌더링
       if (hasLeaderLine) {
         const polyline = new kakao.maps.Polyline({
           path: [origPos, displayPos],
           strokeWeight: 1.5,
-          strokeColor: c.hasDbData ? "#10b981" : "#3b82f6",
+          strokeColor: themeHex,
           strokeOpacity: 0.85,
           strokeStyle: "shortdash",
         });
@@ -587,7 +593,7 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
 
         // 원점 도트 (가장 뒤에 배치)
         const anchorEl = document.createElement("div");
-        anchorEl.className = `w-2 h-2 rounded-full border border-white shadow-sm pointer-events-none ${c.hasDbData ? "bg-emerald-600" : "bg-blue-600"}`;
+        anchorEl.className = `w-2 h-2 rounded-full border border-white shadow-sm pointer-events-none ${dotBg}`;
         const anchorOverlay = new kakao.maps.CustomOverlay({
           position: origPos,
           content: anchorEl,
@@ -606,40 +612,23 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
       el.style.zIndex = String(overlayZIndex);
 
       if (isDotOnly) {
-        // [미니 도트 핀] - 카드 마커 뒤에 위치하도록 낮은 z-index 설정
-        const dotBg = c.hasDbData ? "bg-emerald-500 hover:bg-emerald-600" : "bg-blue-500 hover:bg-blue-600";
-        el.className += " group cursor-pointer";
-        el.innerHTML = `
-          <div class="relative flex items-center justify-center p-1">
-            <div class="w-3 h-3 rounded-full ${dotBg} border-2 border-white shadow-md hover:scale-125 transition-transform opacity-85 hover:opacity-100"></div>
-            <div class="absolute bottom-full mb-1 hidden group-hover:flex flex-col items-center z-[60] whitespace-nowrap pointer-events-none">
-              <div class="px-2 py-1 bg-slate-900 text-white text-[10px] font-bold rounded-md shadow-lg border border-slate-700">
-                ${c.name} (${c.distanceM ?? "?"}m)
-              </div>
-              <div class="w-0 h-0 border-l-4 border-l-transparent border-r-4 border-r-transparent border-t-4 border-t-slate-900"></div>
-            </div>
-          </div>
-        `;
+        el.className += " -translate-x-1/2 -translate-y-1/2";
+        el.innerHTML = createComplexMarkerHtml({
+          name: c.name,
+          priceEok: c.hasDbData ? 4.9 : 7.0, // 시맨틱 분기 (DB 적재: 녹색, 실시간: 파랑)
+          priceText: c.distanceM !== null && c.distanceM !== undefined ? `${c.distanceM}m` : undefined,
+          badgeText: c.hasDbData ? undefined : "실시간",
+          isDotOnly: true,
+        });
       } else {
-        // [풀 카드 마커] - 도트 마커보다 항상 앞에 위치
-        el.className += " hover:scale-105 hover:z-[55]";
-        const bgColor = c.hasDbData ? "bg-emerald-600 border-emerald-500" : "bg-blue-600 border-blue-500";
-        const arrowColor = c.hasDbData ? "border-t-emerald-600" : "border-t-blue-600";
-        const badgeText = c.hasDbData ? "" : `<span class="text-[7px] font-black text-blue-200 block -mt-0.5">실시간</span>`;
-
-        el.innerHTML = `
-          <div class="flex flex-col items-center cursor-pointer">
-            <div class="px-2.5 py-1 rounded-lg ${bgColor} text-white font-bold flex flex-col items-center text-center shadow-md">
-              <span class="text-[9px] truncate max-w-[100px] leading-tight font-medium opacity-90">${c.name}</span>
-              <div class="flex items-baseline gap-0.5 mt-0.5">
-                <span class="text-xs font-black tracking-tight">${c.distanceM ?? "?"}</span>
-                <span class="text-[8px] font-bold opacity-80">m</span>
-              </div>
-              ${badgeText}
-            </div>
-            <div class="w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-t-[5px] ${arrowColor}"></div>
-          </div>
-        `;
+        el.className += " relative -translate-y-[100%]";
+        el.innerHTML = createComplexMarkerHtml({
+          name: c.name,
+          priceEok: c.hasDbData ? 4.9 : 7.0, // DB 적재: 녹색(bg-emerald-600), 실시간: 파랑(bg-blue-600)
+          priceText: c.distanceM !== null && c.distanceM !== undefined ? `${c.distanceM}m` : "-",
+          badgeText: c.hasDbData ? undefined : "실시간",
+          hasLeaderLine,
+        });
       }
 
       el.addEventListener("click", (e) => {
@@ -656,7 +645,7 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
         content: el,
         zIndex: overlayZIndex,
         xAnchor: 0.5,
-        yAnchor: isDotOnly ? 0.5 : 1.05,
+        yAnchor: isDotOnly ? 0.5 : 0,
       });
 
       overlay.setMap(map);
@@ -707,18 +696,10 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
     if (stationMarkerRef.current) stationMarkerRef.current.setMap(null);
     if (circleRef.current) circleRef.current.setMap(null);
 
-    // 지하철역 마커 생성
+    // 지하철역 마커 생성 (createStationMarkerHtml)
     const stationContent = document.createElement("div");
     stationContent.className = "relative z-30 select-none";
-    stationContent.innerHTML = `
-      <div class="flex flex-col items-center">
-        <div class="bg-indigo-600 border-2 border-white text-white font-black text-xs px-2.5 py-1.5 rounded-full shadow-lg flex items-center gap-1.5">
-          <span class="w-2 h-2 rounded-full bg-yellow-400 animate-ping"></span>
-          <span>${searchResult.station.name}</span>
-        </div>
-        <div class="w-0.5 h-3 bg-indigo-600 shadow-md"></div>
-      </div>
-    `;
+    stationContent.innerHTML = createStationMarkerHtml(searchResult.station.name);
 
     stationMarkerRef.current = new kakao.maps.CustomOverlay({
       position: center,
@@ -728,16 +709,11 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
     });
     stationMarkerRef.current.setMap(map);
 
-    // 반경 Circle 생성
+    // 반경 Circle 생성 (MAP_CIRCLE_STYLES)
     circleRef.current = new kakao.maps.Circle({
       center,
       radius: searchResult.radiusM,
-      strokeWeight: 1.5,
-      strokeColor: "#6366f1",
-      strokeOpacity: 0.7,
-      strokeStyle: "dashed",
-      fillColor: "#818cf8",
-      fillOpacity: 0.08,
+      ...MAP_CIRCLE_STYLES.radius500,
     });
     circleRef.current.setMap(map);
 
@@ -1354,7 +1330,22 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
                       <p className="text-xs font-bold text-neutral">{t.loadingMap || "지도 준비 중..."}</p>
                     </div>
                   ) : (
-                    <div ref={mapContainerRef} className="w-full h-full min-h-[350px]" style={{ touchAction: "auto" }} />
+                    <>
+                      <div ref={mapContainerRef} className="w-full h-full min-h-[350px]" style={{ touchAction: "auto" }} />
+                      <div className="absolute z-20 left-3 bottom-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-normal bg-elevated/95 backdrop-blur-md px-3 py-2 text-[10px] font-bold text-neutral shadow-md max-w-[calc(100%-24px)] md:max-w-md select-none">
+                        <span className="text-[9px] font-extrabold uppercase text-strong border-r border-normal pr-2 flex items-center shrink-0">
+                          단지 구분
+                        </span>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 shadow-sm" />
+                          <span className="text-strong">DB 적재 완료</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="w-2.5 h-2.5 rounded-full bg-blue-600 shadow-sm" />
+                          <span className="text-strong">실시간 (온디맨드)</span>
+                        </div>
+                      </div>
+                    </>
                   )}
                 </div>
               </div>

@@ -16,6 +16,7 @@ import { StatCard } from "../../components/StatCard";
 import { useBreakpoint } from "../../useBreakpoint";
 import { useKakaoMap } from "../../useKakaoMap";
 import { Home, Calendar, DollarSign, Layers, MapPin, Train, ShoppingBag, School, Activity, Clock, Navigation, ArrowUpDown, TrendingUp, HelpCircle, X, Trees, ChevronDown, ChevronUp, Zap, BookOpen, PenTool, GraduationCap, Building2, Stethoscope, ShoppingCart, Store, Waves, BarChart3, Map, Ruler } from "lucide-react";
+import { createComplexMarkerHtml, createStationMarkerHtml, MAP_CIRCLE_STYLES, getPriceTheme } from "../../lib/mapTheme";
 
 
 const i18n = {
@@ -484,67 +485,68 @@ export default function ComplexTab({
     const map = new window.kakao.maps.Map(container, options);
     setMapInstance(map);
 
-    // 1. 단지 마커 표시
-    const complexMarker = new window.kakao.maps.Marker({
-      position: complexPosition,
-      map: map,
-      title: detailData.complexInfo.name
+    // 1. 단지 마커 및 커스텀 오버레이 표시
+    const complexEl = document.createElement("div");
+    complexEl.className = "select-none pointer-events-auto relative -translate-y-[100%]";
+    const latestPrice = detailData.recentTransactions?.[0]?.priceEok || detailData.stats?.avgPrice || null;
+    complexEl.innerHTML = createComplexMarkerHtml({
+      name: detailData.complexInfo.name,
+      priceEok: latestPrice,
+      priceText: latestPrice ? `${latestPrice.toFixed(1)}억` : "-",
+      badgeText: "분석 단지",
+      isSelected: true,
     });
 
     const complexOverlay = new window.kakao.maps.CustomOverlay({
       position: complexPosition,
-      content: `<div style="background-color:var(--color-semantic-background-elevated-normal); border:1px solid var(--color-semantic-line-normal-normal); border-radius:8px; padding:6px 12px; font-size:12px; font-weight:700; color:var(--color-semantic-label-strong); box-shadow:0 2px 4px rgba(0,0,0,0.12); margin-top:-46px; text-align:center; min-width:120px;">🏢 ${detailData.complexInfo.name}</div>`,
-      yAnchor: 1
+      content: complexEl,
+      zIndex: 50,
+      xAnchor: 0.5,
+      yAnchor: 0,
     });
     complexOverlay.setMap(map);
 
-    // 2. 반경 원 500m, 1km 표시
-    const circleRadii = [
-      { r: 500, color: '#3b82f6', opacity: 0.08 },
-      { r: 1000, color: '#10b981', opacity: 0.05 }
-    ];
-
-    const circleInstances = circleRadii.map((c) => {
-      const circle = new window.kakao.maps.Circle({
-        center: complexPosition,
-        radius: c.r,
-        strokeWeight: 1.5,
-        strokeColor: c.color,
-        strokeOpacity: 0.5,
-        strokeStyle: 'dashed',
-        fillColor: c.color,
-        fillOpacity: c.opacity
-      });
-      circle.setMap(map);
-      return circle;
+    // 2. 반경 원 500m, 1km 표시 (MAP_CIRCLE_STYLES 통일)
+    const circle500 = new window.kakao.maps.Circle({
+      center: complexPosition,
+      radius: 500,
+      ...MAP_CIRCLE_STYLES.radius500,
     });
+    circle500.setMap(map);
 
-    // 3. 인근 지하철역 마커 및 커스텀 오버레이 표시
+    const circle1000 = new window.kakao.maps.Circle({
+      center: complexPosition,
+      radius: 1000,
+      ...MAP_CIRCLE_STYLES.radius1000,
+    });
+    circle1000.setMap(map);
+
+    const circleInstances = [circle500, circle1000];
+
+    // 3. 인근 지하철역 마커 및 커스텀 오버레이 표시 (createStationMarkerHtml)
     const subwayMarkers = (detailData.subways || []).map((sub: any) => {
       const subPosition = new window.kakao.maps.LatLng(sub.lat, sub.lng);
-      const marker = new window.kakao.maps.Marker({
-        position: subPosition,
-        map: map,
-        title: sub.name
-      });
+      const stationEl = document.createElement("div");
+      stationEl.className = "select-none pointer-events-auto";
+      stationEl.innerHTML = createStationMarkerHtml(sub.name);
 
       const overlay = new window.kakao.maps.CustomOverlay({
         position: subPosition,
-        content: `<div style="background-color:var(--color-semantic-background-elevated-normal); border:1px solid var(--color-semantic-line-normal-normal); border-radius:12px; padding:3px 8px; font-size:10px; font-weight:700; color:var(--color-semantic-label-strong); box-shadow:0 2px 4px rgba(0,0,0,0.12); margin-top:-38px;">${sub.name}</div>`,
-        yAnchor: 1
+        content: stationEl,
+        zIndex: 40,
+        xAnchor: 0.5,
+        yAnchor: 1.0,
       });
       overlay.setMap(map);
 
-      return { marker, overlay };
+      return { overlay };
     });
 
     // Clean up
     return () => {
-      complexMarker.setMap(null);
       complexOverlay.setMap(null);
       circleInstances.forEach(c => c.setMap(null));
       subwayMarkers.forEach((s: any) => {
-        s.marker.setMap(null);
         s.overlay.setMap(null);
       });
     };

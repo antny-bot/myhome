@@ -33,6 +33,8 @@ import {
   Maximize2
 } from "lucide-react";
 import { useLocale } from "../lib/i18n";
+import { createComplexMarkerHtml, getPriceTheme } from "../lib/mapTheme";
+import { MapLegend } from "../components/MapLegend";
 
 const LOCAL_STORAGE_KEY_REGION = "myhome_recent_map_region";
 
@@ -336,12 +338,14 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
         }
       }
 
+      const theme = getPriceTheme(c.latestPriceEok);
+
       // 1. 지시선(Leader line) 렌더링
       if (hasLeaderLine) {
         const polyline = new kakao.maps.Polyline({
           path: [origPos, displayPos],
           strokeWeight: 1.5,
-          strokeColor: isSelected ? "#f59e0b" : "#6366f1",
+          strokeColor: isSelected ? "#f59e0b" : theme.hexColor,
           strokeOpacity: 0.85,
           strokeStyle: "shortdash",
         });
@@ -350,7 +354,7 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
 
         // 원점 위치에 작은 도트 앵커 마커 (가장 뒤에 배치)
         const anchorEl = document.createElement("div");
-        anchorEl.className = "w-2 h-2 rounded-full bg-indigo-600 border border-white shadow-sm pointer-events-none";
+        anchorEl.className = `w-2 h-2 rounded-full ${theme.dotClass} border border-white shadow-sm pointer-events-none`;
         const anchorOverlay = new kakao.maps.CustomOverlay({
           position: origPos,
           content: anchorEl,
@@ -369,46 +373,25 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
       el.style.zIndex = String(overlayZIndex);
 
       if (isDotOnly) {
-        // [미니 도트 핀] - 카드 마커 뒤로 배치되도록 z-index를 낮게 설정
-        el.className += " -translate-x-1/2 -translate-y-1/2 group cursor-pointer";
-        el.innerHTML = `
-          <div class="relative flex items-center justify-center p-1">
-            <div class="w-3 h-3 rounded-full bg-indigo-500 hover:bg-indigo-600 border-2 border-white shadow-md hover:scale-125 transition-transform opacity-80 hover:opacity-100"></div>
-            <div class="absolute bottom-full mb-1 hidden group-hover:flex flex-col items-center z-[60] whitespace-nowrap">
-              <div class="px-2 py-1 bg-slate-900 text-white text-[10px] font-bold rounded-md shadow-lg border border-slate-700">
-                ${c.name} ${c.latestPriceEok !== null ? `(${c.latestPriceEok}억)` : ""}
-              </div>
-              <div class="w-0 h-0 border-l-4 border-l-transparent border-r-4 border-r-transparent border-t-4 border-t-slate-900"></div>
-            </div>
-          </div>
-        `;
+        el.className += " -translate-x-1/2 -translate-y-1/2";
+        el.innerHTML = createComplexMarkerHtml({
+          name: c.name,
+          priceEok: c.latestPriceEok,
+          priceText: c.latestPriceEok !== null ? `${c.latestPriceEok}억` : "-",
+          subText: c.txCount > 0 ? `${c.txCount}건` : undefined,
+          isSelected,
+          isDotOnly: true,
+        });
       } else {
-        // [풀 카드 마커] - 도트 마커보다 항상 위에 배치
-        el.className += " relative -translate-y-[100%] hover:scale-105 hover:z-[55]";
-        const priceText = c.latestPriceEok !== null ? `${c.latestPriceEok}억` : "-";
-        const bgClass = isSelected
-          ? "bg-amber-500 border-amber-300 text-slate-950 shadow-xl ring-2 ring-amber-400"
-          : hasLeaderLine
-          ? "bg-indigo-700/95 border-indigo-400 text-white shadow-lg"
-          : "bg-indigo-600/95 dark:bg-indigo-700/95 border-indigo-400 text-white shadow-md hover:bg-indigo-700";
-        const arrowClass = isSelected
-          ? "border-t-amber-500"
-          : hasLeaderLine
-          ? "border-t-indigo-700"
-          : "border-t-indigo-600 dark:border-t-indigo-700";
-
-        el.innerHTML = `
-          <div class="flex flex-col items-center cursor-pointer">
-            <div class="px-2.5 py-1 rounded-lg border text-center flex flex-col items-center ${bgClass}">
-              <span class="text-[10px] font-medium leading-tight max-w-[110px] truncate opacity-95">${c.name}</span>
-              <div class="flex items-baseline gap-0.5 mt-0.5">
-                <span class="text-xs font-black tracking-tight">${priceText}</span>
-                ${c.txCount > 0 ? `<span class="text-[9px] font-normal opacity-80">(${c.txCount}건)</span>` : ""}
-              </div>
-            </div>
-            <div class="w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-t-[5px] ${arrowClass}"></div>
-          </div>
-        `;
+        el.className += " relative -translate-y-[100%]";
+        el.innerHTML = createComplexMarkerHtml({
+          name: c.name,
+          priceEok: c.latestPriceEok,
+          priceText: c.latestPriceEok !== null ? `${c.latestPriceEok}억` : "-",
+          subText: c.txCount > 0 ? `${c.txCount}건` : undefined,
+          isSelected,
+          hasLeaderLine,
+        });
       }
 
       el.addEventListener("click", (e) => {
@@ -894,6 +877,15 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
                 </div>
               )}
             </div>
+          )}
+
+          {/* 지도 좌하단 통일 범례 */}
+          {mapLoaded && (
+            <MapLegend
+              className="absolute z-20 left-3 bottom-3"
+              title="범례 (최근가)"
+              showSelected={!!selectedComplex}
+            />
           )}
 
           {/* 선택된 단지 플로팅 인포 카드 (지도 하단) */}
