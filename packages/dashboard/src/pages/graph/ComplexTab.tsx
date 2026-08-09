@@ -415,7 +415,7 @@ export default function ComplexTab({
     }
     return `${Math.round(num)}㎡`;
   };
-  const { isNarrow } = useBreakpoint();
+  const { isMobile, isNarrow } = useBreakpoint();
   const [complexName, setComplexName] = useState(initialComplexName);
   const [selectedArea, setSelectedArea] = useState<number | undefined>(undefined);
   const [availableSizes, setAvailableSizes] = useState<string[]>([]);
@@ -1218,89 +1218,86 @@ export default function ComplexTab({
 
       {/* 지도 및 입지 분석 섹션 (단지 정보가 존재할 경우 표시) */}
       {detailData.complexInfo && (
-        <SectionCard title={<span className="flex items-center gap-2"><Map size={18} className="text-primary" /><span>{t("infraMapAnalysisTitle")}</span></span>}>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
-            {/* 지도 컨테이너 */}
-            <div className="lg:col-span-2 space-y-4">
-              {!mapSdkLoaded ? (
-                <div className="h-80 lg:h-[400px] w-full flex items-center justify-center bg-alternative border border-normal rounded-xl text-neutral">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mr-2" />
-                  <span>지도 서비스를 로딩 중입니다...</span>
+        isMobile ? (
+          /* ── 모바일: 카드/타이틀 제거, edge-to-edge 풀사이즈 지도 ── */
+          <div className="-mx-4 relative overflow-hidden">
+            {!mapSdkLoaded ? (
+              <div
+                className="w-full flex items-center justify-center bg-alternative text-neutral"
+                style={{ height: "calc(100dvh - 56px - 64px)" }}
+              >
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mr-2" />
+                <span className="text-sm">지도 서비스를 로딩 중입니다...</span>
+              </div>
+            ) : detailData.complexInfo.lat === null || detailData.complexInfo.lng === null ? (
+              <div
+                className="w-full flex flex-col items-center justify-center bg-alternative text-neutral p-4 text-center"
+                style={{ height: "calc(100dvh - 56px - 64px)" }}
+              >
+                <MapPin size={36} className="mb-2 opacity-30" />
+                <p className="text-sm font-semibold">좌표 정보를 확보할 수 없습니다.</p>
+                <p className="text-xs text-assistive mt-1">단지의 주소가 불명확하여 지도를 렌더링하지 못했습니다.</p>
+              </div>
+            ) : (
+              <div className="relative overflow-hidden">
+                {/* 카카오 지도 — dvh 기반 풀사이즈 */}
+                <div
+                  ref={mapContainerRef}
+                  className="w-full"
+                  style={{ height: "calc(100dvh - 56px - 64px)" }}
+                />
+                {/* 편의시설 필터 퀵 패널 — 좌상단 플로팅 */}
+                <div className="absolute top-3 left-3 z-10 flex flex-wrap gap-1 max-w-[calc(100%-16px)] pointer-events-auto bg-elevated/95 backdrop-blur-sm p-1.5 rounded-lg shadow-md border border-normal">
+                  {infraCategories.map((infra) => {
+                    const Icon = infra.icon;
+                    const isActive = activeInfraFilter === infra.code;
+                    return (
+                      <button
+                        key={infra.code}
+                        type="button"
+                        onClick={() => handleInfraFilterToggle(infra.code)}
+                        className={`flex items-center gap-1 px-2 py-1.5 rounded-md text-[10px] font-bold border transition-colors ${
+                          isActive
+                            ? "bg-primary text-white border-primary"
+                            : "bg-normal text-neutral border-normal hover:bg-alternative hover:text-strong"
+                        }`}
+                      >
+                        <Icon size={11} />
+                        <span>{infra.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
-              ) : detailData.complexInfo.lat === null || detailData.complexInfo.lng === null ? (
-                <div className="h-80 lg:h-[400px] w-full flex flex-col items-center justify-center bg-alternative border border-normal rounded-xl text-neutral p-4 text-center">
-                  <MapPin size={36} className="mb-2 opacity-30" />
-                  <p className="text-sm font-semibold">좌표 정보를 확보할 수 없습니다.</p>
-                  <p className="text-xs text-assistive mt-1">단지의 주소가 불명확하여 지도를 렌더링하지 못했습니다.</p>
-                </div>
-              ) : (
-                <div className="relative rounded-xl border border-normal overflow-hidden shadow-inner">
-                  {/* 카카오 지도 렌더링 노드 */}
-                  <div ref={mapContainerRef} className="h-80 lg:h-[400px] w-full" />
-                  
-                  {/* 편의시설 필터 퀵 패널 */}
-                  <div className="absolute top-3 left-3 z-10 flex flex-wrap gap-1.5 max-w-[calc(100%-24px)] pointer-events-auto bg-elevated/95 backdrop-blur-sm p-1.5 rounded-lg shadow-md border border-normal">
-                    {infraCategories.map((infra) => {
-                      const Icon = infra.icon;
-                      const isActive = activeInfraFilter === infra.code;
-                      return (
-                        <button
-                          key={infra.code}
-                          type="button"
-                          onClick={() => handleInfraFilterToggle(infra.code)}
-                          className={`flex items-center gap-1.5 px-3 py-2 rounded-md text-[10px] font-bold border transition-colors ${
-                            isActive
-                              ? "bg-primary text-white border-primary"
-                              : "bg-normal text-neutral border-normal hover:bg-alternative hover:text-strong"
-                          }`}
-                        >
-                          <Icon size={12} />
-                          <span>{infra.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
+              </div>
+            )}
 
-            {/* 인근 역세권 정보 패널 */}
-            <div className="flex flex-col justify-between gap-4 lg:h-[400px]">
+            {/* 역세권 패널 — 지도 하단 */}
+            <div className="mx-4 mt-4 flex flex-col gap-4">
               <div>
                 <h3 className="text-sm font-bold text-strong flex items-center gap-1.5 mb-2">
                   <Train size={16} className="text-primary" />
                   <span>인근 역세권 (반경 1km 이내)</span>
                 </h3>
                 <p className="text-xs text-neutral mb-3 leading-relaxed">
-                  단지 기준 직선 반경 1km 이내에 위치한 철도/지하철역 목록입니다. 도보/차량 시간은 직선거리 기준 추정값입니다.
+                  단지 기준 직선 반경 1km 이내에 위치한 철도/지하철역 목록입니다.
                 </p>
-
                 {detailData.subways && detailData.subways.length > 0 ? (
-                  <div className="space-y-3 overflow-y-auto max-h-60 lg:max-h-[200px] pr-1">
+                  <div className="space-y-2">
                     {detailData.subways.map((sub: any) => {
                       const { walkMin, carMin } = getTravelTime(sub.distanceM);
                       return (
-                        <div key={sub.name} className="flex flex-col p-3 rounded-lg border border-normal bg-normal/30 hover:bg-normal/70 transition">
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs font-bold text-strong flex items-center gap-1.5">
-                              <span className="inline-block w-2 h-2 rounded-full bg-amber-500" />
-                              {sub.name}
+                        <div key={sub.name} className="flex items-center justify-between p-3 rounded-lg border border-normal bg-normal/30">
+                          <span className="text-xs font-bold text-strong flex items-center gap-1.5">
+                            <span className="inline-block w-2 h-2 rounded-full bg-amber-500" />
+                            {sub.name}
+                          </span>
+                          <div className="flex items-center gap-3 text-[11px] text-neutral">
+                            <span className="font-mono font-semibold text-primary">
+                              {sub.distanceM >= 1000 ? `${(sub.distanceM / 1000).toFixed(2)}km` : `${sub.distanceM}m`}
                             </span>
-                            <span className="text-[11px] font-mono font-semibold text-primary">
-                              {sub.distanceM >= 1000 
-                                ? `${(sub.distanceM / 1000).toFixed(2)}km` 
-                                : `${sub.distanceM}m`}
-                            </span>
-                          </div>
-                          
-                          <div className="flex items-center gap-4 mt-2 border-t border-normal/50 pt-2">
-                            <span className="text-[10px] text-neutral flex items-center gap-1">
-                              <Clock size={12} className="text-assistive" />
-                              <span>도보 <strong className="text-strong">{walkMin}분</strong></span>
-                            </span>
-                            <span className="text-[10px] text-neutral flex items-center gap-1">
-                              <Navigation size={12} className="text-assistive" />
-                              <span>차량 <strong className="text-strong">{carMin}분</strong></span>
+                            <span className="flex items-center gap-0.5">
+                              <Clock size={10} className="text-assistive" />
+                              도보 <strong className="text-strong ml-0.5">{walkMin}분</strong>
                             </span>
                           </div>
                         </div>
@@ -1308,37 +1305,138 @@ export default function ComplexTab({
                     })}
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center justify-center py-8 bg-normal/20 border border-normal border-dashed rounded-xl text-neutral">
-                    <Train size={32} className="mb-2 opacity-20 text-warn" />
+                  <div className="flex flex-col items-center justify-center py-6 bg-normal/20 border border-normal border-dashed rounded-xl text-neutral">
+                    <Train size={28} className="mb-2 opacity-20 text-warn" />
                     <p className="text-xs font-semibold text-warn">1km 이내에 철도/지하철역이 없습니다.</p>
                   </div>
                 )}
               </div>
-
-              {detailData.complexInfo && (
-
-                <div className="p-3 bg-alternative/40 border border-normal rounded-lg text-[11px] text-neutral space-y-1.5">
-                  <div className="flex items-start justify-between gap-2">
-                    <span className="font-semibold text-strong shrink-0">단지 주소</span>
-                    <span className="text-right">{detailData.complexInfo.regionName} {detailData.complexInfo.dongName || ""} {detailData.complexInfo.jibun || ""}</span>
+            </div>
+          </div>
+        ) : (
+          /* ── 데스크톱: 기존 SectionCard 유지 ── */
+          <SectionCard title={<span className="flex items-center gap-2"><Map size={18} className="text-primary" /><span>{t("infraMapAnalysisTitle")}</span></span>}>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
+              {/* 지도 컨테이너 */}
+              <div className="lg:col-span-2 space-y-4">
+                {!mapSdkLoaded ? (
+                  <div className="h-80 lg:h-[400px] w-full flex items-center justify-center bg-alternative border border-normal rounded-xl text-neutral">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mr-2" />
+                    <span>지도 서비스를 로딩 중입니다...</span>
                   </div>
-                  {detailData.complexInfo.roadName && (
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="font-semibold text-strong shrink-0">도로명</span>
-                      <span className="text-right">{detailData.complexInfo.roadName}</span>
+                ) : detailData.complexInfo.lat === null || detailData.complexInfo.lng === null ? (
+                  <div className="h-80 lg:h-[400px] w-full flex flex-col items-center justify-center bg-alternative border border-normal rounded-xl text-neutral p-4 text-center">
+                    <MapPin size={36} className="mb-2 opacity-30" />
+                    <p className="text-sm font-semibold">좌표 정보를 확보할 수 없습니다.</p>
+                    <p className="text-xs text-assistive mt-1">단지의 주소가 불명확하여 지도를 렌더링하지 못했습니다.</p>
+                  </div>
+                ) : (
+                  <div className="relative rounded-xl border border-normal overflow-hidden shadow-inner">
+                    {/* 카카오 지도 렌더링 노드 */}
+                    <div ref={mapContainerRef} className="h-80 lg:h-[400px] w-full" />
+                    
+                    {/* 편의시설 필터 퀵 패널 */}
+                    <div className="absolute top-3 left-3 z-10 flex flex-wrap gap-1.5 max-w-[calc(100%-24px)] pointer-events-auto bg-elevated/95 backdrop-blur-sm p-1.5 rounded-lg shadow-md border border-normal">
+                      {infraCategories.map((infra) => {
+                        const Icon = infra.icon;
+                        const isActive = activeInfraFilter === infra.code;
+                        return (
+                          <button
+                            key={infra.code}
+                            type="button"
+                            onClick={() => handleInfraFilterToggle(infra.code)}
+                            className={`flex items-center gap-1.5 px-3 py-2 rounded-md text-[10px] font-bold border transition-colors ${
+                              isActive
+                                ? "bg-primary text-white border-primary"
+                                : "bg-normal text-neutral border-normal hover:bg-alternative hover:text-strong"
+                            }`}
+                          >
+                            <Icon size={12} />
+                            <span>{infra.label}</span>
+                          </button>
+                        );
+                      })}
                     </div>
-                  )}
-                  {(detailData.complexInfo.lat && detailData.complexInfo.lng) && (
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-strong">좌표 (위·경도)</span>
-                      <span className="font-mono text-[10px]">{detailData.complexInfo.lat.toFixed(5)}, {detailData.complexInfo.lng.toFixed(5)}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* 인근 역세권 정보 패널 */}
+              <div className="flex flex-col justify-between gap-4 lg:h-[400px]">
+                <div>
+                  <h3 className="text-sm font-bold text-strong flex items-center gap-1.5 mb-2">
+                    <Train size={16} className="text-primary" />
+                    <span>인근 역세권 (반경 1km 이내)</span>
+                  </h3>
+                  <p className="text-xs text-neutral mb-3 leading-relaxed">
+                    단지 기준 직선 반경 1km 이내에 위치한 철도/지하철역 목록입니다. 도보/차량 시간은 직선거리 기준 추정값입니다.
+                  </p>
+
+                  {detailData.subways && detailData.subways.length > 0 ? (
+                    <div className="space-y-3 overflow-y-auto max-h-60 lg:max-h-[200px] pr-1">
+                      {detailData.subways.map((sub: any) => {
+                        const { walkMin, carMin } = getTravelTime(sub.distanceM);
+                        return (
+                          <div key={sub.name} className="flex flex-col p-3 rounded-lg border border-normal bg-normal/30 hover:bg-normal/70 transition">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-strong flex items-center gap-1.5">
+                                <span className="inline-block w-2 h-2 rounded-full bg-amber-500" />
+                                {sub.name}
+                              </span>
+                              <span className="text-[11px] font-mono font-semibold text-primary">
+                                {sub.distanceM >= 1000 
+                                  ? `${(sub.distanceM / 1000).toFixed(2)}km` 
+                                  : `${sub.distanceM}m`}
+                              </span>
+                            </div>
+                            
+                            <div className="flex items-center gap-4 mt-2 border-t border-normal/50 pt-2">
+                              <span className="text-[10px] text-neutral flex items-center gap-1">
+                                <Clock size={12} className="text-assistive" />
+                                <span>도보 <strong className="text-strong">{walkMin}분</strong></span>
+                              </span>
+                              <span className="text-[10px] text-neutral flex items-center gap-1">
+                                <Navigation size={12} className="text-assistive" />
+                                <span>차량 <strong className="text-strong">{carMin}분</strong></span>
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-8 bg-normal/20 border border-normal border-dashed rounded-xl text-neutral">
+                      <Train size={32} className="mb-2 opacity-20 text-warn" />
+                      <p className="text-xs font-semibold text-warn">1km 이내에 철도/지하철역이 없습니다.</p>
                     </div>
                   )}
                 </div>
-              )}
+
+                {detailData.complexInfo && (
+
+                  <div className="p-3 bg-alternative/40 border border-normal rounded-lg text-[11px] text-neutral space-y-1.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="font-semibold text-strong shrink-0">단지 주소</span>
+                      <span className="text-right">{detailData.complexInfo.regionName} {detailData.complexInfo.dongName || ""} {detailData.complexInfo.jibun || ""}</span>
+                    </div>
+                    {detailData.complexInfo.roadName && (
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="font-semibold text-strong shrink-0">도로명</span>
+                        <span className="text-right">{detailData.complexInfo.roadName}</span>
+                      </div>
+                    )}
+                    {(detailData.complexInfo.lat && detailData.complexInfo.lng) && (
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-strong">좌표 (위·경도)</span>
+                        <span className="font-mono text-[10px]">{detailData.complexInfo.lat.toFixed(5)}, {detailData.complexInfo.lng.toFixed(5)}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        </SectionCard>
+          </SectionCard>
+        )
       )}
 
 

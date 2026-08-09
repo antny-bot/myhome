@@ -1081,7 +1081,7 @@ export default function OverviewTab({
         title={t.pivotTableTitle}
         subtitle={t.pivotTableLegend}
       >
-        <div className="w-full overflow-x-auto scrollbar-thin mt-4">
+        <div className="w-full overflow-x-auto scrollbar-none md:scrollbar-thin mt-4">
           <div
             className="grid min-w-[800px] p-1.5"
             style={{

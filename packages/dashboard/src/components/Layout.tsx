@@ -447,7 +447,14 @@ export function Layout({
         )}
 
         {/* Content Body */}
-        <main className="flex-1 px-4 py-5 pb-24 md:pb-8 md:px-6 max-w-screen-xl w-full mx-auto">
+        <main
+          className={classNames(
+            "flex-1 max-w-screen-xl w-full mx-auto transition-all",
+            view === "regionMap"
+              ? "px-2.5 pt-2 pb-16 md:px-6 md:py-5 md:pb-8"
+              : "px-4 py-5 pb-24 md:pb-8 md:px-6"
+          )}
+        >
           <div key={view} className="animate-fade-in-up">
             {children}
           </div>

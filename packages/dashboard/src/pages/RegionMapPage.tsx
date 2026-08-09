@@ -158,36 +158,42 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
   const regionDrag = useDragScroll();
   const dongDrag = useDragScroll();
 
-  // 브라우저 윈도우 크기 기반 높이 동적 계산 (브라우저 종 스크롤 방지)
+  // 브라우저 윈도우 크기 기반 높이 동적 계산 (지도 및 목록 뷰포트 최적화)
   const pageContainerRef = useRef<HTMLDivElement>(null);
   const topSectionRef = useRef<HTMLDivElement>(null);
   const contentContainerRef = useRef<HTMLDivElement>(null);
-  const [contentHeight, setContentHeight] = useState<number>(560);
+  const [contentHeight, setContentHeight] = useState<number>(540);
 
   useEffect(() => {
     const updateHeight = () => {
       if (!pageContainerRef.current) return;
 
       const isMobile = window.innerWidth < 1024;
-      // 데스크톱: main 하단 패딩(32px) + 여유 여백(12px) = 44px
-      // 모바일: 하단 고정 네비게이션(56px) + safe bottom + 패딩 여유 = 96px
-      const bottomMargin = isMobile ? 96 : 44;
+      const viewportHeight = window.visualViewport?.height || window.innerHeight;
 
-      const pageRect = pageContainerRef.current.getBoundingClientRect();
-      const pageTop = pageRect.top + window.scrollY;
-      const topSectionHeight = topSectionRef.current ? topSectionRef.current.offsetHeight : 140;
-      const gap = 12;
-
-      const calculated = window.innerHeight - pageTop - topSectionHeight - gap - bottomMargin;
-      const finalHeight = Math.max(420, Math.floor(calculated));
-
-      setContentHeight(finalHeight);
-
-      if (mapRef.current) {
-        setTimeout(() => {
-          mapRef.current?.relayout();
-        }, 50);
+      if (isMobile) {
+        // 모바일 레이아웃 가용 높이 정밀 계산:
+        // - TopBar: h-14 = 56px (sticky top-0)
+        // - BottomNav: min-h-[56px] fixed, main에 pb-16(64px)로 공간 확보
+        // - main의 pt-2 = 8px (상단 패딩)
+        // - topSection 실제 높이 + mt-2.5(10px) gap
+        const TOP_BAR_H = 56;   // TopBar h-14
+        const BOTTOM_PADDING = 64; // main pb-16 (BottomNav 공간)
+        const MAIN_PT = 8;      // main pt-2
+        const topSectionH = topSectionRef.current ? topSectionRef.current.offsetHeight : 120;
+        const CONTENT_GAP = 10; // mt-2.5 (topSection과 content 사이 gap)
+        const available = viewportHeight - TOP_BAR_H - BOTTOM_PADDING - MAIN_PT - topSectionH - CONTENT_GAP;
+        const finalH = Math.max(300, Math.floor(available));
+        setContentHeight(finalH);
+      } else {
+        // 데스크톱: 기존 pageRect 기반 계산 유지
+        const pageRect = pageContainerRef.current.getBoundingClientRect();
+        const pageTop = Math.max(0, pageRect.top);
+        const topSectionH = topSectionRef.current ? topSectionRef.current.offsetHeight : 120;
+        const calculated = viewportHeight - pageTop - topSectionH - 10 - 36;
+        setContentHeight(Math.max(480, Math.floor(calculated)));
       }
+      // ※ relayout은 contentHeight가 DOM에 반영된 뒤 별도 useEffect에서 실행
     };
 
     updateHeight();
@@ -209,6 +215,22 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
       clearTimeout(timer);
     };
   }, [selectedLawdCode, regions.length, mobileTab]);
+
+  // contentHeight가 DOM에 실제로 반영된 뒤 Kakao 지도 relayout 실행
+  // (setContentHeight 직후가 아니라 React 커밋 → 브라우저 페인트 완료 이후 호출)
+  useEffect(() => {
+    if (!mapRef.current) return;
+    // rAF: 브라우저가 새 프레임을 그리기 시작할 때
+    const raf = requestAnimationFrame(() => {
+      mapRef.current?.relayout();
+      // 100ms 추가 보정: 모바일 Safari 등 페인트 지연 대응
+      const t = setTimeout(() => {
+        mapRef.current?.relayout();
+      }, 100);
+      return () => clearTimeout(t);
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [contentHeight]);
 
 
   // 1. DB 적재 지역 목록 로드
@@ -342,11 +364,12 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
 
   // 모바일 탭이 'map'으로 전환될 때 카카오 지도 relayout 및 영역 재조정
   useEffect(() => {
-    if (mobileTab === "map" && mapRef.current) {
-      const timer = setTimeout(() => {
+    if (mobileTab === "map") {
+      const relayoutAndFit = () => {
         if (mapRef.current) {
           mapRef.current.relayout();
-          if (filteredComplexes.length > 0) {
+          renderMarkersRef.current?.();
+          if (filteredComplexes.length > 0 && window.kakao?.maps) {
             const bounds = new window.kakao.maps.LatLngBounds();
             let count = 0;
             filteredComplexes.forEach((c) => {
@@ -360,8 +383,30 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
             }
           }
         }
-      }, 100);
-      return () => clearTimeout(timer);
+      };
+
+      // contentHeight 상태 업데이트 → React 렌더링 → DOM 반영 이후 relayout 실행
+      // 즉시 실행하면 contentHeight가 아직 DOM에 적용되기 전이라 지도가 작게 고정됨
+      // rAF: 브라우저가 새 프레임을 그리기 시작하는 시점 (React 커밋 완료 이후)
+      const rafId = requestAnimationFrame(() => {
+        relayoutAndFit();
+      });
+
+      // 추가 보정: 모바일 브라우저의 렌더링 지연 및 visualViewport 변화 대응
+      const timer1 = setTimeout(relayoutAndFit, 100);
+      const timer2 = setTimeout(relayoutAndFit, 250);
+      const timer3 = setTimeout(() => {
+        if (mapRef.current) {
+          mapRef.current.relayout();
+        }
+      }, 450);
+
+      return () => {
+        cancelAnimationFrame(rafId);
+        clearTimeout(timer1);
+        clearTimeout(timer2);
+        clearTimeout(timer3);
+      };
     }
   }, [mobileTab, filteredComplexes, selectedComplex]);
 
@@ -607,11 +652,53 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
   // renderMarkers 함수를 ref에 항상 최신으로 유지하여 지도 이벤트 콜백 클로저 문제 방지
   renderMarkersRef.current = renderMarkers;
 
-  // 4. 카카오 지도 초기화 및 이벤트 리스너 등록, 데이터 변경 시 갱신
-  useEffect(() => {
+  // 4. 지도 영역을 필터링된 단지들 또는 선택된 단지에 맞춤
+  const fitMapToBounds = (forceRegionBounds: boolean = false) => {
+    if (!mapRef.current || !window.kakao?.maps || !mapData) return;
+    const kakao = window.kakao;
+    const map = mapRef.current;
+
+    let initialCenter = new kakao.maps.LatLng(37.5665, 126.9780);
+    if (mapData.center) {
+      initialCenter = new kakao.maps.LatLng(mapData.center.lat, mapData.center.lng);
+    }
+
+    if (selectedComplex && selectedComplex.lat && selectedComplex.lng && !forceRegionBounds) {
+      const pos = new kakao.maps.LatLng(selectedComplex.lat, selectedComplex.lng);
+      map.panTo(pos);
+      if (map.getLevel() > 4) {
+        map.setLevel(3);
+      }
+      return;
+    }
+
+    const bounds = new kakao.maps.LatLngBounds();
+    let validCoordCount = 0;
+    filteredComplexes.forEach((c) => {
+      if (c.lat !== null && c.lng !== null && !isNaN(c.lat) && !isNaN(c.lng)) {
+        bounds.extend(new kakao.maps.LatLng(c.lat, c.lng));
+        validCoordCount++;
+      }
+    });
+
+    if (validCoordCount > 0) {
+      map.setBounds(bounds, 40, 40, 40, 40);
+    } else if (mapData.center) {
+      map.setCenter(initialCenter);
+      map.setLevel(5);
+    }
+  };
+
+  // 5. 카카오 지도 생성 및 크기 재계산 (DOM 크기 유효성 검사 및 안전 초기화)
+  const initOrRelayoutMap = (forceFit: boolean = false) => {
     if (!mapLoaded || !mapContainerRef.current || !mapData) return;
     const kakao = window.kakao;
-    if (!kakao || !kakao.maps) return;
+    if (!kakao?.maps) return;
+
+    const container = mapContainerRef.current;
+    if (container.offsetWidth === 0 || container.offsetHeight === 0) {
+      return;
+    }
 
     let initialCenter = new kakao.maps.LatLng(37.5665, 126.9780);
     if (mapData.center) {
@@ -625,59 +712,64 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
         draggable: true,
         zoomable: true,
       };
-      const map = new kakao.maps.Map(mapContainerRef.current, options);
+      const map = new kakao.maps.Map(container, options);
       mapRef.current = map;
 
       const zoomControl = new kakao.maps.ZoomControl();
       map.addControl(zoomControl, kakao.maps.ControlPosition.RIGHT);
 
-      // 이벤트 리스너에서 ref를 통해 항상 최신 renderMarkers를 호출
       kakao.maps.event.addListener(map, "zoom_changed", () => {
         renderMarkersRef.current();
       });
       kakao.maps.event.addListener(map, "dragend", () => {
         renderMarkersRef.current();
       });
-    } else {
-      mapRef.current.relayout();
     }
 
     const map = mapRef.current;
+    map.relayout();
     renderMarkers();
 
     const isRegionChanged = prevLawdCodeRef.current !== mapData.lawdCode;
     prevLawdCodeRef.current = mapData.lawdCode;
 
-    // 단지들이 모두 보이도록 줌 및 중심 설정
-    const bounds = new kakao.maps.LatLngBounds();
-    let validCoordCount = 0;
+    fitMapToBounds(forceFit || isRegionChanged);
+  };
 
-    filteredComplexes.forEach((c) => {
-      if (c.lat !== null && c.lng !== null && !isNaN(c.lat) && !isNaN(c.lng)) {
-        bounds.extend(new kakao.maps.LatLng(c.lat, c.lng));
-        validCoordCount++;
+  // 데이터 및 설정 변경 시 지도 업데이트
+  useEffect(() => {
+    initOrRelayoutMap();
+  }, [mapLoaded, mapData, filteredComplexes, selectedComplex, avoidCollision, mobileTab]);
+
+  // mapContainerRef 크기 변화를 감지하여 Kakao 지도 자동 relayout
+  // contentHeight 변경·mobileTab 전환 등으로 컨테이너 크기가 실제로 바뀌면 즉시 반응
+  useEffect(() => {
+    if (!mapContainerRef.current || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => {
+      if (mapRef.current) {
+        mapRef.current.relayout();
       }
     });
+    observer.observe(mapContainerRef.current);
+    return () => observer.disconnect();
+  }, []);
 
-    if (validCoordCount > 0 && (!selectedComplex || isRegionChanged)) {
-      map.setBounds(bounds, 50, 50, 50, 50);
-    } else if (mapData.center && (validCoordCount === 0 || isRegionChanged)) {
-      map.setCenter(initialCenter);
-      map.setLevel(5);
-    }
-  }, [mapLoaded, mapData, filteredComplexes, selectedComplex, avoidCollision]);
-
-  // 단지 리스트에서 단지 클릭 시 지도 이동
+  // 단지 리스트에서 단지 클릭 시 지도 이동 및 모바일 탭 전환
   const handleFocusComplex = (complex: RegionMapComplexItem) => {
     setSelectedComplex(complex);
     setMobileTab("map");
-    if (mapRef.current && complex.lat && complex.lng) {
-      const kakao = window.kakao;
-      const pos = new kakao.maps.LatLng(complex.lat, complex.lng);
-      mapRef.current.panTo(pos);
-      if (mapRef.current.getLevel() > 4) {
-        mapRef.current.setLevel(3);
-      }
+    if (complex.lat && complex.lng) {
+      setTimeout(() => {
+        if (mapRef.current && window.kakao?.maps) {
+          mapRef.current.relayout();
+          const kakao = window.kakao;
+          const pos = new kakao.maps.LatLng(complex.lat, complex.lng);
+          mapRef.current.panTo(pos);
+          if (mapRef.current.getLevel() > 4) {
+            mapRef.current.setLevel(3);
+          }
+        }
+      }, 80);
     }
   };
 
@@ -718,25 +810,26 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
   const selectedRegionSummary = regions.find(r => r.lawdCode === selectedLawdCode);
 
   return (
-    <div ref={pageContainerRef} className="flex flex-col min-h-0 w-full overflow-hidden">
+    <div ref={pageContainerRef} className="flex flex-col min-h-0 w-full overflow-visible lg:overflow-hidden">
       {/* 1. 상단 섹션 (타이틀 + 적재 지역 선택 바 + 모바일 뷰 전환 탭) */}
-      <div ref={topSectionRef} className="flex flex-col gap-2.5 sm:gap-3 shrink-0">
-        {/* Page Header (다른 페이지들과 동일한 표준 PageHeader 적용) */}
+      <div ref={topSectionRef} className="flex flex-col gap-1 sm:gap-3 shrink-0">
+        {/* Page Header (모바일 지도 뷰에서는 전체 화면 확보를 위해 숨김/데스크톱 및 목록에서 노출) */}
         <PageHeader
           title={t.regionMapNavLabel || "단지 지도"}
           subtitle={t.regionMapSubtitle || "수집된 지역구 내 아파트 단지 위치와 최근 실거래가를 지도에서 한눈에 확인하고 단지 분석으로 연결합니다."}
           icon={MapIcon}
+          className={`mb-1 sm:mb-4 ${mobileTab === "map" ? "hidden sm:flex" : "flex"}`}
         />
 
         {/* 2. 상단 적재 지역 선택 바 (Loaded Districts Selector Bar) */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-2.5 sm:p-3.5 shadow-sm">
-          <div className="flex items-center justify-between gap-2 mb-1.5 px-1">
-            <div className="flex items-center gap-2">
-              <Layers size={15} className="text-primary" />
-              <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-2 sm:p-3.5 shadow-sm">
+          <div className="flex items-center justify-between gap-2 mb-1 px-1">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <Layers size={14} className="text-primary" />
+              <span className="text-[11px] sm:text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                 {t.loadedRegions || "적재 지역 선택"}
               </span>
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+              <span className="text-[10px] sm:text-xs font-semibold px-1.5 sm:px-2 py-0.2 sm:py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
                 {regions.length}개 지역구
               </span>
             </div>
@@ -754,7 +847,7 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
           <div
             ref={regionDrag.ref}
             {...regionDrag.events}
-            className={`flex items-center gap-2 overflow-x-auto pb-1 pt-0.5 scrollbar-none select-none ${
+            className={`flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-0.5 pt-0.5 scrollbar-none select-none ${
               regionDrag.isDragging ? "cursor-grabbing" : "cursor-grab"
             }`}
           >
@@ -767,13 +860,13 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
                     if (regionDrag.hasDraggedRef.current) return;
                     handleSelectRegion(reg.lawdCode);
                   }}
-                  className={`flex items-center gap-2 shrink-0 px-3.5 py-1.5 sm:py-2 rounded-xl text-xs font-medium transition-all duration-200 border select-none ${
+                  className={`flex items-center gap-1.5 sm:gap-2 shrink-0 px-2.5 py-1 sm:px-3 sm:py-2 rounded-xl text-xs font-medium transition-all duration-200 border select-none ${
                     isSelected
                       ? "bg-primary border-primary text-white font-bold shadow-md shadow-primary/20 scale-[1.02]"
                       : "bg-slate-50 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:border-slate-300"
                   }`}
                 >
-                  <MapPin size={13} className={isSelected ? "text-amber-300" : "text-slate-400"} />
+                  <MapPin size={12} className={isSelected ? "text-amber-300" : "text-slate-400"} />
                   <span>{reg.displayName}</span>
                   <span
                     className={`px-1.5 py-0.5 rounded-md text-[10px] ${
@@ -791,24 +884,26 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
         </div>
 
         {/* 모바일 뷰 전환 탭 (지도 ↔ 목록) */}
-        <div className="flex lg:hidden bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
+        <div className="flex lg:hidden bg-slate-100 dark:bg-slate-800/90 p-1 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm shrink-0">
           <button
+            type="button"
             onClick={() => setMobileTab("map")}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold transition-all ${
               mobileTab === "map"
-                ? "bg-white dark:bg-slate-900 text-primary shadow-sm"
-                : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                ? "bg-primary text-white shadow-sm font-black"
+                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
             }`}
           >
             <MapIcon size={14} />
             <span>{t.mapViewToggle || "지도 보기"}</span>
           </button>
           <button
+            type="button"
             onClick={() => setMobileTab("list")}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold transition-all ${
               mobileTab === "list"
-                ? "bg-white dark:bg-slate-900 text-primary shadow-sm"
-                : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                ? "bg-primary text-white shadow-sm font-black"
+                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
             }`}
           >
             <List size={14} />
@@ -820,14 +915,15 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
       {/* 3. 메인 콘텐츠 (좌측 사이드바 + 우측 지도) */}
       <div
         ref={contentContainerRef}
-        style={{ height: `${contentHeight}px`, maxHeight: `${contentHeight}px` }}
-        className="grid grid-cols-1 lg:grid-cols-12 gap-3 flex-1 min-h-0 mt-2.5 sm:mt-3"
+        style={{ height: `${contentHeight}px`, maxHeight: `${contentHeight}px`, minHeight: `${contentHeight}px` }}
+        className="flex flex-col lg:grid lg:grid-cols-12 gap-3 flex-1 min-h-0 mt-2.5 sm:mt-3 w-full"
       >
         {/* 좌측 단지 목록 & 필터 패널 */}
         <div
-          className={`lg:col-span-5 xl:col-span-4 flex flex-col h-full min-h-0 ${
+          className={`lg:col-span-5 xl:col-span-4 flex flex-col h-full min-h-0 w-full ${
             mobileTab === "map" ? "hidden lg:flex" : "flex"
           }`}
+          style={{ height: "100%" }}
         >
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 sm:p-3.5 flex flex-col h-full min-h-0 shadow-sm gap-2.5">
             {/* 상단 통계 요약 */}
@@ -1028,21 +1124,37 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
                           )}
                         </div>
 
-                        {/* 단지 분석 바로가기 액션 버튼 */}
+                        {/* 단지 분석 및 지도 바로가기 액션 버튼 */}
                         <div className="flex flex-col items-end gap-1 shrink-0">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onSelectComplex(c.name, c.lawdCode);
-                            }}
-                            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold text-white bg-primary hover:bg-primary/90 shadow-sm transition-all active:scale-95 whitespace-nowrap"
-                            title={t.viewComplexAnalysisBtn || "단지 분석 바로가기"}
-                          >
-                            <span>단지 분석</span>
-                            <ArrowRight size={12} />
-                          </button>
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleFocusComplex(c);
+                              }}
+                              className="flex lg:hidden items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 shadow-xs transition-all active:scale-95 whitespace-nowrap"
+                              title={t.viewOnMap || "지도 보기"}
+                            >
+                              <MapIcon size={11} className="text-primary" />
+                              <span>{t.viewOnMap || "지도 보기"}</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onSelectComplex(c.name, c.lawdCode);
+                              }}
+                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold text-white bg-primary hover:bg-primary/90 shadow-sm transition-all active:scale-95 whitespace-nowrap"
+                              title={t.viewComplexAnalysisBtn || "단지 분석 바로가기"}
+                            >
+                              <span>단지 분석</span>
+                              <ArrowRight size={12} />
+                            </button>
+                          </div>
                           {onNavigateToRules && (
                             <button
+                              type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 onNavigateToRules({
@@ -1132,12 +1244,17 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
 
         {/* 우측 카카오 지도 뷰 */}
         <div
-          className={`lg:col-span-7 xl:col-span-8 flex flex-col h-full min-h-0 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm relative ${
+          className={`lg:col-span-7 xl:col-span-8 flex flex-col min-h-0 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm relative w-full ${
             mobileTab === "list" ? "hidden lg:flex" : "flex"
           }`}
+          style={{ height: contentHeight, minHeight: contentHeight }}
         >
-          {/* 지도 컨테이너 */}
-          <div ref={mapContainerRef} className="w-full h-full min-h-0 flex-1 bg-slate-100 dark:bg-slate-800" />
+          {/* 지도 컨테이너 — 직접 픽셀 높이 지정으로 퍼센트 체인 문제 방지 */}
+          <div
+            ref={mapContainerRef}
+            className="w-full flex-1 bg-slate-100 dark:bg-slate-800"
+            style={{ width: "100%", height: contentHeight }}
+          />
 
           {/* 지도 상단 오버레이 안내 및 도구 */}
           <div className="absolute top-3 inset-x-3 z-20 flex items-center justify-between pointer-events-none">

@@ -7,12 +7,13 @@ interface PageHeaderProps {
   subtitle: string;
   icon: LucideIcon;
   actions?: React.ReactNode;
+  className?: string;
 }
 
-export function PageHeader({ title, subtitle, icon: Icon, actions }: PageHeaderProps) {
+export function PageHeader({ title, subtitle, icon: Icon, actions, className = "mb-6" }: PageHeaderProps) {
   const { isMobile } = useBreakpoint();
   return (
-    <header className="flex flex-col gap-1 mb-6">
+    <header className={`flex flex-col gap-1 ${className}`}>
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h2 className="text-xl md:text-2xl font-black text-strong tracking-tight mt-1 flex items-center gap-2">
           <Icon className="text-primary h-5 w-5 md:h-6 md:w-6 shrink-0" />
