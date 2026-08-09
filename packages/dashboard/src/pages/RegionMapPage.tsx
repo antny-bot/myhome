@@ -93,8 +93,43 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
   const mapRef = useRef<any>(null);
   const overlaysRef = useRef<any[]>([]);
   const polylinesRef = useRef<any[]>([]);
-  const chipContainerRef = useRef<HTMLDivElement>(null);
   const [avoidCollision, setAvoidCollision] = useState(true);
+
+  // 지역 선택 칩 가로 드래그 스크롤 상태 및 핸들러
+  const chipContainerRef = useRef<HTMLDivElement>(null);
+  const [isDraggingChips, setIsDraggingChips] = useState(false);
+  const isDownRef = useRef(false);
+  const startXRef = useRef(0);
+  const scrollLeftRef = useRef(0);
+  const hasDraggedRef = useRef(false);
+
+  const handleChipMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!chipContainerRef.current) return;
+    isDownRef.current = true;
+    hasDraggedRef.current = false;
+    startXRef.current = e.pageX - chipContainerRef.current.offsetLeft;
+    scrollLeftRef.current = chipContainerRef.current.scrollLeft;
+  };
+
+  const handleChipMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isDownRef.current || !chipContainerRef.current) return;
+    e.preventDefault();
+    const x = e.pageX - chipContainerRef.current.offsetLeft;
+    const walk = (x - startXRef.current) * 1.5;
+    if (Math.abs(walk) > 5) {
+      hasDraggedRef.current = true;
+      if (!isDraggingChips) setIsDraggingChips(true);
+    }
+    chipContainerRef.current.scrollLeft = scrollLeftRef.current - walk;
+  };
+
+  const handleChipMouseUpOrLeave = () => {
+    isDownRef.current = false;
+    setIsDraggingChips(false);
+    setTimeout(() => {
+      hasDraggedRef.current = false;
+    }, 80);
+  };
 
   // 1. DB 적재 지역 목록 로드
   useEffect(() => {
@@ -552,18 +587,27 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
           )}
         </div>
 
-        {/* 가로 스크롤 가능한 지역 칩 리스트 */}
+        {/* 가로 마우스 드래그 스크롤 가능한 지역 칩 리스트 (스크롤바 숨김) */}
         <div
           ref={chipContainerRef}
-          className="flex items-center gap-2 overflow-x-auto pb-1 pt-0.5 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700"
+          onMouseDown={handleChipMouseDown}
+          onMouseMove={handleChipMouseMove}
+          onMouseUp={handleChipMouseUpOrLeave}
+          onMouseLeave={handleChipMouseUpOrLeave}
+          className={`flex items-center gap-2 overflow-x-auto pb-1 pt-0.5 scrollbar-none select-none ${
+            isDraggingChips ? "cursor-grabbing" : "cursor-grab"
+          }`}
         >
           {regions.map((reg) => {
             const isSelected = reg.lawdCode === selectedLawdCode;
             return (
               <button
                 key={reg.lawdCode}
-                onClick={() => handleSelectRegion(reg.lawdCode)}
-                className={`flex items-center gap-2 shrink-0 px-3.5 py-2 rounded-xl text-xs font-medium transition-all duration-200 border ${
+                onClick={() => {
+                  if (hasDraggedRef.current) return;
+                  handleSelectRegion(reg.lawdCode);
+                }}
+                className={`flex items-center gap-2 shrink-0 px-3.5 py-2 rounded-xl text-xs font-medium transition-all duration-200 border select-none ${
                   isSelected
                     ? "bg-indigo-600 border-indigo-600 text-white font-bold shadow-md shadow-indigo-600/20 scale-[1.02]"
                     : "bg-slate-50 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:border-slate-300"
