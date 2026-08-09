@@ -148,6 +148,38 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
   const regionDrag = useDragScroll();
   const dongDrag = useDragScroll();
 
+  // 화면 높이 동적 계산 (단지 리스트 종 스크롤 최적화)
+  const contentContainerRef = useRef<HTMLDivElement>(null);
+  const [contentHeight, setContentHeight] = useState<number>(620);
+
+  useEffect(() => {
+    const updateHeight = () => {
+      if (!contentContainerRef.current) return;
+      const rect = contentContainerRef.current.getBoundingClientRect();
+      const isMobile = window.innerWidth < 768;
+      // 모바일은 하단 네비게이션 감안 (약 72px), 데스크톱은 하단 여백 감안 (약 28px)
+      const bottomPadding = isMobile ? 72 : 28;
+      const available = window.innerHeight - rect.top - bottomPadding;
+      const finalHeight = Math.max(380, Math.floor(available));
+      setContentHeight(finalHeight);
+
+      if (mapRef.current) {
+        setTimeout(() => {
+          mapRef.current?.relayout();
+        }, 50);
+      }
+    };
+
+    updateHeight();
+    window.addEventListener("resize", updateHeight);
+    const timer = setTimeout(updateHeight, 100);
+
+    return () => {
+      window.removeEventListener("resize", updateHeight);
+      clearTimeout(timer);
+    };
+  }, [selectedLawdCode, regions.length, mobileTab]);
+
   // 1. DB 적재 지역 목록 로드
   useEffect(() => {
     async function initRegions() {
@@ -574,7 +606,7 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
   const selectedRegionSummary = regions.find(r => r.lawdCode === selectedLawdCode);
 
   return (
-    <div className="flex flex-col gap-4 min-h-[calc(100vh-5rem)]">
+    <div className="flex flex-col gap-3 sm:gap-3.5">
       {/* 1. 상단 타이틀 */}
       <PageHeader
         title={t.regionMapTitle || "지역별 단지 지도"}
@@ -671,7 +703,11 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
       </div>
 
       {/* 3. 메인 콘텐츠 (좌측 사이드바 + 우측 지도) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 flex-1 lg:h-[calc(100vh-14.5rem)] min-h-[580px]">
+      <div
+        ref={contentContainerRef}
+        style={{ height: `${contentHeight}px` }}
+        className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 flex-1 min-h-0"
+      >
         {/* 좌측 단지 목록 & 필터 패널 */}
         <div
           className={`lg:col-span-5 xl:col-span-4 flex flex-col h-full min-h-0 ${
@@ -896,7 +932,7 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
 
         {/* 우측 카카오 지도 뷰 */}
         <div
-          className={`lg:col-span-7 xl:col-span-8 flex flex-col h-[520px] lg:h-full min-h-0 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm relative ${
+          className={`lg:col-span-7 xl:col-span-8 flex flex-col h-full min-h-0 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm relative ${
             mobileTab === "list" ? "hidden lg:flex" : "flex"
           }`}
         >
