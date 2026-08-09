@@ -21,7 +21,10 @@ import {
   Building2,
   Calendar,
   Layers,
+  ChevronLeft,
   ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   TrendingUp,
   X,
   Loader2,
@@ -127,6 +130,11 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
   const [selectedDong, setSelectedDong] = useState<string>("ALL");
   const [sortBy, setSortBy] = useState<SortOption>("txCount");
   const [mobileTab, setMobileTab] = useState<"map" | "list">("map");
+
+  // 페이징 상태
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const listContainerRef = useRef<HTMLDivElement>(null);
 
   // Geocoding 일괄 수집 상태
   const [batchLoading, setBatchLoading] = useState(false);
@@ -337,6 +345,54 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
 
     return list;
   }, [mapData, searchQuery, selectedDong, sortBy]);
+
+  // 검색/필터/정렬/지역/페이지크기 변경 시 1페이지로 리셋
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery, selectedDong, sortBy, selectedLawdCode, pageSize]);
+
+  // 선택된 단지 변경 시 해당 단지가 포함된 페이지로 이동
+  useEffect(() => {
+    if (!selectedComplex) return;
+    const idx = filteredComplexes.findIndex((c) => c.id === selectedComplex.id);
+    if (idx !== -1) {
+      const targetPage = Math.floor(idx / pageSize) + 1;
+      if (targetPage !== page) {
+        setPage(targetPage);
+      }
+    }
+  }, [selectedComplex, filteredComplexes, pageSize]);
+
+  // 페이징 계산
+  const totalItems = filteredComplexes.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const validPage = Math.min(Math.max(1, page), totalPages);
+  const startIndex = (validPage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, totalItems);
+
+  const paginatedComplexes = useMemo(() => {
+    return filteredComplexes.slice(startIndex, endIndex);
+  }, [filteredComplexes, startIndex, endIndex]);
+
+  const pageNumbers = useMemo(() => {
+    const maxButtons = 5;
+    let start = Math.max(1, validPage - Math.floor(maxButtons / 2));
+    let end = Math.min(totalPages, start + maxButtons - 1);
+    if (end - start + 1 < maxButtons) {
+      start = Math.max(1, end - maxButtons + 1);
+    }
+    const list: number[] = [];
+    for (let i = start; i <= end; i++) {
+      list.push(i);
+    }
+    return list;
+  }, [validPage, totalPages]);
+
+  const handlePageChange = (newPage: number) => {
+    const target = Math.max(1, Math.min(totalPages, newPage));
+    setPage(target);
+    listContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   // 3. 마커 및 지시선 렌더링 함수
   const renderMarkers = () => {
@@ -856,10 +912,29 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
               </div>
             )}
 
-            {/* 정렬 셀렉터 & 건수 */}
-            <div className="flex items-center justify-between text-xs text-slate-500 shrink-0">
-              <span>{filteredComplexes.length}개 단지</span>
-              <div className="flex items-center gap-1">
+            {/* 정렬 셀렉터 & 건수 & 페이지 크기 */}
+            <div className="flex items-center justify-between text-xs text-slate-500 shrink-0 gap-1.5 flex-wrap">
+              <span className="font-medium text-slate-600 dark:text-slate-400">
+                {totalItems > 0
+                  ? (t.paginationInfo || "총 {total}개 중 {from}~{to}개")
+                      .replace("{total}", String(totalItems))
+                      .replace("{from}", String(startIndex + 1))
+                      .replace("{to}", String(endIndex))
+                  : "0개 단지"}
+              </span>
+              <div className="flex items-center gap-1.5">
+                <select
+                  value={pageSize}
+                  onChange={(e) => setPageSize(Number(e.target.value))}
+                  className="px-1.5 py-1 text-xs rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 focus:outline-none"
+                  title={t.pageItemsCount ? t.pageItemsCount.replace("{count}", "") : "페이지당 개수"}
+                >
+                  <option value={5}>5{t.pageItemsCount ? t.pageItemsCount.replace("{count}", "") : "개씩"}</option>
+                  <option value={10}>10{t.pageItemsCount ? t.pageItemsCount.replace("{count}", "") : "개씩"}</option>
+                  <option value={15}>15{t.pageItemsCount ? t.pageItemsCount.replace("{count}", "") : "개씩"}</option>
+                  <option value={20}>20{t.pageItemsCount ? t.pageItemsCount.replace("{count}", "") : "개씩"}</option>
+                </select>
+
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as SortOption)}
@@ -875,19 +950,22 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
             </div>
 
             {/* 단지 리스트 (남는 공간을 채워 지도 끝까지 스크롤) */}
-            <div className="flex-1 min-h-0 overflow-y-auto space-y-1.5 pr-1 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700">
+            <div
+              ref={listContainerRef}
+              className="flex-1 min-h-0 overflow-y-auto space-y-1.5 pr-1 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700"
+            >
               {loading ? (
                 <div className="flex flex-col items-center justify-center py-16 text-slate-400 gap-2">
                   <Loader2 size={24} className="animate-spin text-indigo-600" />
                   <span className="text-xs font-medium">{t.loading}</span>
                 </div>
-              ) : filteredComplexes.length === 0 ? (
+              ) : paginatedComplexes.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 text-slate-400 gap-2">
                   <AlertCircle size={28} className="text-slate-300 dark:text-slate-600" />
                   <span className="text-xs">{t.noResults}</span>
                 </div>
               ) : (
-                filteredComplexes.map((c) => {
+                paginatedComplexes.map((c) => {
                   const isSelected = selectedComplex?.id === c.id;
                   const hasCoords = c.lat !== null && c.lng !== null;
 
@@ -977,6 +1055,69 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
                 })
               )}
             </div>
+
+            {/* 하단 페이징 네비게이션 컨트롤 바 */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800 shrink-0 select-none">
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => handlePageChange(1)}
+                    disabled={validPage === 1}
+                    className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                    title={t.firstPageBtn || "처음"}
+                  >
+                    <ChevronsLeft size={13} />
+                  </button>
+                  <button
+                    onClick={() => handlePageChange(validPage - 1)}
+                    disabled={validPage === 1}
+                    className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                    title={t.prevPageBtn || "이전"}
+                  >
+                    <ChevronLeft size={13} />
+                  </button>
+                </div>
+
+                {/* 페이지 번호 버튼들 */}
+                <div className="flex items-center gap-1">
+                  {pageNumbers.map((p) => {
+                    const isCurrent = p === validPage;
+                    return (
+                      <button
+                        key={p}
+                        onClick={() => handlePageChange(p)}
+                        className={`min-w-[26px] h-[26px] px-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center ${
+                          isCurrent
+                            ? "bg-indigo-600 text-white shadow-xs"
+                            : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900"
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => handlePageChange(validPage + 1)}
+                    disabled={validPage === totalPages}
+                    className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                    title={t.nextPageBtn || "다음"}
+                  >
+                    <ChevronRight size={13} />
+                  </button>
+                  <button
+                    onClick={() => handlePageChange(totalPages)}
+                    disabled={validPage === totalPages}
+                    className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                    title={t.lastPageBtn || "끝"}
+                  >
+                    <ChevronsRight size={13} />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
