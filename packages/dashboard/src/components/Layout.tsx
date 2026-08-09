@@ -16,9 +16,9 @@ interface NavItemMeta {
 }
 
 const NAV_ITEMS: NavItemMeta[] = [
-  { key: "dashboard", label: "대시보드", compactLabel: "대시보드", adminOnly: false, Icon: LayoutDashboard },
-  { key: "regionMap", label: "단지 지도", compactLabel: "지도", adminOnly: false, Icon: Map },
+  { key: "dashboard", label: "대시보드", compactLabel: "대시보드", adminOnly: true, Icon: LayoutDashboard },
   { key: "analytics", label: "종합 현황", compactLabel: "현황", adminOnly: false, Icon: BarChart3 },
+  { key: "regionMap", label: "단지 지도", compactLabel: "지도", adminOnly: false, Icon: Map },
   { key: "complexAnalysis", label: "단지 분석", compactLabel: "단지", adminOnly: false, Icon: Building2 },
   { key: "nearby", label: "역세권 분석", compactLabel: "역세권", adminOnly: false, Icon: Compass },
   { key: "rules", label: "알림 규칙", compactLabel: "알림", adminOnly: false, Icon: Bell },
@@ -31,11 +31,11 @@ const NAV_ITEMS: NavItemMeta[] = [
 
 const DEFAULT_ORDER: View[] = [
   "dashboard",
-  "regionMap",
   "analytics",
+  "regionMap",
   "complexAnalysis",
-  "rules",
   "nearby",
+  "rules",
   "collect",
   "activityLog",
   "dbAdmin",
@@ -244,7 +244,7 @@ export function Layout({
           )}>
             {!collapsed && (
               <button
-                onClick={() => onNavigate("dashboard")}
+                onClick={() => onNavigate(isAdmin ? "dashboard" : "regionMap")}
                 className="flex items-center gap-2 font-bold text-slate-900 dark:text-white min-w-0 flex-1 text-left"
               >
                 <div className="shrink-0 rounded-lg bg-primary-600 p-1.5">
@@ -405,7 +405,7 @@ export function Layout({
           <header className="md:hidden sticky top-0 z-40 border-b border-slate-200 bg-white/80 backdrop-blur dark:border-slate-800 dark:bg-slate-900/80">
             <div className="flex h-14 items-center gap-3 px-4">
               <button
-                onClick={() => onNavigate("dashboard")}
+                onClick={() => onNavigate(isAdmin ? "dashboard" : "regionMap")}
                 className="flex items-center gap-2 font-bold text-slate-900 dark:text-white"
               >
                 <div className="rounded-lg bg-primary-600 p-1.5">

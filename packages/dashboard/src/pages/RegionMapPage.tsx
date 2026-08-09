@@ -168,24 +168,18 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
     const updateHeight = () => {
       if (!pageContainerRef.current) return;
 
-      const isMobile = window.innerWidth < 768;
+      const isMobile = window.innerWidth < 1024;
       // 데스크톱: main 하단 패딩(32px) + 여유 여백(12px) = 44px
-      // 모바일: 하단 고정 네비게이션(56px) + safe bottom + 패딩 여유 = 88px
-      const bottomMargin = isMobile ? 88 : 44;
+      // 모바일: 하단 고정 네비게이션(56px) + safe bottom + 패딩 여유 = 96px
+      const bottomMargin = isMobile ? 96 : 44;
 
-      // pageContainer의 문서 시작 위치 (스크롤과 무관한 절대 top)
       const pageRect = pageContainerRef.current.getBoundingClientRect();
       const pageTop = pageRect.top + window.scrollY;
-
-      // 상단 섹션(타이틀 + 지역 바 + 모바일 탭)의 실제 렌더링 높이
       const topSectionHeight = topSectionRef.current ? topSectionRef.current.offsetHeight : 140;
+      const gap = 12;
 
-      // 상단과 하단 사이 간격 (mt-2.5 = 10px)
-      const gap = 10;
-
-      // 브라우저 뷰포트 기준 남은 정확한 높이 계산
       const calculated = window.innerHeight - pageTop - topSectionHeight - gap - bottomMargin;
-      const finalHeight = Math.max(340, Math.floor(calculated));
+      const finalHeight = Math.max(420, Math.floor(calculated));
 
       setContentHeight(finalHeight);
 
@@ -199,7 +193,6 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
     updateHeight();
     window.addEventListener("resize", updateHeight);
 
-    // 상단 섹션 크기 변화(지역 칩 줄바꿈 등) 실시간 감지
     let observer: ResizeObserver | null = null;
     if (topSectionRef.current && typeof ResizeObserver !== "undefined") {
       observer = new ResizeObserver(() => {
@@ -208,7 +201,7 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
       observer.observe(topSectionRef.current);
     }
 
-    const timer = setTimeout(updateHeight, 80);
+    const timer = setTimeout(updateHeight, 100);
 
     return () => {
       window.removeEventListener("resize", updateHeight);
@@ -216,6 +209,7 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
       clearTimeout(timer);
     };
   }, [selectedLawdCode, regions.length, mobileTab]);
+
 
   // 1. DB 적재 지역 목록 로드
   useEffect(() => {
@@ -345,6 +339,31 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
 
     return list;
   }, [mapData, searchQuery, selectedDong, sortBy]);
+
+  // 모바일 탭이 'map'으로 전환될 때 카카오 지도 relayout 및 영역 재조정
+  useEffect(() => {
+    if (mobileTab === "map" && mapRef.current) {
+      const timer = setTimeout(() => {
+        if (mapRef.current) {
+          mapRef.current.relayout();
+          if (filteredComplexes.length > 0) {
+            const bounds = new window.kakao.maps.LatLngBounds();
+            let count = 0;
+            filteredComplexes.forEach((c) => {
+              if (c.lat !== null && c.lng !== null && !isNaN(c.lat) && !isNaN(c.lng)) {
+                bounds.extend(new window.kakao.maps.LatLng(c.lat, c.lng));
+                count++;
+              }
+            });
+            if (count > 0 && !selectedComplex) {
+              mapRef.current.setBounds(bounds, 40, 40, 40, 40);
+            }
+          }
+        }
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [mobileTab, filteredComplexes, selectedComplex]);
 
   // 검색/필터/정렬/지역/페이지크기 변경 시 1페이지로 리셋
   useEffect(() => {
@@ -702,22 +721,12 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
     <div ref={pageContainerRef} className="flex flex-col min-h-0 w-full overflow-hidden">
       {/* 1. 상단 섹션 (타이틀 + 적재 지역 선택 바 + 모바일 뷰 전환 탭) */}
       <div ref={topSectionRef} className="flex flex-col gap-2.5 sm:gap-3 shrink-0">
-        {/* 상단 타이틀 바 (컴팩트) */}
-        <div className="flex flex-wrap items-center justify-between gap-2 px-0.5">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/60 shadow-xs">
-              <MapIcon size={18} />
-            </div>
-            <div>
-              <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-slate-100 tracking-tight leading-tight">
-                {t.regionMapTitle || "지역별 단지 지도"}
-              </h2>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 hidden sm:block">
-                {t.regionMapSubtitle || "수집된 지역구 내 아파트 단지 위치와 최근 실거래가를 지도에서 한눈에 확인하고 단지 분석으로 연결합니다."}
-              </p>
-            </div>
-          </div>
-        </div>
+        {/* Page Header (다른 페이지들과 동일한 표준 PageHeader 적용) */}
+        <PageHeader
+          title={t.regionMapNavLabel || "단지 지도"}
+          subtitle={t.regionMapSubtitle || "수집된 지역구 내 아파트 단지 위치와 최근 실거래가를 지도에서 한눈에 확인하고 단지 분석으로 연결합니다."}
+          icon={MapIcon}
+        />
 
         {/* 2. 상단 적재 지역 선택 바 (Loaded Districts Selector Bar) */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-2.5 sm:p-3.5 shadow-sm">

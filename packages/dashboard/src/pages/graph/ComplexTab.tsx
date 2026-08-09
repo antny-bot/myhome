@@ -488,11 +488,23 @@ export default function ComplexTab({
     // 1. 단지 마커 및 커스텀 오버레이 표시
     const complexEl = document.createElement("div");
     complexEl.className = "select-none pointer-events-auto relative -translate-y-[100%]";
-    const latestPrice = detailData.recentTransactions?.[0]?.priceEok || detailData.stats?.avgPrice || null;
+    const latestTx = detailData.recentTx?.[0];
+    const latestPrice =
+      latestTx?.priceEok ??
+      (detailData.trend && detailData.trend.length > 0
+        ? detailData.trend[detailData.trend.length - 1].평균가
+        : null);
+    const subText = latestTx?.dealDate
+      ? `${latestTx.dealDate.substring(2)}`
+      : detailData.trend && detailData.trend.length > 0
+      ? `최근 월평균`
+      : undefined;
+
     complexEl.innerHTML = createComplexMarkerHtml({
       name: detailData.complexInfo.name,
       priceEok: latestPrice,
-      priceText: latestPrice ? `${latestPrice.toFixed(1)}억` : "-",
+      priceText: latestPrice !== null && latestPrice !== undefined ? `${latestPrice.toFixed(1)}억` : "-",
+      subText,
       badgeText: "분석 단지",
       isSelected: true,
     });
@@ -550,7 +562,7 @@ export default function ComplexTab({
         s.overlay.setMap(null);
       });
     };
-  }, [mapSdkLoaded, detailData?.complexInfo, detailData?.subways]);
+  }, [mapSdkLoaded, detailData?.complexInfo, detailData?.subways, detailData?.recentTx, detailData?.trend]);
 
   // 주변 인프라 필터 토글
   const handleInfraFilterToggle = (categoryCode: string) => {

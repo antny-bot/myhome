@@ -38,17 +38,24 @@ function App() {
       "allowedAccounts",
       "activityLog"
     ];
-    return validViews.includes(viewParam) ? viewParam : "dashboard";
+    return validViews.includes(viewParam) ? viewParam : "regionMap";
   });
   const [rulesInitData, setRulesInitData] = useState<{ regionName: string; regionCode?: string; apartmentKeywords: string[] } | null>(null);
   const [complexAnalysisInitData, setComplexAnalysisInitData] = useState<{ complexName: string; lawdCode?: string } | null>(null);
   const [drilldownFromOverview, setDrilldownFromOverview] = useState(false);
+
+  const adminViews: View[] = ["dashboard", "collect", "activityLog", "dbAdmin", "allowedAccounts"];
   
   // 뒤로가기 / 앞으로가기 (popstate) 이벤트 감지 및 처리
   useEffect(() => {
     const handlePopState = (event: PopStateEvent) => {
       if (event.state && typeof event.state === "object" && "view" in event.state) {
-        setView(event.state.view as View);
+        const targetView = event.state.view as View;
+        if (!auth?.isAdmin && adminViews.includes(targetView)) {
+          setView("regionMap");
+        } else {
+          setView(targetView);
+        }
       } else {
         const params = new URLSearchParams(window.location.search);
         const viewParam = params.get("view") as View;
@@ -57,9 +64,13 @@ function App() {
           "complexAnalysis", "dbAdmin", "collect", "nearby", "allowedAccounts", "activityLog"
         ];
         if (validViews.includes(viewParam)) {
-          setView(viewParam);
+          if (!auth?.isAdmin && adminViews.includes(viewParam)) {
+            setView("regionMap");
+          } else {
+            setView(viewParam);
+          }
         } else {
-          setView("dashboard");
+          setView(auth?.isAdmin ? "dashboard" : "regionMap");
         }
       }
     };
@@ -67,7 +78,7 @@ function App() {
     return () => {
       window.removeEventListener("popstate", handlePopState);
     };
-  }, []);
+  }, [auth]);
 
   // view 상태 변경 시 브라우저 히스토리(history state) 동기화
   useEffect(() => {
@@ -83,10 +94,9 @@ function App() {
     }
   }, [view, auth?.isAuthenticated]);
 
-  const adminViews: View[] = ["collect", "activityLog", "dbAdmin", "allowedAccounts"];
   useEffect(() => {
     if (auth?.isAuthenticated && !auth.isAdmin && adminViews.includes(view)) {
-      setView("dashboard");
+      setView("regionMap");
     }
   }, [view, auth]);
 
@@ -106,6 +116,16 @@ function App() {
         setAuth(res);
         if (res.isAuthenticated) {
           void refresh();
+          const params = new URLSearchParams(window.location.search);
+          const viewParam = params.get("view") as View;
+          if (!viewParam) {
+            const defaultPg = localStorage.getItem("myhome_default_page") as View | null;
+            if (defaultPg && (!adminViews.includes(defaultPg) || res.isAdmin)) {
+              setView(defaultPg);
+            } else {
+              setView(res.isAdmin ? "dashboard" : "regionMap");
+            }
+          }
         }
       } catch {
         setAuth({ isAuthenticated: false });
@@ -138,7 +158,7 @@ function App() {
     try {
       await logout();
       setAuth({ isAuthenticated: false });
-      setView("dashboard");
+      setView("regionMap");
       window.history.pushState({}, "", "/");
     } catch (err) {
       console.error("로그아웃 실패:", err);
