@@ -148,19 +148,35 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
   const regionDrag = useDragScroll();
   const dongDrag = useDragScroll();
 
-  // 화면 높이 동적 계산 (단지 리스트 종 스크롤 최적화)
+  // 브라우저 윈도우 크기 기반 높이 동적 계산 (브라우저 종 스크롤 방지)
+  const pageContainerRef = useRef<HTMLDivElement>(null);
+  const topSectionRef = useRef<HTMLDivElement>(null);
   const contentContainerRef = useRef<HTMLDivElement>(null);
-  const [contentHeight, setContentHeight] = useState<number>(620);
+  const [contentHeight, setContentHeight] = useState<number>(560);
 
   useEffect(() => {
     const updateHeight = () => {
-      if (!contentContainerRef.current) return;
-      const rect = contentContainerRef.current.getBoundingClientRect();
+      if (!pageContainerRef.current) return;
+
       const isMobile = window.innerWidth < 768;
-      // 모바일은 하단 네비게이션 감안 (약 72px), 데스크톱은 하단 여백 감안 (약 28px)
-      const bottomPadding = isMobile ? 72 : 28;
-      const available = window.innerHeight - rect.top - bottomPadding;
-      const finalHeight = Math.max(380, Math.floor(available));
+      // 데스크톱: main 하단 패딩(32px) + 여유 여백(12px) = 44px
+      // 모바일: 하단 고정 네비게이션(56px) + safe bottom + 패딩 여유 = 88px
+      const bottomMargin = isMobile ? 88 : 44;
+
+      // pageContainer의 문서 시작 위치 (스크롤과 무관한 절대 top)
+      const pageRect = pageContainerRef.current.getBoundingClientRect();
+      const pageTop = pageRect.top + window.scrollY;
+
+      // 상단 섹션(타이틀 + 지역 바 + 모바일 탭)의 실제 렌더링 높이
+      const topSectionHeight = topSectionRef.current ? topSectionRef.current.offsetHeight : 140;
+
+      // 상단과 하단 사이 간격 (mt-2.5 = 10px)
+      const gap = 10;
+
+      // 브라우저 뷰포트 기준 남은 정확한 높이 계산
+      const calculated = window.innerHeight - pageTop - topSectionHeight - gap - bottomMargin;
+      const finalHeight = Math.max(340, Math.floor(calculated));
+
       setContentHeight(finalHeight);
 
       if (mapRef.current) {
@@ -172,10 +188,21 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
 
     updateHeight();
     window.addEventListener("resize", updateHeight);
-    const timer = setTimeout(updateHeight, 100);
+
+    // 상단 섹션 크기 변화(지역 칩 줄바꿈 등) 실시간 감지
+    let observer: ResizeObserver | null = null;
+    if (topSectionRef.current && typeof ResizeObserver !== "undefined") {
+      observer = new ResizeObserver(() => {
+        updateHeight();
+      });
+      observer.observe(topSectionRef.current);
+    }
+
+    const timer = setTimeout(updateHeight, 80);
 
     return () => {
       window.removeEventListener("resize", updateHeight);
+      if (observer) observer.disconnect();
       clearTimeout(timer);
     };
   }, [selectedLawdCode, regions.length, mobileTab]);
@@ -606,107 +633,120 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
   const selectedRegionSummary = regions.find(r => r.lawdCode === selectedLawdCode);
 
   return (
-    <div className="flex flex-col gap-3 sm:gap-3.5">
-      {/* 1. 상단 타이틀 */}
-      <PageHeader
-        title={t.regionMapTitle || "지역별 단지 지도"}
-        subtitle={t.regionMapSubtitle || "수집된 지역구 내 아파트 단지 위치와 최근 실거래가를 지도에서 한눈에 확인하고 단지 분석으로 연결합니다."}
-        icon={MapIcon}
-      />
-
-      {/* 2. 상단 적재 지역 선택 바 (Loaded Districts Selector Bar) */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 sm:p-4 shadow-sm">
-        <div className="flex items-center justify-between gap-2 mb-2 px-1">
-          <div className="flex items-center gap-2">
-            <Layers size={16} className="text-indigo-600 dark:text-indigo-400" />
-            <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-              {t.loadedRegions || "적재 지역 선택"}
-            </span>
-            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
-              {regions.length}개 지역구
-            </span>
-          </div>
-          {selectedRegionSummary && (
-            <div className="hidden sm:flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
-              <span>총 <strong>{selectedRegionSummary.transactionCount.toLocaleString()}</strong>건 실거래 적재</span>
-              {selectedRegionSummary.maxDealDate && (
-                <span>최근 거래: {selectedRegionSummary.maxDealDate}</span>
-              )}
+    <div ref={pageContainerRef} className="flex flex-col min-h-0 w-full overflow-hidden">
+      {/* 1. 상단 섹션 (타이틀 + 적재 지역 선택 바 + 모바일 뷰 전환 탭) */}
+      <div ref={topSectionRef} className="flex flex-col gap-2.5 sm:gap-3 shrink-0">
+        {/* 상단 타이틀 바 (컴팩트) */}
+        <div className="flex flex-wrap items-center justify-between gap-2 px-0.5">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/60 shadow-xs">
+              <MapIcon size={18} />
             </div>
-          )}
+            <div>
+              <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-slate-100 tracking-tight leading-tight">
+                {t.regionMapTitle || "지역별 단지 지도"}
+              </h2>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 hidden sm:block">
+                {t.regionMapSubtitle || "수집된 지역구 내 아파트 단지 위치와 최근 실거래가를 지도에서 한눈에 확인하고 단지 분석으로 연결합니다."}
+              </p>
+            </div>
+          </div>
         </div>
 
-        {/* 가로 마우스 드래그 스크롤 가능한 지역 칩 리스트 (스크롤바 숨김) */}
-        <div
-          ref={regionDrag.ref}
-          {...regionDrag.events}
-          className={`flex items-center gap-2 overflow-x-auto pb-1 pt-0.5 scrollbar-none select-none ${
-            regionDrag.isDragging ? "cursor-grabbing" : "cursor-grab"
-          }`}
-        >
-          {regions.map((reg) => {
-            const isSelected = reg.lawdCode === selectedLawdCode;
-            return (
-              <button
-                key={reg.lawdCode}
-                onClick={() => {
-                  if (regionDrag.hasDraggedRef.current) return;
-                  handleSelectRegion(reg.lawdCode);
-                }}
-                className={`flex items-center gap-2 shrink-0 px-3.5 py-2 rounded-xl text-xs font-medium transition-all duration-200 border select-none ${
-                  isSelected
-                    ? "bg-indigo-600 border-indigo-600 text-white font-bold shadow-md shadow-indigo-600/20 scale-[1.02]"
-                    : "bg-slate-50 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:border-slate-300"
-                }`}
-              >
-                <MapPin size={14} className={isSelected ? "text-amber-300" : "text-slate-400"} />
-                <span>{reg.displayName}</span>
-                <span
-                  className={`px-1.5 py-0.5 rounded-md text-[10px] ${
+        {/* 2. 상단 적재 지역 선택 바 (Loaded Districts Selector Bar) */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-2.5 sm:p-3.5 shadow-sm">
+          <div className="flex items-center justify-between gap-2 mb-1.5 px-1">
+            <div className="flex items-center gap-2">
+              <Layers size={15} className="text-indigo-600 dark:text-indigo-400" />
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                {t.loadedRegions || "적재 지역 선택"}
+              </span>
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
+                {regions.length}개 지역구
+              </span>
+            </div>
+            {selectedRegionSummary && (
+              <div className="hidden sm:flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
+                <span>총 <strong>{selectedRegionSummary.transactionCount.toLocaleString()}</strong>건 실거래 적재</span>
+                {selectedRegionSummary.maxDealDate && (
+                  <span>최근 거래: {selectedRegionSummary.maxDealDate}</span>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* 가로 마우스 드래그 스크롤 가능한 지역 칩 리스트 (스크롤바 숨김) */}
+          <div
+            ref={regionDrag.ref}
+            {...regionDrag.events}
+            className={`flex items-center gap-2 overflow-x-auto pb-1 pt-0.5 scrollbar-none select-none ${
+              regionDrag.isDragging ? "cursor-grabbing" : "cursor-grab"
+            }`}
+          >
+            {regions.map((reg) => {
+              const isSelected = reg.lawdCode === selectedLawdCode;
+              return (
+                <button
+                  key={reg.lawdCode}
+                  onClick={() => {
+                    if (regionDrag.hasDraggedRef.current) return;
+                    handleSelectRegion(reg.lawdCode);
+                  }}
+                  className={`flex items-center gap-2 shrink-0 px-3.5 py-1.5 sm:py-2 rounded-xl text-xs font-medium transition-all duration-200 border select-none ${
                     isSelected
-                      ? "bg-white/20 text-white font-black"
-                      : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400"
+                      ? "bg-indigo-600 border-indigo-600 text-white font-bold shadow-md shadow-indigo-600/20 scale-[1.02]"
+                      : "bg-slate-50 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:border-slate-300"
                   }`}
                 >
-                  {reg.transactionCount.toLocaleString()}건
-                </span>
-              </button>
-            );
-          })}
+                  <MapPin size={13} className={isSelected ? "text-amber-300" : "text-slate-400"} />
+                  <span>{reg.displayName}</span>
+                  <span
+                    className={`px-1.5 py-0.5 rounded-md text-[10px] ${
+                      isSelected
+                        ? "bg-white/20 text-white font-black"
+                        : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400"
+                    }`}
+                  >
+                    {reg.transactionCount.toLocaleString()}건
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
-      </div>
 
-      {/* 모바일 뷰 전환 탭 (지도 ↔ 목록) */}
-      <div className="flex lg:hidden bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
-        <button
-          onClick={() => setMobileTab("map")}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold transition-all ${
-            mobileTab === "map"
-              ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm"
-              : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
-          }`}
-        >
-          <MapIcon size={14} />
-          <span>{t.mapViewToggle || "지도 보기"}</span>
-        </button>
-        <button
-          onClick={() => setMobileTab("list")}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold transition-all ${
-            mobileTab === "list"
-              ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm"
-              : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
-          }`}
-        >
-          <List size={14} />
-          <span>{t.listViewToggle || "목록 보기"} ({filteredComplexes.length})</span>
-        </button>
+        {/* 모바일 뷰 전환 탭 (지도 ↔ 목록) */}
+        <div className="flex lg:hidden bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
+          <button
+            onClick={() => setMobileTab("map")}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              mobileTab === "map"
+                ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm"
+                : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+            }`}
+          >
+            <MapIcon size={14} />
+            <span>{t.mapViewToggle || "지도 보기"}</span>
+          </button>
+          <button
+            onClick={() => setMobileTab("list")}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              mobileTab === "list"
+                ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm"
+                : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+            }`}
+          >
+            <List size={14} />
+            <span>{t.listViewToggle || "목록 보기"} ({filteredComplexes.length})</span>
+          </button>
+        </div>
       </div>
 
       {/* 3. 메인 콘텐츠 (좌측 사이드바 + 우측 지도) */}
       <div
         ref={contentContainerRef}
-        style={{ height: `${contentHeight}px` }}
-        className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 flex-1 min-h-0"
+        style={{ height: `${contentHeight}px`, maxHeight: `${contentHeight}px` }}
+        className="grid grid-cols-1 lg:grid-cols-12 gap-3 flex-1 min-h-0 mt-2.5 sm:mt-3"
       >
         {/* 좌측 단지 목록 & 필터 패널 */}
         <div
