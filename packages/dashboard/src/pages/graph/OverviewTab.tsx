@@ -509,6 +509,7 @@ export default function OverviewTab({
 
   // 거래가 활발한 아파트 단지 범례 및 시리즈 On/Off 상태
   const [showComplexLegend, setShowComplexLegend] = React.useState<boolean>(true);
+  const [complexLimit, setComplexLimit] = React.useState<number>(10);
   const [complexSeriesVisible, setComplexSeriesVisible] = React.useState<{
     거래수: boolean;
     평균가: boolean;
@@ -837,7 +838,7 @@ export default function OverviewTab({
       complexStats.set(key, stat);
     });
 
-    // 3. 탑 10 추출 및 정밀 데이터 가공
+    // 3. 탑 N 추출 및 정밀 데이터 가공
     return Array.from(complexStats.entries())
       .map(([key, stat]) => {
         const name = key.split("|")[0];
@@ -855,8 +856,8 @@ export default function OverviewTab({
         };
       })
       .sort((a, b) => b.거래수 - a.거래수)
-      .slice(0, 10);
-  }, [filteredData, activeRegionFilter]);
+      .slice(0, complexLimit);
+  }, [filteredData, activeRegionFilter, complexLimit]);
 
   // 지역별 색상 정의 (WDS / 시맨틱 디자인 토큰 활용)
   // 평균 실거래가 라인의 색상(var(--color-chart-median), 보라색)과 겹쳐서 안 보이는 문제를 방지하기 위해 
@@ -1293,9 +1294,9 @@ export default function OverviewTab({
         document.body
       )}
 
-      {/* 거래 상위 10개 단지 (단독 1단 넓은 카드로 재배치 및 입체화) */}
+      {/* 거래 상위 N개 단지 (단독 1단 넓은 카드로 재배치 및 입체화) */}
       <SectionCard
-        title={t.complexActiveRankTitle}
+        title={(t.complexActiveRankTitleWithLimit || "거래가 활발한 아파트 단지 (상위 {limit}개)").replace("{limit}", String(complexLimit))}
         right={
           <div className="flex flex-wrap gap-1 max-w-[240px] md:max-w-none justify-end">
             <button
@@ -1330,7 +1331,7 @@ export default function OverviewTab({
         <div className="mt-2">
           {/* 차트 컨트롤 및 팁 영역 */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4 select-none">
-            <div className="flex flex-col md:flex-row md:items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => setShowComplexLegend(!showComplexLegend)}
@@ -1338,6 +1339,27 @@ export default function OverviewTab({
               >
                 {showComplexLegend ? t.hideLegend : t.showLegend}
               </button>
+
+              {/* Top 10 / Top 20 / Top 50 탭 선택 컨트롤 */}
+              <div className="flex items-center rounded-lg border border-normal bg-alternative p-0.5" role="tablist">
+                {[10, 20, 50].map((limit) => (
+                  <button
+                    key={limit}
+                    type="button"
+                    role="tab"
+                    aria-selected={complexLimit === limit}
+                    onClick={() => setComplexLimit(limit)}
+                    className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all ${
+                      complexLimit === limit
+                        ? "bg-primary text-white shadow-sm"
+                        : "text-neutral hover:text-strong"
+                    }`}
+                  >
+                    Top {limit}
+                  </button>
+                ))}
+              </div>
+
               <span className="text-[10px] font-bold text-assistive">
                 {t.complexClickHint}
               </span>
@@ -1406,53 +1428,64 @@ export default function OverviewTab({
           </div>
 
           {/* 차트 뷰 */}
-          <div className="h-[360px] w-full mt-2 relative">
+          <div className="w-full mt-2 relative overflow-x-auto pb-2 custom-scrollbar">
             {complexChartData.length === 0 ? (
-              <div className="absolute inset-0 flex items-center justify-center text-assistive text-xs">
+              <div className="h-[360px] flex items-center justify-center text-assistive text-xs">
                 {t.noActiveComplexData}
               </div>
             ) : !complexSeriesVisible.거래수 && !complexSeriesVisible.평균가 ? (
-              <div className="absolute inset-0 flex items-center justify-center text-assistive text-xs">
+              <div className="h-[360px] flex items-center justify-center text-assistive text-xs">
                 {t.noActiveChartData}
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart
-                  data={complexChartData}
-                  margin={{ top: 15, right: 15, left: 15, bottom: 25 }}
-                >
-                  <CartesianGrid stroke="none" />
-                  <XAxis
-                    dataKey="name"
-                    stroke="#64748b"
-                    fontSize={10}
-                    tickLine={false}
-                    interval={0}
-                    height={100}
-                    tick={(props: any) => {
-                      const { x, y, payload, index } = props;
-                      const item = complexChartData[index];
-                      return (
-                        <g transform={`translate(${x},${y})`}>
-                          <text
-                            x={0}
-                            y={0}
-                            dy={3.5}
-                            dx={-8}
-                            textAnchor="end"
-                            fill="var(--color-semantic-label-neutral)"
-                            fontSize={isNarrow ? 9 : 10}
-                            fontWeight="bold"
-                            transform="rotate(-90)"
-                            className="cursor-pointer hover:fill-primary transition-colors"
-                            onClick={() => onSelectComplex && item && onSelectComplex(item.name, item.lawdCode)}
-                          >
-                            {payload.value}
-                          </text>
-                        </g>
-                      );
-                    }}
-                  />
+              <div
+                className="h-[380px]"
+                style={{
+                  minWidth:
+                    complexLimit === 50
+                      ? "max(100%, 1100px)"
+                      : complexLimit === 20
+                      ? "max(100%, 650px)"
+                      : "100%",
+                }}
+              >
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart
+                    data={complexChartData}
+                    margin={{ top: 15, right: 15, left: 15, bottom: 25 }}
+                  >
+                    <CartesianGrid stroke="none" />
+                    <XAxis
+                      dataKey="name"
+                      stroke="#64748b"
+                      fontSize={10}
+                      tickLine={false}
+                      interval={0}
+                      height={100}
+                      tick={(props: any) => {
+                        const { x, y, payload, index } = props;
+                        const item = complexChartData[index];
+                        return (
+                          <g transform={`translate(${x},${y})`}>
+                            <text
+                              x={0}
+                              y={0}
+                              dy={3.5}
+                              dx={-8}
+                              textAnchor="end"
+                              fill="var(--color-semantic-label-neutral)"
+                              fontSize={complexLimit === 50 ? (isNarrow ? 8 : 9) : isNarrow ? 9 : 10}
+                              fontWeight="bold"
+                              transform="rotate(-90)"
+                              className="cursor-pointer hover:fill-primary transition-colors"
+                              onClick={() => onSelectComplex && item && onSelectComplex(item.name, item.lawdCode)}
+                            >
+                              {payload.value}
+                            </text>
+                          </g>
+                        );
+                      }}
+                    />
                   {complexSeriesVisible.거래수 && (
                     <YAxis
                       yAxisId="left"
@@ -1522,7 +1555,7 @@ export default function OverviewTab({
                     <Bar
                       yAxisId="left"
                       dataKey="거래수"
-                      barSize={32}
+                      barSize={complexLimit === 10 ? 32 : complexLimit === 20 ? 18 : 10}
                       radius={[4, 4, 0, 0]}
                       cursor="pointer"
                       fillOpacity={0.85}
@@ -1564,10 +1597,11 @@ export default function OverviewTab({
                   )}
                 </ComposedChart>
               </ResponsiveContainer>
-            )}
-          </div>
+            </div>
+          )}
         </div>
-      </SectionCard>
-    </div>
-  );
+      </div>
+    </SectionCard>
+  </div>
+);
 }
