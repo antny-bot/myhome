@@ -732,11 +732,11 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-2.5 sm:p-3.5 shadow-sm">
           <div className="flex items-center justify-between gap-2 mb-1.5 px-1">
             <div className="flex items-center gap-2">
-              <Layers size={15} className="text-indigo-600 dark:text-indigo-400" />
+              <Layers size={15} className="text-primary" />
               <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                 {t.loadedRegions || "적재 지역 선택"}
               </span>
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
                 {regions.length}개 지역구
               </span>
             </div>
@@ -769,7 +769,7 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
                   }}
                   className={`flex items-center gap-2 shrink-0 px-3.5 py-1.5 sm:py-2 rounded-xl text-xs font-medium transition-all duration-200 border select-none ${
                     isSelected
-                      ? "bg-indigo-600 border-indigo-600 text-white font-bold shadow-md shadow-indigo-600/20 scale-[1.02]"
+                      ? "bg-primary border-primary text-white font-bold shadow-md shadow-primary/20 scale-[1.02]"
                       : "bg-slate-50 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:border-slate-300"
                   }`}
                 >
@@ -796,7 +796,7 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
             onClick={() => setMobileTab("map")}
             className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
               mobileTab === "map"
-                ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm"
+                ? "bg-white dark:bg-slate-900 text-primary shadow-sm"
                 : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
             }`}
           >
@@ -807,7 +807,7 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
             onClick={() => setMobileTab("list")}
             className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
               mobileTab === "list"
-                ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm"
+                ? "bg-white dark:bg-slate-900 text-primary shadow-sm"
                 : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
             }`}
           >
@@ -846,7 +846,7 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
                   <button
                     onClick={handleRunGeocodeBatch}
                     disabled={batchLoading}
-                    className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 rounded-lg border border-indigo-200 dark:border-indigo-800 transition-colors"
+                    className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-primary bg-primary/10 hover:bg-primary/20 rounded-lg border border-primary/20 transition-colors"
                     title={t.runBatchGeocodeForRegion || "단지 좌표 일괄 수집"}
                   >
                     {batchLoading ? (
@@ -868,7 +868,7 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={t.searchComplexInRegion || "단지명 또는 동 검색..."}
-                className="w-full pl-9 pr-8 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                className="w-full pl-9 pr-8 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
               />
               {searchQuery && (
                 <button
@@ -965,7 +965,7 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
             >
               {loading ? (
                 <div className="flex flex-col items-center justify-center py-16 text-slate-400 gap-2">
-                  <Loader2 size={24} className="animate-spin text-indigo-600" />
+                  <Loader2 size={24} className="animate-spin text-primary" />
                   <span className="text-xs font-medium">{t.loading}</span>
                 </div>
               ) : paginatedComplexes.length === 0 ? (
@@ -984,7 +984,7 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
                       onClick={() => handleFocusComplex(c)}
                       className={`group p-2.5 rounded-xl border transition-all cursor-pointer ${
                         isSelected
-                          ? "bg-indigo-50/80 dark:bg-indigo-950/40 border-indigo-400 dark:border-indigo-700 shadow-sm"
+                          ? "bg-primary/10 border-primary/40 dark:border-primary/60 shadow-sm"
                           : "bg-slate-50/70 dark:bg-slate-800/40 border-slate-100 dark:border-slate-800/80 hover:bg-slate-100/80 dark:hover:bg-slate-800 hover:border-slate-200"
                       }`}
                     >
@@ -1009,7 +1009,7 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
                           <div className="flex items-center gap-2.5 mt-1 text-[11px] text-slate-500 dark:text-slate-400 flex-wrap">
                             <span>
                               {t.latestDealPrice || "최근"}:{" "}
-                              <strong className="text-indigo-600 dark:text-indigo-400 font-black">
+                              <strong className="text-primary font-black">
                                 {c.latestPriceEok !== null ? `${c.latestPriceEok}억` : "-"}
                               </strong>
                             </span>
@@ -1035,7 +1035,7 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
                               e.stopPropagation();
                               onSelectComplex(c.name, c.lawdCode);
                             }}
-                            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition-all active:scale-95 whitespace-nowrap"
+                            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold text-white bg-primary hover:bg-primary/90 shadow-sm transition-all active:scale-95 whitespace-nowrap"
                             title={t.viewComplexAnalysisBtn || "단지 분석 바로가기"}
                           >
                             <span>단지 분석</span>
@@ -1051,7 +1051,7 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
                                   apartmentKeywords: [c.name]
                                 });
                               }}
-                              className="text-[10px] text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 flex items-center gap-0.5"
+                              className="text-[10px] text-slate-400 hover:text-primary flex items-center gap-0.5"
                             >
                               <Bell size={10} />
                               <span>알림</span>
@@ -1097,7 +1097,7 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
                         onClick={() => handlePageChange(p)}
                         className={`min-w-[26px] h-[26px] px-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center ${
                           isCurrent
-                            ? "bg-indigo-600 text-white shadow-xs"
+                            ? "bg-primary text-white shadow-xs"
                             : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900"
                         }`}
                       >
@@ -1142,7 +1142,7 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
           {/* 지도 상단 오버레이 안내 및 도구 */}
           <div className="absolute top-3 inset-x-3 z-20 flex items-center justify-between pointer-events-none">
             <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-200/80 dark:border-slate-700/80 shadow-md flex items-center gap-2 text-xs pointer-events-auto">
-              <MapPin size={14} className="text-indigo-600 dark:text-indigo-400" />
+              <MapPin size={14} className="text-primary" />
               <span className="font-bold text-slate-800 dark:text-slate-100">
                 {mapData?.regionName || "지역 지도"}
               </span>
@@ -1155,7 +1155,7 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
               onClick={() => setAvoidCollision(prev => !prev)}
               className={`px-3 py-1.5 rounded-xl border text-xs font-bold shadow-md backdrop-blur-md transition-all pointer-events-auto flex items-center gap-1.5 ${
                 avoidCollision
-                  ? "bg-indigo-600 border-indigo-500 text-white shadow-indigo-600/20"
+                  ? "bg-primary border-primary text-white shadow-primary/20"
                   : "bg-white/90 dark:bg-slate-900/90 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100"
               }`}
               title="줌 아웃 시 마커 겹침을 방지하고 근접 단지는 지시선으로 연결합니다."
@@ -1178,7 +1178,7 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
                 </div>
               ) : (
                 <div className="flex flex-col items-center gap-2 text-slate-500">
-                  <Loader2 size={28} className="animate-spin text-indigo-600" />
+                  <Loader2 size={28} className="animate-spin text-primary" />
                   <span className="text-xs font-medium">{t.loadingMap}</span>
                 </div>
               )}
@@ -1196,7 +1196,7 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
 
           {/* 선택된 단지 플로팅 인포 카드 (지도 하단) */}
           {selectedComplex && (
-            <div className="absolute bottom-4 inset-x-4 sm:left-auto sm:right-4 sm:w-96 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl p-4 border border-indigo-200 dark:border-indigo-800 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200">
+            <div className="absolute bottom-4 inset-x-4 sm:left-auto sm:right-4 sm:w-96 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl p-4 border border-primary/20 dark:border-primary/30 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200">
               <div className="flex items-start justify-between gap-2 mb-2">
                 <div>
                   <div className="flex items-center gap-1.5">
@@ -1204,7 +1204,7 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
                       {selectedComplex.name}
                     </h3>
                     {selectedComplex.dongName && (
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400">
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-primary/10 text-primary">
                         {selectedComplex.dongName}
                       </span>
                     )}
@@ -1225,7 +1225,7 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
               <div className="grid grid-cols-3 gap-2 py-2.5 my-2 border-y border-slate-100 dark:border-slate-800 text-center">
                 <div className="flex flex-col">
                   <span className="text-[10px] text-slate-400">{t.latestDealPrice || "최근 거래"}</span>
-                  <span className="text-xs font-black text-indigo-600 dark:text-indigo-400">
+                  <span className="text-xs font-black text-primary">
                     {selectedComplex.latestPriceEok !== null ? `${selectedComplex.latestPriceEok}억` : "-"}
                   </span>
                 </div>
@@ -1247,7 +1247,7 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
               <div className="flex items-center gap-2 mt-3">
                 <button
                   onClick={() => onSelectComplex(selectedComplex.name, selectedComplex.lawdCode)}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-md shadow-indigo-600/20 transition-all active:scale-95"
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold text-white bg-primary hover:bg-primary/90 shadow-md shadow-primary/20 transition-all active:scale-95"
                 >
                   <Building2 size={14} />
                   <span>{t.viewComplexAnalysisBtn || "단지 분석 바로가기"}</span>

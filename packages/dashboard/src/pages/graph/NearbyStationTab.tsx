@@ -1141,7 +1141,7 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
 
                               <div className="flex items-center gap-1.5 shrink-0">
                                 <div className="text-right">
-                                  <span className="text-xs font-black text-indigo-500 tracking-tight">{c.distanceM !== null ? `${c.distanceM}m` : "-"}</span>
+                                  <span className="text-xs font-black text-primary tracking-tight">{c.distanceM !== null ? `${c.distanceM}m` : "-"}</span>
                                   <p className="text-[8px] text-neutral uppercase font-bold tracking-wider mt-0.5">{t.distance || "거리"}</p>
                                 </div>
                                 
@@ -1296,7 +1296,7 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
                       onClick={() => setAvoidCollision(prev => !prev)}
                       className={`px-2.5 py-1 text-[10px] font-bold rounded-lg border transition-all flex items-center gap-1 ${
                         avoidCollision
-                          ? "bg-indigo-600 border-indigo-500 text-white shadow-sm"
+                          ? "bg-primary border-primary text-white shadow-sm"
                           : "border-normal bg-alternative text-neutral hover:text-strong"
                       }`}
                       title="줌 아웃 시 마커 겹침을 방지하고 근접 단지는 지시선으로 연결합니다."

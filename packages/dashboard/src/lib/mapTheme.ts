@@ -13,13 +13,14 @@ export interface PriceTheme {
 
 /**
  * 가격(억)에 따른 통일 시맨틱 컬러 테마 반환
+ * 종합 현황 피벗 히트맵 컬러 스펙트럼 (파랑 #6366f1 ➜ 보라 #8b5cf6 ➜ 로즈 #f43f5e ➜ 빨강 #ef4444)
  */
 export function getPriceTheme(priceEok?: number | null): PriceTheme {
   if (priceEok === undefined || priceEok === null || isNaN(priceEok) || priceEok <= 0) {
     return {
       tier: "none",
-      bgClass: "bg-slate-600 border-slate-500 shadow-slate-500/20",
-      dotClass: "bg-slate-600",
+      bgClass: "bg-slate-500 border-slate-400 shadow-slate-500/20",
+      dotClass: "bg-slate-500",
       textClass: "text-white",
       hexColor: "#64748b",
       label: "가격 미등록",
@@ -29,10 +30,10 @@ export function getPriceTheme(priceEok?: number | null): PriceTheme {
   if (priceEok >= 15) {
     return {
       tier: "p15",
-      bgClass: "bg-indigo-600 border-indigo-500 shadow-indigo-600/30",
-      dotClass: "bg-indigo-600",
+      bgClass: "bg-red-500 border-red-400 shadow-red-500/30",
+      dotClass: "bg-red-500",
       textClass: "text-white",
-      hexColor: "#4f46e5",
+      hexColor: "#ef4444",
       label: "15억↑",
     };
   }
@@ -49,31 +50,31 @@ export function getPriceTheme(priceEok?: number | null): PriceTheme {
   if (priceEok >= 5) {
     return {
       tier: "p5",
-      bgClass: "bg-blue-600 border-blue-500 shadow-blue-500/20",
-      dotClass: "bg-blue-600",
+      bgClass: "bg-violet-500 border-violet-400 shadow-violet-500/20",
+      dotClass: "bg-violet-500",
       textClass: "text-white",
-      hexColor: "#2563eb",
+      hexColor: "#8b5cf6",
       label: "5억~10억",
     };
   }
   return {
     tier: "p0",
-    bgClass: "bg-emerald-600 border-emerald-500 shadow-emerald-500/20",
-    dotClass: "bg-emerald-600",
+    bgClass: "bg-indigo-500 border-indigo-400 shadow-indigo-500/20",
+    dotClass: "bg-indigo-500",
     textClass: "text-white",
-    hexColor: "#059669",
+    hexColor: "#6366f1",
     label: "5억↓",
   };
 }
 
 /**
- * 범례(Legend) 표시용 가격 티어 목록
+ * 범례(Legend) 표시용 가격 티어 목록 (종합 현황 히트맵 컬러 스펙트럼)
  */
 export const MAP_PRICE_TIERS = [
-  { label: "15억↑", hexColor: "#4f46e5", dotClass: "bg-indigo-600" },
+  { label: "15억↑", hexColor: "#ef4444", dotClass: "bg-red-500" },
   { label: "10억~15억", hexColor: "#f43f5e", dotClass: "bg-rose-500" },
-  { label: "5억~10억", hexColor: "#2563eb", dotClass: "bg-blue-600" },
-  { label: "5억↓", hexColor: "#059669", dotClass: "bg-emerald-600" },
+  { label: "5억~10억", hexColor: "#8b5cf6", dotClass: "bg-violet-500" },
+  { label: "5억↓", hexColor: "#6366f1", dotClass: "bg-indigo-500" },
 ];
 
 /**
@@ -82,18 +83,18 @@ export const MAP_PRICE_TIERS = [
 export const MAP_CIRCLE_STYLES = {
   radius500: {
     strokeWeight: 1.5,
-    strokeColor: "#4f46e5",
+    strokeColor: "#6366f1",
     strokeOpacity: 0.7,
     strokeStyle: "dashed" as const,
-    fillColor: "#6366f1",
+    fillColor: "#8b5cf6",
     fillOpacity: 0.08,
   },
   radius1000: {
     strokeWeight: 1.5,
-    strokeColor: "#059669",
+    strokeColor: "#64748b",
     strokeOpacity: 0.6,
     strokeStyle: "dashed" as const,
-    fillColor: "#10b981",
+    fillColor: "#94a3b8",
     fillOpacity: 0.05,
   },
 };
@@ -142,7 +143,7 @@ export function createComplexMarkerHtml(options: ComplexMarkerOptions): string {
   }
 
   // 풀 카드 마커
-  let cardClass = `${theme.bgClass} text-white shadow-md hover:scale-105 transition-transform`;
+  let cardClass = `${theme.bgClass} ${theme.textClass} shadow-md hover:scale-105 transition-transform`;
   let arrowColor = theme.hexColor;
 
   if (isSelected) {
