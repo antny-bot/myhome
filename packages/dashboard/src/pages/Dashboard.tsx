@@ -96,6 +96,8 @@ export function DashboardPage({
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const overlaysRef = useRef<any[]>([]);
+  const polylinesRef = useRef<any[]>([]);
+  const regionCoordsRef = useRef<{ region: RegionSummary; lat: number; lng: number }[]>([]);
 
   const { loaded: mapLoaded, error: mapError } = useKakaoMap();
 
@@ -159,6 +161,12 @@ export function DashboardPage({
       });
     });
 
+    const handleViewChange = () => {
+      renderRegionOverlays();
+    };
+    kakao.maps.event.addListener(map, "zoom_changed", handleViewChange);
+    kakao.maps.event.addListener(map, "dragend", handleViewChange);
+
     return () => {
       if (mapRef.current) {
         mapRef.current = null;
@@ -166,106 +174,259 @@ export function DashboardPage({
     };
   }, [mapLoaded, isAdmin]);
 
-  // 3. 수집 지역 목록이 변경될 때마다 지도 위에 커스텀 오버레이 표시
-  useEffect(() => {
-    if (!mapLoaded || !mapRef.current || dbRegions.length === 0) return;
+    // 2.5 지역구 오버레이 및 지시선 렌더링 함수
+    const renderRegionOverlays = () => {
+      if (!mapLoaded || !mapRef.current) return;
+      const kakao = (window as any).kakao;
+      if (!kakao || !kakao.maps) return;
 
-    const kakao = (window as any).kakao;
-    if (!kakao || !kakao.maps) return;
+      const map = mapRef.current;
+      const proj = map.getProjection();
 
-    const geocoder = new kakao.maps.services.Geocoder();
+      // 기존 오버레이 및 지시선 삭제
+      for (const overlay of overlaysRef.current) {
+        overlay.setMap(null);
+      }
+      overlaysRef.current = [];
 
-    // 기존 오버레이 삭제
-    for (const overlay of overlaysRef.current) {
-      overlay.setMap(null);
-    }
-    overlaysRef.current = [];
+      for (const line of polylinesRef.current) {
+        line.setMap(null);
+      }
+      polylinesRef.current = [];
 
-    const bounds = new kakao.maps.LatLngBounds();
-    let validBoundsCount = 0;
+      const coords = regionCoordsRef.current;
+      if (coords.length === 0) return;
 
-    const promises = dbRegions.map((region) => {
-      return new Promise<void>((resolve) => {
-        geocoder.addressSearch(region.displayName, (result: any[], status: string) => {
-          if (status === kakao.maps.services.Status.OK && result[0]) {
-            const lat = parseFloat(result[0].y);
-            const lng = parseFloat(result[0].x);
-            const position = new kakao.maps.LatLng(lat, lng);
+      const zoomLevel = map.getLevel();
 
-            // 오버레이 엘리먼트 생성 (WDS 다크/라이트 모드 지원 프리미엄 스타일)
-            const content = document.createElement("div");
-            content.className = classNames(
-              "rounded-2xl border border-normal bg-white/80 dark:bg-slate-900/80 backdrop-blur-lg shadow-md px-3.5 py-2 text-center min-w-[130px] select-none transition-all hover:scale-105 hover:border-primary active:scale-95 duration-200 cursor-pointer"
-            );
-            content.style.pointerEvents = "auto";
+      // 우선순위 정렬: 거래 건수가 많은 지역구 우선
+      const sorted = [...coords].sort((a, b) => (b.region.transactionCount || 0) - (a.region.transactionCount || 0));
 
-            // 오버레이 본문 클릭 시 -> 종합 현황 페이지로 이동 (1년 조회)
-            content.onclick = (e) => {
-              e.stopPropagation();
-              handleRegionClick(region.lawdCode, region.displayName);
+      const newOverlays: any[] = [];
+      const newPolylines: any[] = [];
+
+      const placedBoxes: { x1: number; y1: number; x2: number; y2: number }[] = [];
+      const markerW = 135;
+      const markerH = 50;
+
+      // 근접 클러스터 (Zoom-in 시 Spiderfy / Leader line용)
+      const proximityClusters: { centerPoint: { x: number; y: number }; items: typeof sorted }[] = [];
+      const clusterRadius = 45;
+
+      if (proj && zoomLevel <= 8) {
+        for (const item of sorted) {
+          const origPos = new kakao.maps.LatLng(item.lat, item.lng);
+          const pt = proj.pointFromCoords(origPos);
+          let foundCluster = proximityClusters.find(
+            (cl) => Math.hypot(cl.centerPoint.x - pt.x, cl.centerPoint.y - pt.y) < clusterRadius
+          );
+          if (!foundCluster) {
+            foundCluster = { centerPoint: pt, items: [] };
+            proximityClusters.push(foundCluster);
+          }
+          foundCluster.items.push(item);
+        }
+      }
+
+      sorted.forEach(({ region, lat, lng }) => {
+        const origPos = new kakao.maps.LatLng(lat, lng);
+        let displayPos = origPos;
+        let hasLeaderLine = false;
+        let isDotOnly = false;
+
+        if (proj) {
+          const pt = proj.pointFromCoords(origPos);
+
+          if (zoomLevel >= 9) {
+            // [광역 줌아웃 (전국/수도권)]: 겹치는 지역구는 미니 칩/도트로 축소
+            const box = {
+              x1: pt.x - markerW / 2,
+              y1: pt.y - markerH,
+              x2: pt.x + markerW / 2,
+              y2: pt.y,
             };
 
-            const titleEl = document.createElement("div");
-            titleEl.className = "text-xs font-black text-strong whitespace-nowrap overflow-hidden text-ellipsis flex items-center justify-center gap-1.5";
-            const shortName = region.displayName.split(" ").pop() || region.displayName;
-            const countText = `${region.transactionCount.toLocaleString()}건`;
+            const isOverlapped = placedBoxes.some(
+              (b) => !(box.x2 < b.x1 || box.x1 > b.x2 || box.y2 < b.y1 || box.y1 > b.y2)
+            );
 
-            if (isAdmin) {
-              titleEl.innerHTML = `<span>${shortName}</span><span class="text-primary font-extrabold text-[10.5px]">${countText}</span>`;
-              
-              const collectIconContainer = document.createElement("span");
-              collectIconContainer.className = "inline-flex items-center justify-center p-0.5 rounded hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer shrink-0 ml-1";
-              collectIconContainer.style.pointerEvents = "auto";
-              collectIconContainer.title = "집계 관리 및 수집 기간 연장";
-              collectIconContainer.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-database text-neutral hover:text-primary"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg>`;
-              
-              collectIconContainer.onclick = (e) => {
-                e.stopPropagation(); // 오버레이 자체 클릭(종합현황 이동) 방지
-                openCollectModal(region.lawdCode, region.displayName, region);
-              };
-              
-              titleEl.appendChild(collectIconContainer);
+            if (isOverlapped) {
+              isDotOnly = true;
             } else {
-              titleEl.innerHTML = `<span>${shortName}</span><span class="text-primary font-extrabold text-[10.5px]">${countText}</span>`;
+              placedBoxes.push(box);
             }
+          } else {
+            // [상세 줌인 (시군구 단위)]: 2개 이상 근접 지역구는 오프셋 분산 & 점선 지시선 연결
+            const cluster = proximityClusters.find((cl) => cl.items.some((i) => i.region.lawdCode === region.lawdCode));
+            if (cluster && cluster.items.length > 1) {
+              const index = cluster.items.findIndex((i) => i.region.lawdCode === region.lawdCode);
+              const total = cluster.items.length;
+              const angle = (2 * Math.PI * index) / total - Math.PI / 2;
+              const offsetDist = Math.min(75, 42 + total * 8);
 
-            const periodEl = document.createElement("div");
-            periodEl.className = "text-[9px] text-assistive font-mono mt-1 whitespace-nowrap";
-            if (region.minDealDate && region.maxDealDate) {
-              const formatMonth = (d: string) => d.substring(2, 7).replace("-", ".");
-              periodEl.innerText = `${formatMonth(region.minDealDate)} ~ ${formatMonth(region.maxDealDate)}`;
-            } else {
-              periodEl.innerText = "-";
+              const offsetPt = new kakao.maps.Point(
+                cluster.centerPoint.x + Math.cos(angle) * offsetDist,
+                cluster.centerPoint.y + Math.sin(angle) * offsetDist
+              );
+
+              displayPos = proj.coordsFromPoint(offsetPt);
+              hasLeaderLine = true;
             }
-
-            content.appendChild(titleEl);
-            content.appendChild(periodEl);
-
-            const overlay = new kakao.maps.CustomOverlay({
-              position: position,
-              content: content,
-              yAnchor: 1.15
-            });
-
-            overlay.setMap(mapRef.current);
-            overlaysRef.current.push(overlay);
-
-            bounds.extend(position);
-            validBoundsCount++;
           }
-          resolve();
+        }
+
+        // 1. 지시선(Leader line) 렌더링
+        if (hasLeaderLine) {
+          const polyline = new kakao.maps.Polyline({
+            path: [origPos, displayPos],
+            strokeWeight: 1.5,
+            strokeColor: "#6366f1",
+            strokeOpacity: 0.85,
+            strokeStyle: "shortdash",
+          });
+          polyline.setMap(map);
+          newPolylines.push(polyline);
+
+          // 중심 앵커 도트 (가장 뒤에 배치)
+          const anchorEl = document.createElement("div");
+          anchorEl.className = "w-2 h-2 rounded-full bg-indigo-600 border border-white shadow-sm pointer-events-none";
+          const anchorOverlay = new kakao.maps.CustomOverlay({
+            position: origPos,
+            content: anchorEl,
+            zIndex: 4,
+            xAnchor: 0.5,
+            yAnchor: 0.5,
+          });
+          anchorOverlay.setMap(map);
+          newOverlays.push(anchorOverlay);
+        }
+
+        // 2. 오버레이 엘리먼트 생성
+        const content = document.createElement("div");
+        content.style.pointerEvents = "auto";
+        const overlayZIndex = isDotOnly ? 5 : hasLeaderLine ? 30 : 20;
+        content.style.zIndex = String(overlayZIndex);
+
+        const shortName = region.displayName.split(" ").pop() || region.displayName;
+
+        if (isDotOnly) {
+          // [미니 칩 도트] - 카드 마커 뒤에 위치하도록 낮은 z-index 설정
+          content.className = "select-none pointer-events-auto transition-transform hover:scale-125 duration-150 cursor-pointer group";
+          content.innerHTML = `
+            <div class="relative flex items-center justify-center p-1">
+              <div class="w-3.5 h-3.5 rounded-full bg-indigo-600 border-2 border-white shadow-md opacity-80 hover:opacity-100"></div>
+              <div class="absolute bottom-full mb-1 hidden group-hover:flex flex-col items-center z-[60] whitespace-nowrap">
+                <div class="px-2.5 py-1 bg-slate-900 text-white text-[11px] font-bold rounded-lg shadow-xl border border-slate-700">
+                  ${shortName} (${region.transactionCount.toLocaleString()}건)
+                </div>
+                <div class="w-0 h-0 border-l-4 border-l-transparent border-r-4 border-r-transparent border-t-4 border-t-slate-900"></div>
+              </div>
+            </div>
+          `;
+          content.onclick = (e) => {
+            e.stopPropagation();
+            handleRegionClick(region.lawdCode, region.displayName);
+          };
+        } else {
+          // [풀 카드 마커] - 도트 마커보다 항상 앞에 위치
+          content.className = classNames(
+            "rounded-2xl border border-normal bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg shadow-md px-3.5 py-2 text-center min-w-[125px] select-none transition-all hover:scale-105 hover:border-primary active:scale-95 duration-200 cursor-pointer",
+            hasLeaderLine ? "shadow-lg border-indigo-400" : ""
+          );
+
+          content.onclick = (e) => {
+            e.stopPropagation();
+            handleRegionClick(region.lawdCode, region.displayName);
+          };
+
+          const titleEl = document.createElement("div");
+          titleEl.className = "text-xs font-black text-strong whitespace-nowrap overflow-hidden text-ellipsis flex items-center justify-center gap-1.5";
+          const countText = `${region.transactionCount.toLocaleString()}건`;
+
+          if (isAdmin) {
+            titleEl.innerHTML = `<span>${shortName}</span><span class="text-primary font-extrabold text-[10.5px]">${countText}</span>`;
+            const collectIconContainer = document.createElement("span");
+            collectIconContainer.className = "inline-flex items-center justify-center p-0.5 rounded hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer shrink-0 ml-1";
+            collectIconContainer.style.pointerEvents = "auto";
+            collectIconContainer.title = "집계 관리 및 수집 기간 연장";
+            collectIconContainer.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-database text-neutral hover:text-primary"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg>`;
+            collectIconContainer.onclick = (e) => {
+              e.stopPropagation();
+              openCollectModal(region.lawdCode, region.displayName, region);
+            };
+            titleEl.appendChild(collectIconContainer);
+          } else {
+            titleEl.innerHTML = `<span>${shortName}</span><span class="text-primary font-extrabold text-[10.5px]">${countText}</span>`;
+          }
+
+          const periodEl = document.createElement("div");
+          periodEl.className = "text-[9px] text-assistive font-mono mt-1 whitespace-nowrap";
+          if (region.minDealDate && region.maxDealDate) {
+            const formatMonth = (d: string) => d.substring(2, 7).replace("-", ".");
+            periodEl.innerText = `${formatMonth(region.minDealDate)} ~ ${formatMonth(region.maxDealDate)}`;
+          } else {
+            periodEl.innerText = "-";
+          }
+
+          content.appendChild(titleEl);
+          content.appendChild(periodEl);
+        }
+
+        const overlay = new kakao.maps.CustomOverlay({
+          position: displayPos,
+          content: content,
+          zIndex: overlayZIndex,
+          xAnchor: 0.5,
+          yAnchor: isDotOnly ? 0.5 : 1.15,
+        });
+
+        overlay.setMap(map);
+        newOverlays.push(overlay);
+      });
+
+      overlaysRef.current = newOverlays;
+      polylinesRef.current = newPolylines;
+    };
+
+    // 3. 수집 지역 목록이 변경될 때마다 지오코딩 및 지도 위에 오버레이 표시
+    useEffect(() => {
+      if (!mapLoaded || !mapRef.current || dbRegions.length === 0) return;
+
+      const kakao = (window as any).kakao;
+      if (!kakao || !kakao.maps) return;
+
+      const geocoder = new kakao.maps.services.Geocoder();
+      const bounds = new kakao.maps.LatLngBounds();
+      let validBoundsCount = 0;
+
+      const promises = dbRegions.map((region) => {
+        return new Promise<{ region: RegionSummary; lat: number; lng: number } | null>((resolve) => {
+          geocoder.addressSearch(region.displayName, (result: any[], status: string) => {
+            if (status === kakao.maps.services.Status.OK && result[0]) {
+              const lat = parseFloat(result[0].y);
+              const lng = parseFloat(result[0].x);
+              const position = new kakao.maps.LatLng(lat, lng);
+              bounds.extend(position);
+              validBoundsCount++;
+              resolve({ region, lat, lng });
+            } else {
+              resolve(null);
+            }
+          });
         });
       });
-    });
 
-    // 모든 지역이 변환되면 중심점 조절
-    Promise.all(promises).then(() => {
-      if (validBoundsCount > 0 && mapRef.current) {
-        mapRef.current.setBounds(bounds);
-      }
-    });
+      Promise.all(promises).then((results) => {
+        const validResults = results.filter((r): r is { region: RegionSummary; lat: number; lng: number } => r !== null);
+        regionCoordsRef.current = validResults;
 
-  }, [mapLoaded, dbRegions, isAdmin]);
+        renderRegionOverlays();
+
+        if (validBoundsCount > 0 && mapRef.current) {
+          mapRef.current.setBounds(bounds);
+        }
+      });
+    }, [mapLoaded, dbRegions, isAdmin]);
 
   // 지역 클릭 시 종합 현황 페이지로 이동 (최근 1년 필터 적용)
   const handleRegionClick = (lawdCode: string, regionName: string) => {

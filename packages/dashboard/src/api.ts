@@ -95,7 +95,9 @@ import type {
   TrendPoint,
   ComplexSearchResult,
   DailyCollectStat,
-  RegionCollectStat
+  RegionCollectStat,
+  RegionMapData,
+  RegionMapComplexItem
 } from "@myhome/shared";
 
 export function loadGraphStats() {
@@ -175,6 +177,21 @@ export function loadComplexDetail(complexName: string, lawdCode?: string, area?:
 
 export function fetchDbRegions() {
   return request<{ lawdCode: string; displayName: string }[]>("/api/graph/db-regions");
+}
+
+export function loadRegionsSummary() {
+  return request<{
+    lawdCode: string;
+    displayName: string;
+    createdAt: string;
+    transactionCount: number;
+    minDealDate: string | null;
+    maxDealDate: string | null;
+  }[]>("/api/graph/regions-summary");
+}
+
+export function loadRegionMapComplexes(lawdCode: string) {
+  return request<RegionMapData>(`/api/graph/region-map-complexes?lawdCode=${encodeURIComponent(lawdCode)}`);
 }
 
 export function fetchComplexesByRegion(lawdCode?: string) {

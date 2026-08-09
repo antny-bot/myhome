@@ -8,6 +8,7 @@ import { SettingsPage } from "./pages/Settings";
 import GraphDashboard from "./pages/GraphDashboard";
 import ComplexAnalysisPage from "./pages/ComplexAnalysisPage";
 import NearbyStationTab from "./pages/graph/NearbyStationTab";
+import { RegionMapPage } from "./pages/RegionMapPage";
 import { DatabaseAdminPage } from "./pages/DatabaseAdmin";
 import { CollectPage } from "./pages/Collect";
 import { AllowedAccountsPage } from "./pages/AllowedAccountsPage";
@@ -26,6 +27,7 @@ function App() {
     const viewParam = params.get("view") as View;
     const validViews: View[] = [
       "dashboard",
+      "regionMap",
       "rules",
       "settings",
       "analytics",
@@ -51,7 +53,7 @@ function App() {
         const params = new URLSearchParams(window.location.search);
         const viewParam = params.get("view") as View;
         const validViews: View[] = [
-          "dashboard", "rules", "settings", "analytics", 
+          "dashboard", "regionMap", "rules", "settings", "analytics", 
           "complexAnalysis", "dbAdmin", "collect", "nearby", "allowedAccounts", "activityLog"
         ];
         if (validViews.includes(viewParam)) {
@@ -116,6 +118,7 @@ function App() {
     if (auth?.isAuthenticated && view) {
       const viewNames: Record<View, string> = {
         dashboard: t.dashboardTitle,
+        regionMap: t.regionMapTitle || "지역별 단지 지도",
         rules: t.rulesTitle,
         settings: t.settingsTitle,
         analytics: t.analyticsTitle,
@@ -182,6 +185,12 @@ function App() {
     <Layout view={view} onNavigate={setView} onLogout={handleLogout} isAdmin={auth?.isAdmin} userEmail={auth?.email}>
       {error && <p className="mb-4 text-sm text-red-500 font-medium">{error}</p>}
       {view === "dashboard" && <DashboardPage state={state} onChanged={() => void refresh()} onNavigate={setView} isAdmin={auth?.isAdmin} />}
+      {view === "regionMap" && (
+        <RegionMapPage
+          onSelectComplex={handleSelectComplex}
+          onNavigateToRules={handleNavigateToRules}
+        />
+      )}
       {view === "rules" && (
         <RulesPage
           state={state}

@@ -4,7 +4,7 @@ import { SectionCard } from "../../components/SectionCard";
 import { StatCard } from "../../components/StatCard";
 import { PageHeader } from "../../components/PageHeader";
 import { loadNearbyStation, triggerGeocodeBatch, loadGeocodeStats, fetchComplexData } from "../../api";
-import { MapPin, Search, Map, Compass, Play, RefreshCw, AlertTriangle, ArrowRight, Bell, Settings, CheckCircle2, X, Clock, Database, Download, Loader2, ChevronRight, Zap } from "lucide-react";
+import { MapPin, Search, Map, Compass, Play, RefreshCw, AlertTriangle, ArrowRight, Bell, Settings, CheckCircle2, X, Clock, Database, Download, Loader2, ChevronRight, Zap, SlidersHorizontal } from "lucide-react";
 import { copy } from "../../locales/ko";
 
 const LOCAL_STORAGE_KEY_STATIONS = "myhome_recent_stations";
@@ -195,6 +195,13 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
   const stationMarkerRef = useRef<any>(null);
   const circleRef = useRef<any>(null);
   const overlaysRef = useRef<any[]>([]);
+  const polylinesRef = useRef<any[]>([]);
+  const [avoidCollision, setAvoidCollision] = useState(true);
+  const avoidCollisionRef = useRef(avoidCollision);
+  avoidCollisionRef.current = avoidCollision;
+
+  const mergedComplexesRef = useRef<any[]>([]);
+  const lastStationNameRef = useRef<string>("");
 
   // 통합 단지 목록 병합 및 정렬 (지하철역으로부터의 거리순)
   const mergedComplexes = useMemo(() => {
@@ -208,7 +215,7 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
       lat: number | null;
       lng: number | null;
       lawdCode: string;
-      regionName?: string;
+      regionName: string;
       hasDbData: boolean;
     }>();
 
@@ -222,7 +229,7 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
         lat: c.lat,
         lng: c.lng,
         lawdCode: c.lawdCode,
-        regionName: c.regionName,
+        regionName: c.regionName || "",
         hasDbData: true
       });
     });
@@ -238,12 +245,16 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
           lat: c.lat,
           lng: c.lng,
           lawdCode: c.lawdCode,
+          regionName: c.regionName || "",
           hasDbData: c.hasDbData
         });
       } else {
         const existing = dbMap.get(c.name)!;
         if (existing.distanceM === null || existing.distanceM === undefined) {
           existing.distanceM = c.distanceM;
+        }
+        if (!existing.regionName && c.regionName) {
+          existing.regionName = c.regionName;
         }
       }
     });
@@ -438,14 +449,237 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
     setShouldStopBatch(true);
   };
 
-  // 4. 카카오 지도 초기화 및 마커 렌더링
+  // 4. 역세권 마커 및 지시선 렌더링 함수
+  const renderStationMapMarkers = () => {
+    if (!mapLoaded || !mapRef.current || !searchResult) return;
+    const kakao = window.kakao;
+    if (!kakao || !kakao.maps) return;
+
+    const map = mapRef.current;
+    let proj: any = null;
+    try {
+      proj = map.getProjection();
+    } catch {
+      proj = null;
+    }
+
+    // 기존 단지 오버레이 및 지시선 정리
+    for (const overlay of overlaysRef.current) {
+      overlay.setMap(null);
+    }
+    overlaysRef.current = [];
+
+    for (const line of polylinesRef.current) {
+      line.setMap(null);
+    }
+    polylinesRef.current = [];
+
+    const zoomLevel = map.getLevel();
+    const isAvoid = avoidCollisionRef.current;
+
+    // 최신 단지 목록 (mergedComplexesRef)
+    const complexes = mergedComplexesRef.current.length > 0 ? mergedComplexesRef.current : mergedComplexes;
+    const validComplexes = complexes.filter(
+      (c) => c.lat !== null && c.lng !== null && !isNaN(c.lat) && !isNaN(c.lng)
+    );
+
+    if (validComplexes.length === 0) return;
+
+    const newOverlays: any[] = [];
+    const newPolylines: any[] = [];
+
+    // 충돌 감지용 바운딩 박스 목록
+    const placedBoxes: { x1: number; y1: number; x2: number; y2: number }[] = [];
+    const markerW = 90;
+    const markerH = 38;
+
+    // 근접 클러스터 (Zoom-in 시 Spiderfy / Leader line용)
+    const proximityClusters: { centerPoint: { x: number; y: number }; items: typeof validComplexes }[] = [];
+    const clusterRadius = 35;
+
+    if (proj && isAvoid && zoomLevel <= 5) {
+      for (const item of validComplexes) {
+        try {
+          const origPos = new kakao.maps.LatLng(item.lat!, item.lng!);
+          const pt = proj.pointFromCoords(origPos);
+          if (pt && !isNaN(pt.x) && !isNaN(pt.y)) {
+            let foundCluster = proximityClusters.find(
+              (cl) => Math.hypot(cl.centerPoint.x - pt.x, cl.centerPoint.y - pt.y) < clusterRadius
+            );
+            if (!foundCluster) {
+              foundCluster = { centerPoint: pt, items: [] };
+              proximityClusters.push(foundCluster);
+            }
+            foundCluster.items.push(item);
+          }
+        } catch {
+          // projection 에러 방어
+        }
+      }
+    }
+
+    validComplexes.forEach((c, idx) => {
+      const origPos = new kakao.maps.LatLng(c.lat!, c.lng!);
+      let displayPos = origPos;
+      let hasLeaderLine = false;
+      let isDotOnly = false;
+
+      if (proj && isAvoid) {
+        try {
+          const pt = proj.pointFromCoords(origPos);
+
+          if (pt && !isNaN(pt.x) && !isNaN(pt.y)) {
+            if (zoomLevel >= 6) {
+              // [광역 줌아웃]: 지하철역과 가장 가까운 상위 4개 단지는 무조건 풀 카드로 유지
+              const isGuaranteedCard = idx < 4;
+
+              const box = {
+                x1: pt.x - markerW / 2,
+                y1: pt.y - markerH,
+                x2: pt.x + markerW / 2,
+                y2: pt.y,
+              };
+
+              const isOverlapped = placedBoxes.some(
+                (b) => !(box.x2 < b.x1 || box.x1 > b.x2 || box.y2 < b.y1 || box.y1 > b.y2)
+              );
+
+              if (isOverlapped && !isGuaranteedCard) {
+                isDotOnly = true;
+              } else {
+                placedBoxes.push(box);
+              }
+            } else {
+              // [상세 줌인]: 2개 이상 근접 단지는 오프셋 분산 & 지시선 연결
+              const cluster = proximityClusters.find((cl) => cl.items.some((i) => i.name === c.name));
+              if (cluster && cluster.items.length > 1) {
+                const index = cluster.items.findIndex((i) => i.name === c.name);
+                const total = cluster.items.length;
+                const angle = (2 * Math.PI * index) / total - Math.PI / 2;
+                const offsetDist = Math.min(55, 30 + total * 7);
+
+                const offsetPt = new kakao.maps.Point(
+                  cluster.centerPoint.x + Math.cos(angle) * offsetDist,
+                  cluster.centerPoint.y + Math.sin(angle) * offsetDist
+                );
+
+                displayPos = proj.coordsFromPoint(offsetPt);
+                hasLeaderLine = true;
+              }
+            }
+          }
+        } catch {
+          displayPos = origPos;
+        }
+      }
+
+      // 1. 지시선(Leader line) 렌더링
+      if (hasLeaderLine) {
+        const polyline = new kakao.maps.Polyline({
+          path: [origPos, displayPos],
+          strokeWeight: 1.5,
+          strokeColor: c.hasDbData ? "#10b981" : "#3b82f6",
+          strokeOpacity: 0.85,
+          strokeStyle: "shortdash",
+        });
+        polyline.setMap(map);
+        newPolylines.push(polyline);
+
+        // 원점 도트 (가장 뒤에 배치)
+        const anchorEl = document.createElement("div");
+        anchorEl.className = `w-2 h-2 rounded-full border border-white shadow-sm pointer-events-none ${c.hasDbData ? "bg-emerald-600" : "bg-blue-600"}`;
+        const anchorOverlay = new kakao.maps.CustomOverlay({
+          position: origPos,
+          content: anchorEl,
+          zIndex: 4,
+          xAnchor: 0.5,
+          yAnchor: 0.5,
+        });
+        anchorOverlay.setMap(map);
+        newOverlays.push(anchorOverlay);
+      }
+
+      // 2. 단지 오버레이 엘리먼트 생성
+      const el = document.createElement("div");
+      el.className = "select-none pointer-events-auto transition-transform duration-150 active:scale-95";
+      const overlayZIndex = isDotOnly ? 5 : hasLeaderLine ? 30 : 20;
+      el.style.zIndex = String(overlayZIndex);
+
+      if (isDotOnly) {
+        // [미니 도트 핀] - 카드 마커 뒤에 위치하도록 낮은 z-index 설정
+        const dotBg = c.hasDbData ? "bg-emerald-500 hover:bg-emerald-600" : "bg-blue-500 hover:bg-blue-600";
+        el.className += " group cursor-pointer";
+        el.innerHTML = `
+          <div class="relative flex items-center justify-center p-1">
+            <div class="w-3 h-3 rounded-full ${dotBg} border-2 border-white shadow-md hover:scale-125 transition-transform opacity-85 hover:opacity-100"></div>
+            <div class="absolute bottom-full mb-1 hidden group-hover:flex flex-col items-center z-[60] whitespace-nowrap pointer-events-none">
+              <div class="px-2 py-1 bg-slate-900 text-white text-[10px] font-bold rounded-md shadow-lg border border-slate-700">
+                ${c.name} (${c.distanceM ?? "?"}m)
+              </div>
+              <div class="w-0 h-0 border-l-4 border-l-transparent border-r-4 border-r-transparent border-t-4 border-t-slate-900"></div>
+            </div>
+          </div>
+        `;
+      } else {
+        // [풀 카드 마커] - 도트 마커보다 항상 앞에 위치
+        el.className += " hover:scale-105 hover:z-[55]";
+        const bgColor = c.hasDbData ? "bg-emerald-600 border-emerald-500" : "bg-blue-600 border-blue-500";
+        const arrowColor = c.hasDbData ? "border-t-emerald-600" : "border-t-blue-600";
+        const badgeText = c.hasDbData ? "" : `<span class="text-[7px] font-black text-blue-200 block -mt-0.5">실시간</span>`;
+
+        el.innerHTML = `
+          <div class="flex flex-col items-center cursor-pointer">
+            <div class="px-2.5 py-1 rounded-lg ${bgColor} text-white font-bold flex flex-col items-center text-center shadow-md">
+              <span class="text-[9px] truncate max-w-[100px] leading-tight font-medium opacity-90">${c.name}</span>
+              <div class="flex items-baseline gap-0.5 mt-0.5">
+                <span class="text-xs font-black tracking-tight">${c.distanceM ?? "?"}</span>
+                <span class="text-[8px] font-bold opacity-80">m</span>
+              </div>
+              ${badgeText}
+            </div>
+            <div class="w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-t-[5px] ${arrowColor}"></div>
+          </div>
+        `;
+      }
+
+      el.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (c.hasDbData) {
+          onSelectComplex(c.name, c.lawdCode);
+        } else {
+          handleFetchComplex(c);
+        }
+      });
+
+      const overlay = new kakao.maps.CustomOverlay({
+        position: displayPos,
+        content: el,
+        zIndex: overlayZIndex,
+        xAnchor: 0.5,
+        yAnchor: isDotOnly ? 0.5 : 1.05,
+      });
+
+      overlay.setMap(map);
+      newOverlays.push(overlay);
+    });
+
+    overlaysRef.current = newOverlays;
+    polylinesRef.current = newPolylines;
+  };
+
+  const renderStationMapMarkersRef = useRef(renderStationMapMarkers);
+  renderStationMapMarkersRef.current = renderStationMapMarkers;
+
+  // 5. 카카오 지도 초기화 및 마커 렌더링
   useEffect(() => {
     if (!mapLoaded || !mapContainerRef.current || !searchResult) return;
+
+    mergedComplexesRef.current = mergedComplexes;
 
     const kakao = window.kakao;
     const center = new kakao.maps.LatLng(searchResult.station.lat, searchResult.station.lng);
 
-    // 지도가 없으면 생성, 있으면 중심 이동
+    // 지도가 없으면 생성
     if (!mapRef.current) {
       const options = {
         center,
@@ -453,21 +687,25 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
         draggable: true,
         zoomable: true,
       };
-      mapRef.current = new kakao.maps.Map(mapContainerRef.current, options);
-    } else {
-      mapRef.current.relayout();
-      mapRef.current.setCenter(center);
+      const map = new kakao.maps.Map(mapContainerRef.current, options);
+      mapRef.current = map;
+
+      const zoomControl = new kakao.maps.ZoomControl();
+      map.addControl(zoomControl, kakao.maps.ControlPosition.RIGHT);
+
+      kakao.maps.event.addListener(map, "zoom_changed", () => {
+        renderStationMapMarkersRef.current();
+      });
+      kakao.maps.event.addListener(map, "dragend", () => {
+        renderStationMapMarkersRef.current();
+      });
     }
 
     const map = mapRef.current;
 
-    // 기존 요소 정리
+    // 기존 역 마커 및 서클 정리
     if (stationMarkerRef.current) stationMarkerRef.current.setMap(null);
     if (circleRef.current) circleRef.current.setMap(null);
-    for (const overlay of overlaysRef.current) {
-      overlay.setMap(null);
-    }
-    overlaysRef.current = [];
 
     // 지하철역 마커 생성
     const stationContent = document.createElement("div");
@@ -485,6 +723,7 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
     stationMarkerRef.current = new kakao.maps.CustomOverlay({
       position: center,
       content: stationContent,
+      zIndex: 40,
       yAnchor: 1.0,
     });
     stationMarkerRef.current.setMap(map);
@@ -502,127 +741,33 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
     });
     circleRef.current.setMap(map);
 
-    // 아파트 단지 마커(오버레이)들 추가
-    const bounds = new kakao.maps.LatLngBounds();
-    bounds.extend(center); // 지하철역 포함
+    renderStationMapMarkers();
 
-    const addedNames = new Set<string>();
-    const newOverlays: any[] = [];
+    // 새 역 검색 시에만 바운즈 재설정 (줌 인/아웃이나 토글 시에는 뷰포트 유지)
+    const isNewStation = lastStationNameRef.current !== searchResult.station.name;
+    if (isNewStation) {
+      lastStationNameRef.current = searchResult.station.name;
+      const bounds = new kakao.maps.LatLngBounds();
+      bounds.extend(center);
+      let validCoordCount = 0;
 
-    // 1. 기존 DB 단지들 마커 생성 (초록색)
-    searchResult.complexes.forEach((c) => {
-      if (addedNames.has(c.name)) return;
-      addedNames.add(c.name);
-
-      const pos = new kakao.maps.LatLng(c.lat, c.lng);
-      bounds.extend(pos);
-
-      const el = document.createElement("div");
-      el.className = "relative -translate-y-[100%] select-none pointer-events-auto group";
-
-      el.innerHTML = `
-        <div class="flex flex-col items-center cursor-pointer transition-all duration-200 hover:scale-105 hover:z-50 active:scale-95">
-          <div class="px-2 py-1.5 rounded-lg bg-emerald-600 border border-emerald-500 text-white font-bold flex flex-col items-center text-center shadow-md">
-            <span class="text-[9px] truncate max-w-[100px] leading-tight font-medium opacity-90">${c.name}</span>
-            <div class="flex items-baseline gap-0.5 mt-0.5">
-              <span class="text-xs font-black tracking-tight">${c.distanceM}</span>
-              <span class="text-[8px] font-bold opacity-80">m</span>
-            </div>
-          </div>
-          <div class="w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-t-[5px] border-t-emerald-600"></div>
-        </div>
-      `;
-
-      el.addEventListener("click", (e) => {
-        e.stopPropagation();
-        onSelectComplex(c.name, c.lawdCode);
-      });
-
-      const overlay = new kakao.maps.CustomOverlay({
-        position: pos,
-        content: el,
-        xAnchor: 0.5,
-        yAnchor: 0,
-      });
-
-      overlay.setMap(map);
-      newOverlays.push(overlay);
-    });
-
-    // 2. 실시간 단지들 마커 생성 (파란색 또는 초록색)
-    searchResult.liveComplexes.forEach((c) => {
-      if (addedNames.has(c.name) || c.lat === null || c.lng === null) return;
-      addedNames.add(c.name);
-
-      const pos = new kakao.maps.LatLng(c.lat, c.lng);
-      bounds.extend(pos);
-
-      const el = document.createElement("div");
-      el.className = "relative -translate-y-[100%] select-none pointer-events-auto group";
-
-      const bgColor = c.hasDbData ? "bg-emerald-600 border-emerald-500" : "bg-blue-600 border-blue-500";
-      const arrowColor = c.hasDbData ? "border-t-emerald-600" : "border-t-blue-600";
-      const badgeText = c.hasDbData ? "" : `<span class="text-[7px] font-black text-blue-200 block -mt-0.5">실시간</span>`;
-
-      el.innerHTML = `
-        <div class="flex flex-col items-center cursor-pointer transition-all duration-200 hover:scale-105 hover:z-50 active:scale-95">
-          <div class="px-2 py-1.5 rounded-lg ${bgColor} text-white font-bold flex flex-col items-center text-center shadow-md">
-            <span class="text-[9px] truncate max-w-[100px] leading-tight font-medium opacity-90">${c.name}</span>
-            <div class="flex items-baseline gap-0.5 mt-0.5">
-              <span class="text-xs font-black tracking-tight">${c.distanceM ?? "?"}</span>
-              <span class="text-[8px] font-bold opacity-80">m</span>
-            </div>
-            ${badgeText}
-          </div>
-          <div class="w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-t-[5px] ${arrowColor}"></div>
-        </div>
-      `;
-
-      el.addEventListener("click", (e) => {
-        e.stopPropagation();
-        if (c.hasDbData) {
-          onSelectComplex(c.name, c.lawdCode);
-        } else {
-          // 온디맨드 적재 패널 활성화
-          handleFetchComplex(c);
+      mergedComplexes.forEach((c) => {
+        if (c.lat !== null && c.lng !== null && !isNaN(c.lat) && !isNaN(c.lng)) {
+          bounds.extend(new kakao.maps.LatLng(c.lat, c.lng));
+          validCoordCount++;
         }
       });
 
-      const overlay = new kakao.maps.CustomOverlay({
-        position: pos,
-        content: el,
-        xAnchor: 0.5,
-        yAnchor: 0,
-      });
-
-      overlay.setMap(map);
-      newOverlays.push(overlay);
-    });
-
-    overlaysRef.current = newOverlays;
-
-    // 지도를 단지들이 한눈에 보이게 바운즈 재설정
-    const totalComplexesCount = searchResult.complexes.length + searchResult.liveComplexes.filter(c => c.lat !== null).length;
-    if (totalComplexesCount > 0) {
-      map.setBounds(bounds);
-      // 너무 줌인되는 방지
-      if (map.getLevel() < 3) {
-        map.setLevel(3);
+      if (validCoordCount > 0) {
+        map.setBounds(bounds);
+        if (map.getLevel() < 3) {
+          map.setLevel(3);
+        }
+      } else {
+        map.setLevel(4);
       }
-    } else {
-      map.setLevel(4);
     }
-
-    return () => {
-      if (stationMarkerRef.current) stationMarkerRef.current.setMap(null);
-      if (circleRef.current) circleRef.current.setMap(null);
-      for (const overlay of overlaysRef.current) {
-        overlay.setMap(null);
-      }
-      overlaysRef.current = [];
-      mapRef.current = null;
-    };
-  }, [mapLoaded, searchResult]);
+  }, [mapLoaded, searchResult, mergedComplexes, avoidCollision]);
 
   // 지도 다시 중심으로
   const handleResetCenter = () => {
@@ -1169,14 +1314,33 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
                     <CheckCircle2 size={13} className="text-emerald-500 shrink-0" />
                     {t.clickComplexToAnalyze || "단지 위치를 클릭하면 단지 상세 분석으로 이동합니다."}
                   </span>
-                  <button
-                    type="button"
-                    onClick={handleResetCenter}
-                    className="px-2.5 py-1 text-[10px] font-bold rounded-lg border border-normal bg-alternative hover:bg-opacity-95 text-strong flex items-center gap-1"
-                  >
-                    <Compass size={12} />
-                    {t.centerToStation || "지하철역 중심으로"}
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setAvoidCollision(prev => !prev)}
+                      className={`px-2.5 py-1 text-[10px] font-bold rounded-lg border transition-all flex items-center gap-1 ${
+                        avoidCollision
+                          ? "bg-indigo-600 border-indigo-500 text-white shadow-sm"
+                          : "border-normal bg-alternative text-neutral hover:text-strong"
+                      }`}
+                      title="줌 아웃 시 마커 겹침을 방지하고 근접 단지는 지시선으로 연결합니다."
+                    >
+                      <SlidersHorizontal size={11} />
+                      <span>겹침 방지</span>
+                      <span className={`text-[9px] px-1 py-0.2 rounded font-black ${avoidCollision ? "bg-white/20 text-white" : "bg-slate-200 dark:bg-slate-700 text-slate-500"}`}>
+                        {avoidCollision ? "ON" : "OFF"}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleResetCenter}
+                      className="px-2.5 py-1 text-[10px] font-bold rounded-lg border border-normal bg-alternative hover:bg-opacity-95 text-strong flex items-center gap-1"
+                    >
+                      <Compass size={12} />
+                      {t.centerToStation || "지하철역 중심으로"}
+                    </button>
+                  </div>
                 </div>
                 <div className="flex-1 w-full relative rounded-lg overflow-hidden border border-normal">
                   {mapError ? (

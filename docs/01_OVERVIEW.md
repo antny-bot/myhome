@@ -80,6 +80,7 @@ myhome/                            ← 모노레포 루트
 │           ├── components/        ← 공통 컴포넌트
 │           └── pages/             ← 페이지 컴포넌트
 │               ├── Dashboard.tsx  ← 홈 대시보드
+│               ├── RegionMapPage.tsx ← 지역별 단지 지도 (지도 탐색 & 단지 분석 연결)
 │               ├── ExploreV2.tsx  ← 실거래 탐색
 │               └── GraphDashboard.tsx  ← 4탭 실거래 분석 메인 대시보드
 ```

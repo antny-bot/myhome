@@ -102,3 +102,30 @@ export interface UserActivityLog {
   userAgent?: string;
   createdAt: string;
 }
+
+export interface RegionMapComplexItem {
+  id: string;
+  name: string;
+  lawdCode: string;
+  regionName: string;
+  dongName: string | null;
+  jibun: string | null;
+  roadName: string | null;
+  lat: number | null;
+  lng: number | null;
+  txCount: number;
+  latestDealDate: string | null;
+  latestPriceEok: number | null;
+  avgPriceEok: number | null;
+  minPriceEok: number | null;
+  maxPriceEok: number | null;
+}
+
+export interface RegionMapData {
+  lawdCode: string;
+  regionName: string;
+  totalComplexes: number;
+  geocodedCount: number;
+  center: { lat: number; lng: number } | null;
+  complexes: RegionMapComplexItem[];
+}

@@ -4,6 +4,7 @@ import {
   getDbRegionsSummary,
   insertDbRegion,
   getComplexesByRegion,
+  getRegionComplexesMapData,
   searchComplexNames,
   fetchApartmentPricesDirect,
   normalizeTransaction,
@@ -57,6 +58,24 @@ router.get("/region-complexes", asyncHandler(async (req, res) => {
   const complexes = await getComplexesByRegion(lawdCode);
   graphCache.set(cacheKey, complexes, TTL.STATIC);
   res.json(complexes);
+}));
+
+/** GET /api/graph/region-map-complexes — 특정 지역의 지도용 단지 상세 및 거래 통계 */
+router.get("/region-map-complexes", asyncHandler(async (req, res) => {
+  const lawdCode = (req.query.lawdCode as string || "").trim();
+  if (!lawdCode) {
+    res.status(400).json({ error: "lawdCode 파라미터가 필요합니다." });
+    return;
+  }
+  const cacheKey = `region-map-complexes:${lawdCode}`;
+  const cached = graphCache.get(cacheKey);
+  if (cached) {
+    res.json(cached);
+    return;
+  }
+  const data = await getRegionComplexesMapData(lawdCode);
+  graphCache.set(cacheKey, data, TTL.STATIC);
+  res.json(data);
 }));
 
 /** GET /api/graph/complexes/search — 단지명 글로벌 검색 */

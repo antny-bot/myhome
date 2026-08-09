@@ -945,6 +945,94 @@ export function getComplexesByRegion(lawdCode?: string): string[] {
 }
 
 /**
+ * 특정 지역(lawdCode)에 속한 단지들의 지도 시각화용 상세 정보 및 거래 통계 조회
+ */
+export function getRegionComplexesMapData(lawdCode: string): {
+  lawdCode: string;
+  regionName: string;
+  totalComplexes: number;
+  geocodedCount: number;
+  center: { lat: number; lng: number } | null;
+  complexes: {
+    id: string;
+    name: string;
+    lawdCode: string;
+    regionName: string;
+    dongName: string | null;
+    jibun: string | null;
+    roadName: string | null;
+    lat: number | null;
+    lng: number | null;
+    txCount: number;
+    latestDealDate: string | null;
+    latestPriceEok: number | null;
+    avgPriceEok: number | null;
+    minPriceEok: number | null;
+    maxPriceEok: number | null;
+  }[];
+} {
+  const db = getDb();
+  const regionRow = db.prepare(`SELECT display_name FROM regions WHERE lawd_code = ?`).get(lawdCode) as { display_name: string } | undefined;
+  const regionName = regionRow?.display_name || lawdCode;
+
+  const rows = db.prepare(`
+    SELECT 
+      c.id,
+      c.name,
+      c.lawd_code AS lawdCode,
+      r.display_name AS regionName,
+      c.dong_name AS dongName,
+      c.jibun,
+      c.road_name AS roadName,
+      c.lat,
+      c.lng,
+      COUNT(t.dedupe_key) AS txCount,
+      MAX(t.deal_date) AS latestDealDate,
+      ROUND(AVG(t.price_eok), 2) AS avgPriceEok,
+      MIN(t.price_eok) AS minPriceEok,
+      MAX(t.price_eok) AS maxPriceEok,
+      (
+        SELECT t2.price_eok 
+        FROM transactions t2 
+        WHERE t2.complex_id = c.id 
+        ORDER BY t2.deal_date DESC, t2.rowid DESC 
+        LIMIT 1
+      ) AS latestPriceEok
+    FROM complexes c
+    JOIN regions r ON c.lawd_code = r.lawd_code
+    LEFT JOIN transactions t ON c.id = t.complex_id
+    WHERE c.lawd_code = ?
+    GROUP BY c.id
+    ORDER BY txCount DESC, c.name ASC
+  `).all(lawdCode) as any[];
+
+  let totalLat = 0;
+  let totalLng = 0;
+  let geocodedCount = 0;
+
+  for (const row of rows) {
+    if (row.lat !== null && row.lng !== null && !isNaN(row.lat) && !isNaN(row.lng)) {
+      totalLat += row.lat;
+      totalLng += row.lng;
+      geocodedCount++;
+    }
+  }
+
+  const center = geocodedCount > 0
+    ? { lat: totalLat / geocodedCount, lng: totalLng / geocodedCount }
+    : null;
+
+  return {
+    lawdCode,
+    regionName,
+    totalComplexes: rows.length,
+    geocodedCount,
+    center,
+    complexes: rows
+  };
+}
+
+/**
  * 일단위 수집 건수 통계 조회
  */
 export function getDailyCollectionStats(): DailyCollectStat[] {
