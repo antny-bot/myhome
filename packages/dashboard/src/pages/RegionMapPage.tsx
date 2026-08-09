@@ -142,6 +142,8 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
   const mapRef = useRef<any>(null);
   const overlaysRef = useRef<any[]>([]);
   const polylinesRef = useRef<any[]>([]);
+  const renderMarkersRef = useRef<() => void>(() => {});
+  const prevLawdCodeRef = useRef<string>("");
   const [avoidCollision, setAvoidCollision] = useState(true);
 
   // 가로 드래그 스크롤 훅 (지역 칩, 동 필터 칩)
@@ -527,7 +529,10 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
     polylinesRef.current = newPolylines;
   };
 
-  // 4. 카카오 지도 초기화 및 이벤트 리스너 등록
+  // renderMarkers 함수를 ref에 항상 최신으로 유지하여 지도 이벤트 콜백 클로저 문제 방지
+  renderMarkersRef.current = renderMarkers;
+
+  // 4. 카카오 지도 초기화 및 이벤트 리스너 등록, 데이터 변경 시 갱신
   useEffect(() => {
     if (!mapLoaded || !mapContainerRef.current || !mapData) return;
     const kakao = window.kakao;
@@ -551,11 +556,12 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
       const zoomControl = new kakao.maps.ZoomControl();
       map.addControl(zoomControl, kakao.maps.ControlPosition.RIGHT);
 
+      // 이벤트 리스너에서 ref를 통해 항상 최신 renderMarkers를 호출
       kakao.maps.event.addListener(map, "zoom_changed", () => {
-        renderMarkers();
+        renderMarkersRef.current();
       });
       kakao.maps.event.addListener(map, "dragend", () => {
-        renderMarkers();
+        renderMarkersRef.current();
       });
     } else {
       mapRef.current.relayout();
@@ -563,6 +569,9 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
 
     const map = mapRef.current;
     renderMarkers();
+
+    const isRegionChanged = prevLawdCodeRef.current !== mapData.lawdCode;
+    prevLawdCodeRef.current = mapData.lawdCode;
 
     // 단지들이 모두 보이도록 줌 및 중심 설정
     const bounds = new kakao.maps.LatLngBounds();
@@ -575,10 +584,11 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
       }
     });
 
-    if (validCoordCount > 0 && !selectedComplex) {
+    if (validCoordCount > 0 && (!selectedComplex || isRegionChanged)) {
       map.setBounds(bounds, 50, 50, 50, 50);
-    } else if (mapData.center && validCoordCount === 0) {
+    } else if (mapData.center && (validCoordCount === 0 || isRegionChanged)) {
       map.setCenter(initialCenter);
+      map.setLevel(5);
     }
   }, [mapLoaded, mapData, filteredComplexes, selectedComplex, avoidCollision]);
 
