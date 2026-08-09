@@ -1670,8 +1670,7 @@ export default function ComplexTab({
                               {tx.areaM2 ? formatSizeString(String(tx.areaM2), areaUnit) : "-"}
                             </span>
                           </div>
-                          <span className="text-primary font-extrabold font-mono text-sm inline-flex items-center gap-0.5">
-                            <DollarSign size={12} className="opacity-80" />
+                          <span className="text-primary font-extrabold font-mono text-sm">
                             {tx.priceEok.toFixed(1)}{t("eokUnit")}
                           </span>
                         </div>
