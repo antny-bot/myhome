@@ -657,17 +657,17 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
       </div>
 
       {/* 3. 메인 콘텐츠 (좌측 사이드바 + 우측 지도) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 min-h-[580px]">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 flex-1 lg:h-[calc(100vh-14.5rem)] min-h-[580px]">
         {/* 좌측 단지 목록 & 필터 패널 */}
         <div
-          className={`lg:col-span-5 xl:col-span-4 flex flex-col gap-3 ${
+          className={`lg:col-span-5 xl:col-span-4 flex flex-col h-full min-h-0 ${
             mobileTab === "map" ? "hidden lg:flex" : "flex"
           }`}
         >
-          <SectionCard className="flex flex-col flex-1 p-3.5 sm:p-4 gap-3 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 sm:p-3.5 flex flex-col h-full min-h-0 shadow-sm gap-2.5">
             {/* 상단 통계 요약 */}
             {mapData && (
-              <div className="flex items-center justify-between pb-2.5 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800 shrink-0">
                 <div className="flex flex-col">
                   <span className="text-xs font-bold text-slate-800 dark:text-slate-100">
                     {mapData.regionName}
@@ -696,7 +696,7 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
             )}
 
             {/* 검색창 */}
-            <div className="relative">
+            <div className="relative shrink-0">
               <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
@@ -717,7 +717,7 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
 
             {/* 법정동 필터 칩 */}
             {dongList.length > 0 && (
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none shrink-0">
                 <button
                   onClick={() => setSelectedDong("ALL")}
                   className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold whitespace-nowrap transition-colors ${
@@ -745,7 +745,7 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
             )}
 
             {/* 정렬 셀렉터 & 건수 */}
-            <div className="flex items-center justify-between text-xs text-slate-500">
+            <div className="flex items-center justify-between text-xs text-slate-500 shrink-0">
               <span>{filteredComplexes.length}개 단지</span>
               <div className="flex items-center gap-1">
                 <select
@@ -762,8 +762,8 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
               </div>
             </div>
 
-            {/* 단지 리스트 */}
-            <div className="flex-1 overflow-y-auto space-y-2 max-h-[480px] lg:max-h-[540px] pr-1 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700">
+            {/* 단지 리스트 (남는 공간을 채워 지도 끝까지 스크롤) */}
+            <div className="flex-1 min-h-0 overflow-y-auto space-y-1.5 pr-1 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700">
               {loading ? (
                 <div className="flex flex-col items-center justify-center py-16 text-slate-400 gap-2">
                   <Loader2 size={24} className="animate-spin text-indigo-600" />
@@ -783,16 +783,16 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
                     <div
                       key={c.id}
                       onClick={() => handleFocusComplex(c)}
-                      className={`group p-3 rounded-xl border transition-all cursor-pointer ${
+                      className={`group p-2.5 rounded-xl border transition-all cursor-pointer ${
                         isSelected
                           ? "bg-indigo-50/80 dark:bg-indigo-950/40 border-indigo-400 dark:border-indigo-700 shadow-sm"
                           : "bg-slate-50/70 dark:bg-slate-800/40 border-slate-100 dark:border-slate-800/80 hover:bg-slate-100/80 dark:hover:bg-slate-800 hover:border-slate-200"
                       }`}
                     >
-                      <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center justify-between gap-2">
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate max-w-[160px] sm:max-w-none">
                               {c.name}
                             </span>
                             {c.dongName && (
@@ -807,7 +807,7 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
                             )}
                           </div>
 
-                          <div className="flex items-center gap-3 mt-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+                          <div className="flex items-center gap-2.5 mt-1 text-[11px] text-slate-500 dark:text-slate-400 flex-wrap">
                             <span>
                               {t.latestDealPrice || "최근"}:{" "}
                               <strong className="text-indigo-600 dark:text-indigo-400 font-black">
@@ -836,7 +836,7 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
                               e.stopPropagation();
                               onSelectComplex(c.name, c.lawdCode);
                             }}
-                            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition-all active:scale-95"
+                            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition-all active:scale-95 whitespace-nowrap"
                             title={t.viewComplexAnalysisBtn || "단지 분석 바로가기"}
                           >
                             <span>단지 분석</span>
@@ -865,17 +865,17 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
                 })
               )}
             </div>
-          </SectionCard>
+          </div>
         </div>
 
         {/* 우측 카카오 지도 뷰 */}
         <div
-          className={`lg:col-span-7 xl:col-span-8 flex flex-col min-h-[480px] lg:min-h-full rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm relative ${
+          className={`lg:col-span-7 xl:col-span-8 flex flex-col h-[520px] lg:h-full min-h-0 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm relative ${
             mobileTab === "list" ? "hidden lg:flex" : "flex"
           }`}
         >
           {/* 지도 컨테이너 */}
-          <div ref={mapContainerRef} className="w-full h-full min-h-[500px] flex-1 bg-slate-100 dark:bg-slate-800" />
+          <div ref={mapContainerRef} className="w-full h-full min-h-0 flex-1 bg-slate-100 dark:bg-slate-800" />
 
           {/* 지도 상단 오버레이 안내 및 도구 */}
           <div className="absolute top-3 inset-x-3 z-20 flex items-center justify-between pointer-events-none">
