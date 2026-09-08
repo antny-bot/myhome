@@ -17,6 +17,7 @@ import {
   loadRegionCollectionStats
 } from "../api";
 import { DailyCollectStat, RegionCollectStat } from "@myhome/shared";
+import { PageHeader } from "../components/PageHeader";
 import { SectionCard } from "../components/SectionCard";
 import { StatCard } from "../components/StatCard";
 import { useBreakpoint } from "../useBreakpoint";
@@ -153,47 +154,43 @@ export function CollectPage() {
   return (
     <div className="space-y-6">
       {/* Title Header */}
-      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        {!isMobile && (
-          <div className="flex flex-col gap-1">
-            <h2 className="text-2xl font-black text-strong tracking-tight mt-1 flex items-center gap-2">
-              <ClipboardList className="text-primary h-6 w-6" />
-              {t.collectReportTitle}
-            </h2>
-            <p className="text-sm text-neutral">{t.collectReportSubtitle}</p>
+      <PageHeader
+        title={t.collectTitle}
+        subtitle={t.collectSubtitle}
+        icon={ClipboardList}
+        actions={
+          <div className="flex bg-alternative p-1 rounded-xl w-fit shadow-sm">
+            <button
+              onClick={() => {
+                setViewType("daily");
+                setSelectedDate(null);
+                setRegionData([]);
+              }}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                viewType === "daily"
+                  ? "bg-elevated text-primary shadow-xs"
+                  : "text-neutral hover:text-strong"
+              }`}
+            >
+              {t.dailyView}
+            </button>
+            <button
+              onClick={() => {
+                setViewType("monthly");
+                setSelectedDate(null);
+                setRegionData([]);
+              }}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                viewType === "monthly"
+                  ? "bg-elevated text-primary shadow-xs"
+                  : "text-neutral hover:text-strong"
+              }`}
+            >
+              {t.monthlyView}
+            </button>
           </div>
-        )}
-        
-        {/* 일자별 / 등록월별 토글 세그먼트 컨트롤 */}
-        <div className="flex bg-alternative p-1 rounded-xl w-fit shadow-sm">
-          <button
-            onClick={() => {
-              setViewType("daily");
-              setSelectedDate(null);
-            }}
-            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              viewType === "daily"
-                ? "bg-elevated text-primary shadow-sm"
-                : "text-neutral hover:text-strong"
-            }`}
-          >
-            {t.dailyView}
-          </button>
-          <button
-            onClick={() => {
-              setViewType("monthly");
-              setSelectedDate(null);
-            }}
-            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              viewType === "monthly"
-                ? "bg-elevated text-primary shadow-sm"
-                : "text-neutral hover:text-strong"
-            }`}
-          >
-            {t.monthlyView}
-          </button>
-        </div>
-      </header>
+        }
+      />
 
       {/* KPI 카드 3종 */}
       {chartData.length > 0 && (

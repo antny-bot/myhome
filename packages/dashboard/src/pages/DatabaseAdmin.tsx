@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useBreakpoint } from "../useBreakpoint";
 import { loadAdminDbTables, executeAdminDbQuery, searchComplexNames, clearDatabase, deleteDbRegion, deleteDbComplex, loadGeocodeStats, triggerGeocodeBatch, updateComplexCoords, resetComplexCoords, loadGeocodePending } from "../api";
+import { PageHeader } from "../components/PageHeader";
 import { SectionCard } from "../components/SectionCard";
 import { Play, Database, RefreshCw, AlertCircle, CheckCircle2, ChevronRight, FileText, Settings, Building2, MapPin, Search, X, Copy, Check, Eye, WrapText } from "lucide-react";
 import { copy } from "../locales/ko";
@@ -496,15 +497,11 @@ export function DatabaseAdminPage() {
 
   return (
     <div className="space-y-6">
-      {!isMobile && (
-        <header className="flex flex-col gap-1">
-          <h2 className="text-2xl font-black text-strong tracking-tight mt-1 flex items-center gap-2">
-            <Database className="text-primary h-6 w-6" />
-            {t.dbAdminTitle}
-          </h2>
-          <p className="text-sm text-neutral">{t.dbAdminSubtitle}</p>
-        </header>
-      )}
+      <PageHeader
+        title={t.dbAdminTitle}
+        subtitle={t.dbAdminSubtitle}
+        icon={Database}
+      />
 
       {/* 2-mode 반응형 탭 스트립 */}
       {isMobile ? (

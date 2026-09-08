@@ -224,8 +224,12 @@ export const copy = {
     axisAvgPrice: "평균가 (억)",
 
     // Collect Stats
+    collectTitle: "수집 데이터 리포트",
+    collectSubtitle: "수집봇을 통해 DB에 적재된 일단위 및 월별 실거래 수집 통계를 분석합니다.",
     collectReportTitle: "수집 일단위 리포트",
     collectReportSubtitle: "수집봇을 통해 DB에 적재된 일단위 실거래 수집 건수를 분석합니다.",
+
+    // Activity Log
     dailyCollectChart: "일자별 수집 건수",
     collectCount: "수집 건수",
     selectDatePrompt: "그래프에서 날짜를 클릭하면 상세 지역별 수집 건수가 여기에 표시됩니다.",

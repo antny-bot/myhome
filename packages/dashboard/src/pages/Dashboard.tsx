@@ -22,6 +22,7 @@ import {
 import { useMemo, useState, useEffect, useRef } from "react";
 import { useBreakpoint } from "../useBreakpoint";
 import { useKakaoMap } from "../useKakaoMap";
+import { PageHeader } from "../components/PageHeader";
 import { RecentRuns } from "../components/RecentRuns";
 import { SectionCard } from "../components/SectionCard";
 import { StatCard } from "../components/StatCard";
@@ -753,46 +754,42 @@ export function DashboardPage({
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-normal/50">
-        <div className="flex flex-col gap-1">
-          <h2 className="text-xl md:text-2xl font-black text-strong tracking-tight mt-1 flex items-center gap-2">
-            <LayoutDashboard className="text-primary h-5 w-5 md:h-6 md:w-6" />
-            {t.dashboardTitle}
-          </h2>
-          {!isMobile && <p className="text-xs md:text-sm text-neutral">{t.dashboardSubtitle}</p>}
-        </div>
+      <PageHeader
+        title={t.dashboardTitle}
+        subtitle={t.dashboardSubtitle}
+        icon={LayoutDashboard}
+        actions={
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral select-none shrink-0 font-medium w-full md:w-auto justify-start md:justify-end">
+            <div className="flex items-center gap-1">
+              <MapPin className="h-3.5 w-3.5 text-primary/70 shrink-0" />
+              <span className="text-assistive">{t.dbStatsRegionCount}</span>
+              <span className="font-black text-strong font-mono ml-0.5 tabular-nums">
+                {state.dbStats?.regions?.toLocaleString("ko-KR") ?? 0}
+              </span>
+            </div>
 
-        {/* 미니 DB 현황 텍스트 정보 (우측 정렬) */}
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral select-none shrink-0 font-medium mt-2 md:mt-0 w-full md:w-auto justify-start md:justify-end">
-          <div className="flex items-center gap-1">
-            <MapPin className="h-3.5 w-3.5 text-primary/70 shrink-0" />
-            <span className="text-assistive">{t.dbStatsRegionCount}</span>
-            <span className="font-black text-strong font-mono ml-0.5">
-              {state.dbStats?.regions?.toLocaleString("ko-KR") ?? 0}
-            </span>
+            <span className="hidden sm:inline text-normal/40 select-none">|</span>
+
+            <div className="flex items-center gap-1">
+              <Building2 className="h-3.5 w-3.5 text-primary/70 shrink-0" />
+              <span className="text-assistive">{t.dbStatsComplexCount}</span>
+              <span className="font-black text-strong font-mono ml-0.5 tabular-nums">
+                {state.dbStats?.complexes?.toLocaleString("ko-KR") ?? 0}
+              </span>
+            </div>
+
+            <span className="hidden sm:inline text-normal/40 select-none">|</span>
+
+            <div className="flex items-center gap-1">
+              <TrendingUp className="h-3.5 w-3.5 text-primary/70 shrink-0" />
+              <span className="text-assistive">{t.dbStatsDealCount}</span>
+              <span className="font-black text-primary font-mono ml-0.5 tabular-nums">
+                {state.dbStats?.transactions?.toLocaleString("ko-KR") ?? 0}
+              </span>
+            </div>
           </div>
-
-          <span className="hidden sm:inline text-normal/40 select-none">|</span>
-
-          <div className="flex items-center gap-1">
-            <Building2 className="h-3.5 w-3.5 text-primary/70 shrink-0" />
-            <span className="text-assistive">{t.dbStatsComplexCount}</span>
-            <span className="font-black text-strong font-mono ml-0.5">
-              {state.dbStats?.complexes?.toLocaleString("ko-KR") ?? 0}
-            </span>
-          </div>
-
-          <span className="hidden sm:inline text-normal/40 select-none">|</span>
-
-          <div className="flex items-center gap-1">
-            <TrendingUp className="h-3.5 w-3.5 text-primary/70 shrink-0" />
-            <span className="text-assistive">{t.dbStatsDealCount}</span>
-            <span className="font-black text-primary font-mono ml-0.5">
-              {state.dbStats?.transactions?.toLocaleString("ko-KR") ?? 0}
-            </span>
-          </div>
-        </div>
-      </header>
+        }
+      />
 
       {/* 🗺️ 실거래 수집/집계 지역 지도 (통합 배치) */}
       {isMobile ? (

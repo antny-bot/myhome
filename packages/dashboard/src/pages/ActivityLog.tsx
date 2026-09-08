@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Activity, ShieldAlert, CheckCircle, Search, Calendar, ChevronLeft, ChevronRight, Eye, RefreshCw, X, User, Users, UserCheck, Database } from "lucide-react";
 import { ResponsiveContainer, ComposedChart, Area, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend } from "recharts";
 import { useBreakpoint } from "../useBreakpoint";
+import { PageHeader } from "../components/PageHeader";
 import { SectionCard } from "../components/SectionCard";
 import { StatCard } from "../components/StatCard";
 import { fetchActivityLogs, fetchActivityStats } from "../api";
@@ -206,17 +207,11 @@ export function ActivityLogPage() {
   return (
     <div className="space-y-6">
       {/* 헤더 */}
-      {!isMobile && (
-        <header className="flex items-center justify-between">
-          <div className="flex flex-col gap-1">
-            <h2 className="text-2xl font-black text-strong tracking-tight mt-1 flex items-center gap-2">
-              <Activity className="text-primary h-6 w-6" />
-              {t.activityLogTitle || "활동 로그 모니터링"}
-            </h2>
-            <p className="text-sm text-neutral">
-              {t.activityLogSubtitle || "대시보드 내 사용자의 페이지 방문, 실거래 검색, 수집 지역 변경 등의 활동 로그를 모니터링합니다."}
-            </p>
-          </div>
+      <PageHeader
+        title={t.activityLogTitle}
+        subtitle={t.activityLogSubtitle}
+        icon={Activity}
+        actions={
           <button
             onClick={handleRefresh}
             className="flex items-center gap-1.5 px-3 py-2 bg-normal border border-normal rounded-lg hover:bg-normal/50 text-xs font-semibold text-strong transition-colors"
@@ -224,20 +219,8 @@ export function ActivityLogPage() {
             <RefreshCw size={14} />
             <span>새로고침</span>
           </button>
-        </header>
-      )}
-
-      {isMobile && (
-        <div className="flex justify-between items-center bg-normal/30 p-3 rounded-xl border border-normal/50">
-          <span className="text-xs font-bold text-strong">로그 모니터링</span>
-          <button
-            onClick={handleRefresh}
-            className="p-2 bg-primary/10 text-primary rounded-lg text-xs font-semibold"
-          >
-            <RefreshCw size={14} className="inline mr-1" /> 새로고침
-          </button>
-        </div>
-      )}
+        }
+      />
 
       {/* 통계 요약 카드 섹션 */}
       {stats && (

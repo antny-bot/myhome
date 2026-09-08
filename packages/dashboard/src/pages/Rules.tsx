@@ -3,6 +3,7 @@ import { FormEvent, useEffect, useMemo, useState, useRef } from "react";
 import { useBreakpoint } from "../useBreakpoint";
 import { createRule, deleteRule, getApartments, patchRule, runRule, searchRegions, logActivity } from "../api";
 
+import { PageHeader } from "../components/PageHeader";
 import { RegionSearchInput } from "../components/RegionSearchInput";
 import { SectionCard } from "../components/SectionCard";
 import { classNames, formatDate } from "../lib/format";
@@ -858,15 +859,11 @@ export function RulesPage({
 
   return (
     <div className="space-y-6">
-      {!isMobile && (
-        <header className="flex flex-col gap-1">
-          <h2 className="text-2xl font-black text-strong tracking-tight mt-1 flex items-center gap-2">
-            <Bell className="text-primary h-6 w-6" />
-            {t.rulesTitle}
-          </h2>
-          <p className="text-sm text-neutral">{t.rulesSubtitle}</p>
-        </header>
-      )}
+      <PageHeader
+        title={t.rulesTitle}
+        subtitle={t.rulesSubtitle}
+        icon={Bell}
+      />
 
       {telegramNotConfigured ? (
         <div className="rounded-xl border border-warn bg-warn/5 p-6 shadow-sm space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">

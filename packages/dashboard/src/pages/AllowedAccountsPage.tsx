@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { UserCheck, ShieldAlert, CheckCircle, Save, Plus, Trash2, Mail, Loader2, Copy, Check, KeyRound } from "lucide-react";
 import { useBreakpoint } from "../useBreakpoint";
+import { PageHeader } from "../components/PageHeader";
 import { SectionCard } from "../components/SectionCard";
 import { loadSystemConfig, saveSystemConfig, addUserAccount } from "../api";
 import { copy } from "../locales/ko";
@@ -214,15 +215,11 @@ export function AllowedAccountsPage({ onChanged, currentUserEmail }: { onChanged
 
   return (
     <div className="space-y-6">
-      {!isMobile && (
-        <header className="flex flex-col gap-1">
-          <h2 className="text-2xl font-black text-strong tracking-tight mt-1 flex items-center gap-2">
-            <UserCheck className="text-primary h-6 w-6" />
-            {t.allowedAccountsTitle}
-          </h2>
-          <p className="text-sm text-neutral">{t.allowedAccountsSubtitle}</p>
-        </header>
-      )}
+      <PageHeader
+        title={t.allowedAccountsTitle}
+        subtitle={t.allowedAccountsSubtitle}
+        icon={UserCheck}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* 이메일 추가 폼 */}
