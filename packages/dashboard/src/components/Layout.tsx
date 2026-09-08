@@ -187,13 +187,8 @@ export function Layout({
   
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Apply default page redirection on mount if applicable
-  useEffect(() => {
-    const def = readDefaultPage();
-    if (def && def !== view && DEFAULT_ORDER.includes(def as View)) {
-      onNavigate(def as View);
-    }
-  }, []);
+  // defaultPage(Favorite) 첫 진입 시 이동 처리는 App.tsx initAuth에서 다루므로
+  // Layout 마운트 시 강제 리다이렉트하던 useEffect 제거
 
   useEffect(() => { writeCollapsed(collapsed); }, [collapsed]);
 
@@ -450,7 +445,7 @@ export function Layout({
         <main
           className={classNames(
             "flex-1 max-w-screen-xl w-full mx-auto transition-all",
-            view === "regionMap"
+            view === "regionMap" || (view === "dashboard" && isMobile)
               ? "px-2.5 pt-2 pb-16 md:px-6 md:py-5 md:pb-8"
               : "px-4 py-5 pb-24 md:pb-8 md:px-6"
           )}

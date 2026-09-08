@@ -25,7 +25,8 @@ export function useBreakpoint() {
   }, []);
 
   const isMobile = windowWidth < 768;
+  const isSmallMobile = windowWidth < 640;
   const isNarrow = windowWidth < 480;
 
-  return { isMobile, isNarrow, windowWidth };
+  return { isMobile, isSmallMobile, isNarrow, windowWidth };
 }

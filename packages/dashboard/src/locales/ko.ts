@@ -96,6 +96,9 @@ export const copy = {
     // Dashboard
     dashboardTitle: "실거래 집계 현황",
     dashboardSubtitle: "관심 지역의 실거래 및 알림 발송 현황을 확인하세요.",
+    bottomSheetTitle: "주요 지표 및 활동 이력",
+    bottomSheetExpandHint: "위로 슬라이드하거나 터치하여 상세 보기",
+    bottomSheetCollapseHint: "터치하여 접기",
     activeRules: "활성 조건",
     totalMatches: "누적 매칭",
     sentNotifications: "발송 알림",

@@ -707,10 +707,10 @@ export default function FilterPanel({
       {(expanded || !isMobile) && (
         <div className="space-y-3">
           {hideComplexSearch ? (
-            /* 종합 현황 모드 (1줄 콤팩트 레이아웃) */
-            <div className="flex flex-col md:flex-row md:items-end gap-3">
-              {/* 프리셋 드롭다운 & 지역 검색 */}
-              <div className="flex flex-col sm:flex-row sm:items-end gap-2 flex-grow min-w-0 w-full">
+            /* 종합 현황 모드 (반응형 2행/1행 스마트 레이아웃) */
+            <div className="flex flex-col lg:flex-row lg:items-end gap-3">
+              {/* 1행 / 좌측: 프리셋 & 지역 선택 */}
+              <div className="grid grid-cols-1 sm:grid-cols-[auto_1fr] items-end gap-2 flex-1 min-w-0">
                 {/* 프리셋 셀렉트 박스 */}
                 <div className="flex flex-col gap-1 shrink-0">
                   <label className="text-[11px] font-semibold text-neutral">프리셋</label>
@@ -726,7 +726,7 @@ export default function FilterPanel({
                           handleLoadPreset(val);
                         }
                       }}
-                      className={`h-8 bg-normal border border-normal rounded-lg px-2.5 py-0 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-primary w-24 md:w-32 ${
+                      className={`h-8 bg-normal border border-normal rounded-lg px-2 py-0 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-primary w-28 sm:w-32 ${
                         selectedPresetId ? "text-strong" : "text-assistive"
                       }`}
                     >
@@ -759,7 +759,7 @@ export default function FilterPanel({
                 </div>
 
                 {/* 지역 다중 선택 드롭다운 */}
-                <div className="flex flex-col gap-1 flex-grow min-w-0 relative" ref={regionDropdownRef}>
+                <div className="flex flex-col gap-1 min-w-0 relative" ref={regionDropdownRef}>
                   <label className="text-[11px] font-semibold text-neutral">{t.regionLabel} (최대 10개)</label>
                   <button
                     type="button"
@@ -773,7 +773,7 @@ export default function FilterPanel({
                   </button>
 
                   {showRegionDropdown && (
-                    <div className="absolute z-[40] left-0 mt-8 w-full min-w-[240px] max-w-[320px] rounded-lg border border-normal bg-elevated shadow-lg p-2.5 text-xs space-y-2">
+                    <div className="absolute z-[50] left-0 mt-8 w-full min-w-[260px] max-w-[340px] rounded-lg border border-normal bg-elevated shadow-xl p-2.5 text-xs space-y-2">
                       {/* 검색어 입력창 */}
                       <input
                         type="text"
@@ -837,90 +837,93 @@ export default function FilterPanel({
                 </div>
               </div>
 
-              {/* 조회 기간 */}
-              <div className="flex flex-col gap-1 shrink-0 w-full md:w-auto">
-                <label className="text-[11px] font-semibold text-neutral">{t.dateLabel}</label>
-                <div className="flex items-center gap-1.5 w-full">
-                  <input
-                    type="month"
-                    value={startDate}
-                    onChange={(e) => {
-                      setStartDate(e.target.value);
-                      setPeriod('custom');
-                    }}
-                    className="h-8 flex-1 md:flex-initial md:w-32 bg-normal border border-normal rounded-lg px-2.5 py-1.5 text-xs text-strong focus:outline-none focus:ring-1 focus:ring-primary min-w-0"
-                  />
-                  <span className="text-assistive font-semibold text-xs">~</span>
-                  <input
-                    type="month"
-                    value={endDate}
-                    onChange={(e) => {
-                      setEndDate(e.target.value);
-                      setPeriod('custom');
-                    }}
-                    className="h-8 flex-1 md:flex-initial md:w-32 bg-normal border border-normal rounded-lg px-2.5 py-1.5 text-xs text-strong focus:outline-none focus:ring-1 focus:ring-primary min-w-0"
-                  />
+              {/* 2행 / 우측: 기간, 퀵 선택 & 실행 버튼 */}
+              <div className="flex flex-wrap sm:flex-nowrap items-end gap-2 shrink-0">
+                {/* 조회 기간 */}
+                <div className="flex flex-col gap-1 min-w-[230px] flex-1 sm:flex-initial">
+                  <label className="text-[11px] font-semibold text-neutral whitespace-nowrap">{t.dateLabel}</label>
+                  <div className="flex items-center gap-1.5 w-full">
+                    <input
+                      type="month"
+                      value={startDate}
+                      onChange={(e) => {
+                        setStartDate(e.target.value);
+                        setPeriod('custom');
+                      }}
+                      className="h-8 flex-1 min-w-[105px] bg-normal border border-normal rounded-lg px-2 py-1 text-xs font-mono font-semibold text-strong focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                    <span className="text-assistive font-semibold text-xs shrink-0">~</span>
+                    <input
+                      type="month"
+                      value={endDate}
+                      onChange={(e) => {
+                        setEndDate(e.target.value);
+                        setPeriod('custom');
+                      }}
+                      className="h-8 flex-1 min-w-[105px] bg-normal border border-normal rounded-lg px-2 py-1 text-xs font-mono font-semibold text-strong focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  </div>
                 </div>
-              </div>
 
-              {/* 퀵선택 배지 */}
-              <div className="flex flex-col gap-1 shrink-0 w-full md:w-auto">
-                <label className="text-[11px] font-semibold text-neutral">{t.periodQuickSelect}</label>
-                <div className="flex w-full sm:w-auto gap-1">
+                {/* 퀵선택 배지 */}
+                <div className="flex flex-col gap-1 shrink-0">
+                  <label className="text-[11px] font-semibold text-neutral whitespace-nowrap">{t.periodQuickSelect}</label>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => handlePeriodBadgeClick(1)}
+                      className={`h-8 px-2.5 flex items-center justify-center rounded-lg text-xs font-semibold border whitespace-nowrap transition-colors ${
+                        period === '1year' 
+                          ? "bg-primary text-white border-primary" 
+                          : "bg-normal text-neutral border-normal hover:border-primary/50 hover:text-strong"
+                      }`}
+                    >
+                      {t.period1Year}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handlePeriodBadgeClick(2)}
+                      className={`h-8 px-2.5 flex items-center justify-center rounded-lg text-xs font-semibold border whitespace-nowrap transition-colors ${
+                        period === '2year' 
+                          ? "bg-primary text-white border-primary" 
+                          : "bg-normal text-neutral border-normal hover:border-primary/50 hover:text-strong"
+                      }`}
+                    >
+                      {t.period2Year}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handlePeriodBadgeClick(3)}
+                      className={`h-8 px-2.5 flex items-center justify-center rounded-lg text-xs font-semibold border whitespace-nowrap transition-colors ${
+                        period === '3year' 
+                          ? "bg-primary text-white border-primary" 
+                          : "bg-normal text-neutral border-normal hover:border-primary/50 hover:text-strong"
+                      }`}
+                    >
+                      {t.period3Year}
+                    </button>
+                  </div>
+                </div>
+
+                {/* 실행 / 초기화 버튼 */}
+                <div className="flex items-center gap-1.5 shrink-0 ml-auto sm:ml-0">
                   <button
                     type="button"
-                    onClick={() => handlePeriodBadgeClick(1)}
-                    className={`h-8 px-2.5 flex-1 sm:flex-initial flex items-center justify-center rounded-lg text-xs font-semibold border transition-colors ${
-                      period === '1year' 
-                        ? "bg-primary text-white border-primary" 
-                        : "bg-normal text-neutral border-normal hover:border-primary/50 hover:text-strong"
-                    }`}
+                    onClick={handleReset}
+                    className="flex items-center justify-center gap-1 h-8 px-2.5 bg-alternative hover:bg-alternative/80 text-neutral hover:text-strong text-xs font-bold rounded-lg transition-colors border border-normal whitespace-nowrap"
                   >
-                    {t.period1Year}
+                    <RotateCcw size={12} />
+                    <span>{t.buttonReset}</span>
                   </button>
                   <button
                     type="button"
-                    onClick={() => handlePeriodBadgeClick(2)}
-                    className={`h-8 px-2.5 flex-1 sm:flex-initial flex items-center justify-center rounded-lg text-xs font-semibold border transition-colors ${
-                      period === '2year' 
-                        ? "bg-primary text-white border-primary" 
-                        : "bg-normal text-neutral border-normal hover:border-primary/50 hover:text-strong"
-                    }`}
+                    onClick={handleApply}
+                    className="flex items-center justify-center gap-1 h-8 px-3.5 bg-primary hover:opacity-90 text-white text-xs font-bold rounded-lg shadow-sm shadow-primary/20 transition-opacity whitespace-nowrap"
                   >
-                    {t.period2Year}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handlePeriodBadgeClick(3)}
-                    className={`h-8 px-2.5 flex-1 sm:flex-initial flex items-center justify-center rounded-lg text-xs font-semibold border transition-colors ${
-                      period === '3year' 
-                        ? "bg-primary text-white border-primary" 
-                        : "bg-normal text-neutral border-normal hover:border-primary/50 hover:text-strong"
-                    }`}
-                  >
-                    {t.period3Year}
+                    <Play size={12} />
+                    <span>{t.buttonApply}</span>
                   </button>
                 </div>
-              </div>
-
-              {/* 실행 / 초기화 버튼 */}
-              <div className="flex items-center gap-1.5 shrink-0 w-full md:w-auto mt-2 md:mt-0">
-                <button
-                  type="button"
-                  onClick={handleReset}
-                  className="flex-1 md:flex-initial flex items-center justify-center gap-1 h-8 px-3 bg-alternative hover:bg-alternative/80 text-neutral hover:text-strong text-xs font-bold rounded-lg transition-colors border border-normal"
-                >
-                  <RotateCcw size={12} />
-                  <span>{t.buttonReset}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleApply}
-                  className="flex-1 md:flex-initial flex items-center justify-center gap-1 h-8 px-4 bg-primary hover:opacity-90 text-white text-xs font-bold rounded-lg shadow-sm shadow-primary/20 transition-opacity"
-                >
-                  <Play size={12} />
-                  <span>{t.buttonApply}</span>
-                </button>
               </div>
             </div>
           ) : (
