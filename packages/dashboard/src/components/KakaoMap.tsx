@@ -3,7 +3,7 @@ import { useKakaoMap } from "../useKakaoMap";
 import { copy } from "../locales/ko";
 import type { TransactionRecord } from "../types";
 import { MapPin, ZoomIn, ZoomOut, Compass } from "lucide-react";
-import { createComplexMarkerHtml } from "../lib/mapTheme";
+import { createComplexMarkerHtml, calculatePriceQuartiles } from "../lib/mapTheme";
 import { MapLegend } from "./MapLegend";
 
 const locale = "ko";
@@ -79,6 +79,12 @@ export function KakaoMap({
     }
     return summaries;
   }, [records, searchedRegion]);
+
+  // 사분위수 계산 (조회된 단지들의 평균가 기준)
+  const quartiles = React.useMemo(() => {
+    const prices = complexSummaries.map((s) => s.avgPrice);
+    return calculatePriceQuartiles(prices);
+  }, [complexSummaries]);
 
   // 2. 카카오 지도 객체 초기 생성
   useEffect(() => {
@@ -192,6 +198,7 @@ export function KakaoMap({
           priceText: `${summary.avgPrice.toFixed(1)}${t.unitDeal}`,
           subText: `${summary.count}${t.unitCount}`,
           isSelected,
+          quartiles,
         });
 
         // 오버레이 클릭 이벤트 연동
@@ -228,7 +235,7 @@ export function KakaoMap({
     return () => {
       isCancelled = true;
     };
-  }, [complexSummaries, mapInitialized, loaded, selectedApartment, onSelectApartment]);
+  }, [complexSummaries, quartiles, mapInitialized, loaded, selectedApartment, onSelectApartment]);
 
   // 5. 상위에서 특정 아파트가 선택(포커스)되었을 때 중심 이동 및 줌
   useEffect(() => {
@@ -355,8 +362,10 @@ export function KakaoMap({
           className="absolute z-20 left-3 bottom-3"
           title="범례 (평균가)"
           showSelected={!!selectedApartment}
+          quartiles={quartiles}
         />
       )}
     </div>
   );
 }
+

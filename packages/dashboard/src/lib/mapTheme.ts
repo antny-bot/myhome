@@ -2,6 +2,15 @@
  * myhome 지도 컬러 테마 및 마커 디자인 시스템 표준 유틸리티
  */
 
+export interface PriceQuartiles {
+  q1: number;
+  q2: number; // 중위값 (Median)
+  q3: number;
+  min: number;
+  max: number;
+  count: number;
+}
+
 export interface PriceTheme {
   tier: "p15" | "p10" | "p5" | "p0" | "none";
   bgClass: string;
@@ -12,10 +21,48 @@ export interface PriceTheme {
 }
 
 /**
- * 가격(억)에 따른 통일 시맨틱 컬러 테마 반환
- * 종합 현황 피벗 히트맵 컬러 스펙트럼 (파랑 #6366f1 ➜ 보라 #8b5cf6 ➜ 로즈 #f43f5e ➜ 빨강 #ef4444)
+ * 조회된 가격(억 단위) 배열로부터 Q1, 중위값(Q2), Q3 사분위수 계산
  */
-export function getPriceTheme(priceEok?: number | null): PriceTheme {
+export function calculatePriceQuartiles(prices: (number | null | undefined)[]): PriceQuartiles | null {
+  const valid = prices
+    .filter((p): p is number => typeof p === "number" && !isNaN(p) && p > 0)
+    .sort((a, b) => a - b);
+
+  if (valid.length === 0) return null;
+
+  const getPercentile = (arr: number[], p: number): number => {
+    if (arr.length === 1) return arr[0];
+    const index = (arr.length - 1) * p;
+    const lower = Math.floor(index);
+    const upper = Math.ceil(index);
+    const weight = index - lower;
+    return arr[lower] * (1 - weight) + arr[upper] * weight;
+  };
+
+  const q1 = Number(getPercentile(valid, 0.25).toFixed(1));
+  const q2 = Number(getPercentile(valid, 0.50).toFixed(1));
+  const q3 = Number(getPercentile(valid, 0.75).toFixed(1));
+  const min = Number(valid[0].toFixed(1));
+  const max = Number(valid[valid.length - 1].toFixed(1));
+
+  return {
+    q1,
+    q2,
+    q3,
+    min,
+    max,
+    count: valid.length,
+  };
+}
+
+/**
+ * 가격(억)에 따른 시맨틱 컬러 테마 반환
+ * 사분위수(quartiles)가 전달되면 조회된 데이터 기준 동적 4단계 (Q3↑ / Q2~Q3 / Q1~Q2 / Q1↓) 적용
+ */
+export function getPriceTheme(
+  priceEok?: number | null,
+  quartiles?: PriceQuartiles | null
+): PriceTheme {
   if (priceEok === undefined || priceEok === null || isNaN(priceEok) || priceEok <= 0) {
     return {
       tier: "none",
@@ -27,6 +74,50 @@ export function getPriceTheme(priceEok?: number | null): PriceTheme {
     };
   }
 
+  // 동적 사분위수 적용 (Q1, Q2, Q3 간 유의미한 차이가 있고 데이터가 2개 이상일 때)
+  if (quartiles && quartiles.count >= 2 && quartiles.q1 < quartiles.q3) {
+    const { q1, q2, q3 } = quartiles;
+    if (priceEok >= q3) {
+      return {
+        tier: "p15",
+        bgClass: "bg-red-500 border-red-400 shadow-red-500/30",
+        dotClass: "bg-red-500",
+        textClass: "text-white",
+        hexColor: "#ef4444",
+        label: `${q3}억↑`,
+      };
+    }
+    if (priceEok >= q2) {
+      return {
+        tier: "p10",
+        bgClass: "bg-rose-500 border-rose-400 shadow-rose-500/25",
+        dotClass: "bg-rose-500",
+        textClass: "text-white",
+        hexColor: "#f43f5e",
+        label: `${q2}~${q3}억`,
+      };
+    }
+    if (priceEok >= q1) {
+      return {
+        tier: "p5",
+        bgClass: "bg-violet-500 border-violet-400 shadow-violet-500/20",
+        dotClass: "bg-violet-500",
+        textClass: "text-white",
+        hexColor: "#8b5cf6",
+        label: `${q1}~${q2}억`,
+      };
+    }
+    return {
+      tier: "p0",
+      bgClass: "bg-indigo-500 border-indigo-400 shadow-indigo-500/20",
+      dotClass: "bg-indigo-500",
+      textClass: "text-white",
+      hexColor: "#6366f1",
+      label: `${q1}억↓`,
+    };
+  }
+
+  // Fallback: 기존 절대값 기준 (15억 / 10억 / 5억)
   if (priceEok >= 15) {
     return {
       tier: "p15",
@@ -68,7 +159,7 @@ export function getPriceTheme(priceEok?: number | null): PriceTheme {
 }
 
 /**
- * 범례(Legend) 표시용 가격 티어 목록 (종합 현황 히트맵 컬러 스펙트럼)
+ * 기본 범례(Legend) 표시용 가격 티어 목록
  */
 export const MAP_PRICE_TIERS = [
   { label: "15억↑", hexColor: "#ef4444", dotClass: "bg-red-500" },
@@ -76,6 +167,22 @@ export const MAP_PRICE_TIERS = [
   { label: "5억~10억", hexColor: "#8b5cf6", dotClass: "bg-violet-500" },
   { label: "5억↓", hexColor: "#6366f1", dotClass: "bg-indigo-500" },
 ];
+
+/**
+ * 범례(Legend) 표시용 동적 가격 티어 목록 생성
+ */
+export function getMapPriceTiers(quartiles?: PriceQuartiles | null) {
+  if (quartiles && quartiles.count >= 2 && quartiles.q1 < quartiles.q3) {
+    const { q1, q2, q3 } = quartiles;
+    return [
+      { label: `${q3}억↑`, hexColor: "#ef4444", dotClass: "bg-red-500" },
+      { label: `${q2}~${q3}억`, hexColor: "#f43f5e", dotClass: "bg-rose-500" },
+      { label: `${q1}~${q2}억`, hexColor: "#8b5cf6", dotClass: "bg-violet-500" },
+      { label: `${q1}억↓`, hexColor: "#6366f1", dotClass: "bg-indigo-500" },
+    ];
+  }
+  return MAP_PRICE_TIERS;
+}
 
 /**
  * 반경 원 표준 스타일
@@ -108,6 +215,7 @@ export interface ComplexMarkerOptions {
   isSelected?: boolean;
   isDotOnly?: boolean;
   hasLeaderLine?: boolean;
+  quartiles?: PriceQuartiles | null;
 }
 
 /**
@@ -123,9 +231,10 @@ export function createComplexMarkerHtml(options: ComplexMarkerOptions): string {
     isSelected = false,
     isDotOnly = false,
     hasLeaderLine = false,
+    quartiles,
   } = options;
 
-  const theme = getPriceTheme(priceEok);
+  const theme = getPriceTheme(priceEok, quartiles);
 
   if (isDotOnly) {
     const dotColor = isSelected ? "bg-amber-400 border-amber-300 ring-2 ring-amber-400" : `${theme.dotClass} border-white`;
@@ -182,3 +291,4 @@ export function createStationMarkerHtml(stationName: string): string {
     </div>
   `;
 }
+

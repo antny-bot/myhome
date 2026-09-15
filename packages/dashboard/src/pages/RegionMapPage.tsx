@@ -36,7 +36,7 @@ import {
   Maximize2
 } from "lucide-react";
 import { useLocale } from "../lib/i18n";
-import { createComplexMarkerHtml, getPriceTheme } from "../lib/mapTheme";
+import { createComplexMarkerHtml, getPriceTheme, calculatePriceQuartiles } from "../lib/mapTheme";
 import { MapLegend } from "../components/MapLegend";
 
 const LOCAL_STORAGE_KEY_REGION = "myhome_recent_map_region";
@@ -362,6 +362,15 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
     return list;
   }, [mapData, searchQuery, selectedDong, sortBy]);
 
+  // 조회 및 필터링된 단지들의 실거래가 기준 사분위수(Q1, Median, Q3) 계산
+  const quartiles = useMemo(() => {
+    if (!filteredComplexes.length) return null;
+    const prices = filteredComplexes
+      .map((c) => c.latestPriceEok)
+      .filter((p): p is number => typeof p === "number" && p > 0);
+    return calculatePriceQuartiles(prices);
+  }, [filteredComplexes]);
+
   // 모바일 탭이 'map'으로 전환될 때 카카오 지도 relayout 및 영역 재조정
   useEffect(() => {
     if (mobileTab === "map") {
@@ -571,7 +580,7 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
         }
       }
 
-      const theme = getPriceTheme(c.latestPriceEok);
+      const theme = getPriceTheme(c.latestPriceEok, quartiles);
 
       // 1. 지시선(Leader line) 렌더링
       if (hasLeaderLine) {
@@ -614,6 +623,7 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
           subText: c.txCount > 0 ? `${c.txCount}건` : undefined,
           isSelected,
           isDotOnly: true,
+          quartiles,
         });
       } else {
         el.className += " relative -translate-y-[100%]";
@@ -624,6 +634,7 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
           subText: c.txCount > 0 ? `${c.txCount}건` : undefined,
           isSelected,
           hasLeaderLine,
+          quartiles,
         });
       }
 
@@ -739,7 +750,7 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
   // 데이터 및 설정 변경 시 지도 업데이트
   useEffect(() => {
     initOrRelayoutMap();
-  }, [mapLoaded, mapData, filteredComplexes, selectedComplex, avoidCollision, mobileTab]);
+  }, [mapLoaded, mapData, filteredComplexes, quartiles, selectedComplex, avoidCollision, mobileTab]);
 
   // mapContainerRef 크기 변화를 감지하여 Kakao 지도 자동 relayout
   // contentHeight 변경·mobileTab 전환 등으로 컨테이너 크기가 실제로 바뀌면 즉시 반응
@@ -1308,6 +1319,7 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
               className="absolute z-20 left-3 bottom-3"
               title="범례 (최근가)"
               showSelected={!!selectedComplex}
+              quartiles={quartiles}
             />
           )}
 
