@@ -1035,8 +1035,21 @@ export function getRegionComplexesMapData(lawdCode: string): {
 /**
  * 일단위 수집 건수 통계 조회
  */
-export function getDailyCollectionStats(): DailyCollectStat[] {
+export function getDailyCollectionStats(days?: number): DailyCollectStat[] {
   const db = getDb();
+  if (days && days > 0) {
+    const rows = db.prepare(`
+      SELECT substr(collected_at, 1, 10) AS collectDate,
+             COUNT(*) AS count,
+             ROUND(AVG(price_eok), 2) AS avgPriceEok,
+             COUNT(DISTINCT complex_id) AS complexCount
+      FROM transactions
+      WHERE collected_at >= date('now', '-' || ? || ' days', 'localtime')
+      GROUP BY collectDate
+      ORDER BY collectDate ASC
+    `).all(days) as { collectDate: string; count: number; avgPriceEok: number; complexCount: number }[];
+    return rows;
+  }
   const rows = db.prepare(`
     SELECT substr(collected_at, 1, 10) AS collectDate,
            COUNT(*) AS count,
@@ -1071,8 +1084,21 @@ export function getRegionCollectionStatsByDate(date: string): RegionCollectStat[
 /**
  * 등록월별(계약월별) 수집 건수 통계 조회
  */
-export function getMonthlyCollectionStats(): DailyCollectStat[] {
+export function getMonthlyCollectionStats(days?: number): DailyCollectStat[] {
   const db = getDb();
+  if (days && days > 0) {
+    const rows = db.prepare(`
+      SELECT substr(deal_date, 1, 7) AS collectDate,
+             COUNT(*) AS count,
+             ROUND(AVG(price_eok), 2) AS avgPriceEok,
+             COUNT(DISTINCT complex_id) AS complexCount
+      FROM transactions
+      WHERE collected_at >= date('now', '-' || ? || ' days', 'localtime')
+      GROUP BY collectDate
+      ORDER BY collectDate ASC
+    `).all(days) as { collectDate: string; count: number; avgPriceEok: number; complexCount: number }[];
+    return rows;
+  }
   const rows = db.prepare(`
     SELECT substr(deal_date, 1, 7) AS collectDate,
            COUNT(*) AS count,

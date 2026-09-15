@@ -34,6 +34,7 @@ const fmtPrice = (v: number) =>
 
 export function CollectPage() {
   const { isMobile } = useBreakpoint();
+  const [periodTab, setPeriodTab] = useState<"recent30" | "all">("recent30");
   const [viewType, setViewType] = useState<"daily" | "monthly">("daily");
   const [chartData, setChartData] = useState<DailyCollectStat[]>([]);
   const [loadingChart, setLoadingChart] = useState(false);
@@ -44,15 +45,16 @@ export function CollectPage() {
   const [loadingRegion, setLoadingRegion] = useState(false);
   const [errorRegion, setErrorRegion] = useState<string | null>(null);
 
-  // 1. 수집 데이터 로딩 (보기 타입별)
+  // 1. 수집 데이터 로딩 (기간 및 보기 타입별)
   useEffect(() => {
     async function fetchStats() {
       setLoadingChart(true);
       setErrorChart(null);
       try {
+        const days = periodTab === "recent30" ? 30 : undefined;
         const data = viewType === "daily"
-          ? await loadDailyCollectionStats()
-          : await loadMonthlyCollectionStats();
+          ? await loadDailyCollectionStats(days)
+          : await loadMonthlyCollectionStats(days);
         setChartData(data);
         if (data.length > 0) {
           setSelectedDate(data[data.length - 1].collectDate);
@@ -67,7 +69,7 @@ export function CollectPage() {
       }
     }
     fetchStats();
-  }, [viewType]);
+  }, [periodTab, viewType]);
 
   // 2. 선택된 일자/월의 지역별 수집 데이터 로딩
   useEffect(() => {
@@ -159,35 +161,70 @@ export function CollectPage() {
         subtitle={t.collectSubtitle}
         icon={ClipboardList}
         actions={
-          <div className="flex bg-alternative p-1 rounded-xl w-fit shadow-sm">
-            <button
-              onClick={() => {
-                setViewType("daily");
-                setSelectedDate(null);
-                setRegionData([]);
-              }}
-              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
-                viewType === "daily"
-                  ? "bg-elevated text-primary shadow-xs"
-                  : "text-neutral hover:text-strong"
-              }`}
-            >
-              {t.dailyView}
-            </button>
-            <button
-              onClick={() => {
-                setViewType("monthly");
-                setSelectedDate(null);
-                setRegionData([]);
-              }}
-              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
-                viewType === "monthly"
-                  ? "bg-elevated text-primary shadow-xs"
-                  : "text-neutral hover:text-strong"
-              }`}
-            >
-              {t.monthlyView}
-            </button>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* 기간 필터 탭 (최근 30일 / 전체) */}
+            <div className="flex bg-alternative p-1 rounded-xl w-fit shadow-sm">
+              <button
+                onClick={() => {
+                  setPeriodTab("recent30");
+                  setSelectedDate(null);
+                  setRegionData([]);
+                }}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                  periodTab === "recent30"
+                    ? "bg-elevated text-primary shadow-xs"
+                    : "text-neutral hover:text-strong"
+                }`}
+              >
+                {t.periodRecent30}
+              </button>
+              <button
+                onClick={() => {
+                  setPeriodTab("all");
+                  setSelectedDate(null);
+                  setRegionData([]);
+                }}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                  periodTab === "all"
+                    ? "bg-elevated text-primary shadow-xs"
+                    : "text-neutral hover:text-strong"
+                }`}
+              >
+                {t.periodAll}
+              </button>
+            </div>
+
+            {/* 보기 방식 탭 (일자별 / 등록월별) */}
+            <div className="flex bg-alternative p-1 rounded-xl w-fit shadow-sm">
+              <button
+                onClick={() => {
+                  setViewType("daily");
+                  setSelectedDate(null);
+                  setRegionData([]);
+                }}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                  viewType === "daily"
+                    ? "bg-elevated text-primary shadow-xs"
+                    : "text-neutral hover:text-strong"
+                }`}
+              >
+                {t.dailyView}
+              </button>
+              <button
+                onClick={() => {
+                  setViewType("monthly");
+                  setSelectedDate(null);
+                  setRegionData([]);
+                }}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                  viewType === "monthly"
+                    ? "bg-elevated text-primary shadow-xs"
+                    : "text-neutral hover:text-strong"
+                }`}
+              >
+                {t.monthlyView}
+              </button>
+            </div>
           </div>
         }
       />

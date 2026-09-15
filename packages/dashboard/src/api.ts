@@ -380,12 +380,14 @@ export function saveUserConfig(config: {
 
 // 📊 수집 현황 통계 API 추가
 
-export function loadDailyCollectionStats() {
-  return request<DailyCollectStat[]>("/api/graph/collect-stats/daily");
+export function loadDailyCollectionStats(days?: number) {
+  const query = days ? `?days=${days}` : "";
+  return request<DailyCollectStat[]>(`/api/graph/collect-stats/daily${query}`);
 }
 
-export function loadMonthlyCollectionStats() {
-  return request<DailyCollectStat[]>("/api/graph/collect-stats/monthly");
+export function loadMonthlyCollectionStats(days?: number) {
+  const query = days ? `?days=${days}` : "";
+  return request<DailyCollectStat[]>(`/api/graph/collect-stats/monthly${query}`);
 }
 
 export function loadRegionCollectionStats(dateOrMonth: string, type: "daily" | "monthly" = "daily") {

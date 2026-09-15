@@ -252,14 +252,16 @@ router.get("/context", asyncHandler(async (req, res) => {
 }));
 
 /** GET /api/graph/collect-stats/daily — 일단위 수집 집계 */
-router.get("/collect-stats/daily", asyncHandler(async (_req, res) => {
-  const stats = await getDailyCollectionStats();
+router.get("/collect-stats/daily", asyncHandler(async (req, res) => {
+  const days = req.query.days ? Number(req.query.days) : undefined;
+  const stats = await getDailyCollectionStats(days);
   res.json(stats);
 }));
 
 /** GET /api/graph/collect-stats/monthly — 등록월 단위 수집 집계 */
-router.get("/collect-stats/monthly", asyncHandler(async (_req, res) => {
-  const stats = await getMonthlyCollectionStats();
+router.get("/collect-stats/monthly", asyncHandler(async (req, res) => {
+  const days = req.query.days ? Number(req.query.days) : undefined;
+  const stats = await getMonthlyCollectionStats(days);
   res.json(stats);
 }));
 
