@@ -108,7 +108,7 @@ export async function syncSupplyArea(params: {
   }
 
   // 2. 공공데이터 인증키가 없거나 법정동 코드를 못 찾은 경우 폴백 계산 (전용률 78% 가정)
-  const apiKey = process.env.DATA_GO_KR_API_KEY;
+  const apiKey = process.env.BLD_RGST_API_KEY || process.env.DATA_GO_KR_API_KEY;
   if (!apiKey || !bCode || bCode.length < 10) {
     const fallbackSupply = Number((areaM2 / 0.78).toFixed(2));
     upsertAreaMapping(complexId, areaM2, fallbackSupply, "fallback");
@@ -119,8 +119,8 @@ export async function syncSupplyArea(params: {
   const bjdongCd = bCode.slice(5, 10); // 5자리 법정동
   const { bun, ji } = parseJibun(jibun || "");
 
-  // 2.5 건축물대장 표제부 API 호출 및 메타정보 갱신 (세대수, 주차대수 등)
-  const titleUrl = `http://apis.data.go.kr/1613000/BldRgstService_v2/getBrTitleInfo?serviceKey=${apiKey}&sigunguCd=${sigunguCd}&bjdongCd=${bjdongCd}&bun=${bun}&ji=${ji}&numOfRows=10&pageNo=1`;
+  // 2.5 건축물대장 표제부 API 호출 및 메타정보 갱신 (건축HUB 신규 엔드포인트)
+  const titleUrl = `https://apis.data.go.kr/1613000/BldRgstHubService/getBrTitleInfo?serviceKey=${apiKey}&sigunguCd=${sigunguCd}&bjdongCd=${bjdongCd}&platGbCd=0&bun=${bun}&ji=${ji}&numOfRows=10&pageNo=1`;
   try {
     const titleRes = await fetch(titleUrl, { signal: AbortSignal.timeout(10000) });
     if (titleRes.ok) {
@@ -130,11 +130,11 @@ export async function syncSupplyArea(params: {
         const target = titleItems.find((it: any) => String(it.bldNm).includes(complexName)) || titleItems[0];
         const hhldCnt = Number(target.hhldCnt || 0);
         const totPkngCnt = Number(target.totPkngCnt || 0);
-        const useAprvDay = String(target.useAprvDay || "").trim();
+        const useAprDay = String(target.useAprDay || target.useAprvDay || "").trim();
 
         let formattedDate: string | null = null;
-        if (useAprvDay && useAprvDay.length === 8) {
-          formattedDate = `${useAprvDay.substring(0, 4)}-${useAprvDay.substring(4, 6)}-${useAprvDay.substring(6, 8)}`;
+        if (useAprDay && useAprDay.length === 8) {
+          formattedDate = `${useAprDay.substring(0, 4)}-${useAprDay.substring(4, 6)}-${useAprDay.substring(6, 8)}`;
         }
 
         const parkingPerHousehold = hhldCnt > 0 ? Number((totPkngCnt / hhldCnt).toFixed(2)) : null;
@@ -153,22 +153,31 @@ export async function syncSupplyArea(params: {
     console.warn(`[AreaMapper] 표제부 API 연동 실패 (${complexName}):`, err.message);
   }
 
-  // 3. 건축물대장 전유공용면적 API 호출
-  const url = `http://apis.data.go.kr/1613000/BldRgstService_v2/getBrExposPubuseAreaInfo?serviceKey=${apiKey}&sigunguCd=${sigunguCd}&bjdongCd=${bjdongCd}&bun=${bun}&ji=${ji}&numOfRows=1000&pageNo=1`;
-
+  // 3. 건축물대장 전유공용면적 API 호출 (건축HUB 신규 엔드포인트: numOfRows는 최대 100건 제한 준수)
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    let matchedExpos: any[] = [];
+    let items: any[] = [];
 
-    const xmlText = await res.text();
-    const items = parseRealEstateXml(xmlText);
+    // 최대 3페이지(300건)까지 탐색하여 전용면적 일치 세대 검색
+    for (let page = 1; page <= 3; page++) {
+      const url = `https://apis.data.go.kr/1613000/BldRgstHubService/getBrExposPubuseAreaInfo?serviceKey=${apiKey}&sigunguCd=${sigunguCd}&bjdongCd=${bjdongCd}&platGbCd=0&bun=${bun}&ji=${ji}&numOfRows=100&pageNo=${page}`;
+      const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-    // 전유 면적 중 실거래 전용면적(areaM2)과 일치하는 항목(오차 0.1㎡ 이내) 조회
-    const matchedExpos = items.filter(
-      (it: any) =>
-        (it.exposPubuseAreaGbCd === 1 || it.exposPubuseAreaGbCd === "1" || String(it.exposPubuseAreaGbCdNm).includes("전유")) &&
-        Math.abs(Number(it.area) - areaM2) < 0.1
-    );
+      const xmlText = await res.text();
+      const pageItems = parseRealEstateXml(xmlText);
+      if (!pageItems || pageItems.length === 0) break;
+      items = pageItems;
+
+      matchedExpos = items.filter((it: any) => {
+        const gbCd = it.exposPubuseGbCd || it.exposPubuseAreaGbCd;
+        const gbNm = String(it.exposPubuseGbCdNm || it.exposPubuseAreaGbCdNm || "");
+        const isExpos = gbCd === 1 || gbCd === "1" || gbNm.includes("전유");
+        return isExpos && Math.abs(Number(it.area) - areaM2) < 0.1;
+      });
+
+      if (matchedExpos.length > 0) break;
+    }
 
     if (matchedExpos.length > 0) {
       // 매칭된 호 중 첫 번째 호를 기준으로 주거공용면적 합산
@@ -177,17 +186,17 @@ export async function syncSupplyArea(params: {
       const targetHo = targetExpo.hoNm;
 
       // 동일한 동, 호를 가진 공용 면적 필터링
-      const publicAreas = items.filter(
-        (it: any) =>
-          (it.exposPubuseAreaGbCd === 2 || it.exposPubuseAreaGbCd === "2" || String(it.exposPubuseAreaGbCdNm).includes("공용")) &&
-          it.dongNm === targetDong &&
-          it.hoNm === targetHo
-      );
+      const publicAreas = items.filter((it: any) => {
+        const gbCd = it.exposPubuseGbCd || it.exposPubuseAreaGbCd;
+        const gbNm = String(it.exposPubuseGbCdNm || it.exposPubuseAreaGbCdNm || "");
+        const isPublic = gbCd === 2 || gbCd === "2" || gbNm.includes("공용");
+        return isPublic && it.dongNm === targetDong && it.hoNm === targetHo;
+      });
 
       // 공용 면적 중 '주거공용' 성격의 면적 합산
       let mainPublicAreaSum = 0;
       for (const pa of publicAreas) {
-        const purpose = String(pa.etcPurps || pa.exposPubuseAreaGbCdNm || "");
+        const purpose = String(pa.etcPurps || pa.exposPubuseGbCdNm || pa.exposPubuseAreaGbCdNm || "");
         
         // 제외할 용도 키워드 (기타공용, 주차장, 기계실 등 공급면적 외 제외)
         const excludeKeywords = ["주차", "기계", "전기", "정화조", "발전", "기타", "노유자", "주민"];

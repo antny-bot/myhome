@@ -3,6 +3,7 @@ export const Config = {
   get KAKAO_REST_API_KEY() { return process.env.KAKAO_REST_API_KEY; },
   get JUSO_CONFM_KEY() { return process.env.JUSO_CONFM_KEY; },
   get DATA_GO_KR_API_KEY() { return process.env.DATA_GO_KR_API_KEY; },
+  get BLD_RGST_API_KEY() { return process.env.BLD_RGST_API_KEY; },
   get KAKAO_JAVASCRIPT_KEY() { return process.env.KAKAO_JAVASCRIPT_KEY; },
   get KAKAO_NATIVE_APP_KEY() { return process.env.KAKAO_NATIVE_APP_KEY; },
   get GEMINI_API_KEY() { return process.env.GEMINI_API_KEY; },
