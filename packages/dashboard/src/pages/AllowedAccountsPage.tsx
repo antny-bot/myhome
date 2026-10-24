@@ -1,21 +1,29 @@
 import React, { useState, useEffect } from "react";
-import { UserCheck, ShieldAlert, CheckCircle, Save, Plus, Trash2, Mail, Loader2, Copy, Check, KeyRound } from "lucide-react";
-import { useBreakpoint } from "../useBreakpoint";
+import { UserCheck, ShieldAlert, Plus, Trash2, Mail, Copy, Check, KeyRound } from "lucide-react";
 import { PageHeader } from "../components/PageHeader";
 import { SectionCard } from "../components/SectionCard";
 import { loadSystemConfig, saveSystemConfig, addUserAccount } from "../api";
 import { copy } from "../locales/ko";
+import {
+  Button,
+  IconButton,
+  Input,
+  Checkbox,
+  Badge,
+  ConfirmDialog,
+  useToast,
+  Spinner,
+} from "../components/ui";
+import { EmptyState } from "../components/common/EmptyState";
 
 const locale = "ko";
 const t = copy[locale];
 
 export function AllowedAccountsPage({ onChanged, currentUserEmail }: { onChanged?: () => void; currentUserEmail?: string }) {
-  const { isMobile } = useBreakpoint();
+  const toast = useToast();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [successMsg, setSuccessMsg] = useState("");
-  const [errorMsg, setErrorMsg] = useState("");
-  
+
   // 상태 변수
   const [allowedEmails, setAllowedEmails] = useState<string[]>([]);
   const [adminEmails, setAdminEmails] = useState<string[]>([]);
@@ -23,14 +31,17 @@ export function AllowedAccountsPage({ onChanged, currentUserEmail }: { onChanged
   const [isAdminChecked, setIsAdminChecked] = useState(false);
   const [tempPassInfo, setTempPassInfo] = useState<{ email: string; tempPass: string } | null>(null);
   const [copied, setCopied] = useState(false);
- 
+
+  // 삭제 및 재발급 확인 모달 상태
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [resetTarget, setResetTarget] = useState<string | null>(null);
+
   // 전체 설정 로드 후 이메일 목록만 추출
   const fetchConfig = async () => {
     setLoading(true);
-    setErrorMsg("");
     try {
       const data = await loadSystemConfig();
-      
+
       const emailsStr = data.allowedEmails || "";
       const emailsArr = emailsStr
         .split(",")
@@ -46,7 +57,7 @@ export function AllowedAccountsPage({ onChanged, currentUserEmail }: { onChanged
       setAdminEmails(adminArr);
     } catch (err: any) {
       console.error("Failed to load allowed emails:", err);
-      setErrorMsg(err.message || "설정을 불러오지 못했습니다.");
+      toast.error(err.message || "설정을 불러오지 못했습니다.");
     } finally {
       setLoading(false);
     }
@@ -66,24 +77,20 @@ export function AllowedAccountsPage({ onChanged, currentUserEmail }: { onChanged
   const handleAddEmail = async (e: React.FormEvent) => {
     e.preventDefault();
     const emailToAdd = newEmail.trim().toLowerCase();
-    
+
     if (!emailToAdd) return;
-    
+
     if (!isValidEmail(emailToAdd)) {
-      setErrorMsg(t.invalidEmail);
-      setTimeout(() => setErrorMsg(""), 3000);
+      toast.warning(t.invalidEmail);
       return;
     }
 
     if (allowedEmails.includes(emailToAdd)) {
-      setErrorMsg(t.alreadyExists);
-      setTimeout(() => setErrorMsg(""), 3000);
+      toast.warning(t.alreadyExists);
       return;
     }
 
     setSaving(true);
-    setSuccessMsg("");
-    setErrorMsg("");
     setTempPassInfo(null);
     try {
       const res = await addUserAccount(emailToAdd, isAdminChecked);
@@ -92,8 +99,7 @@ export function AllowedAccountsPage({ onChanged, currentUserEmail }: { onChanged
         if (isAdminChecked) {
           setAdminEmails((prev) => [...prev, emailToAdd]);
         }
-        setSuccessMsg(t.addSuccess);
-        setTimeout(() => setSuccessMsg(""), 3000);
+        toast.success(t.addSuccess);
         if (res.tempPassword) {
           setTempPassInfo({ email: emailToAdd, tempPass: res.tempPassword });
         }
@@ -103,62 +109,58 @@ export function AllowedAccountsPage({ onChanged, currentUserEmail }: { onChanged
       }
     } catch (err: any) {
       console.error("Failed to add user account:", err);
-      setErrorMsg(err.message || t.settingsSaveFailed);
+      toast.error(err.message || t.settingsSaveFailed);
     } finally {
       setSaving(false);
     }
   };
 
-  // 이메일 삭제
-  const handleDeleteEmail = async (emailToDelete: string) => {
-    if (!window.confirm(t.deleteAccountConfirm)) {
-      return;
-    }
+  // 이메일 삭제 실행
+  const confirmDeleteEmail = async () => {
+    if (!deleteTarget) return;
+    const emailToDelete = deleteTarget;
 
     // 본인 계정 삭제 제한
     if (currentUserEmail && emailToDelete.toLowerCase() === currentUserEmail.toLowerCase()) {
-      setErrorMsg(t.cantRemoveSelfAdmin || "본인 계정은 삭제할 수 없습니다.");
-      setTimeout(() => setErrorMsg(""), 3000);
+      toast.error(t.cantRemoveSelfAdmin || "본인 계정은 삭제할 수 없습니다.");
+      setDeleteTarget(null);
       return;
     }
 
     // 마지막 관리자 삭제 방지
     const isToDeleteAdmin = adminEmails.includes(emailToDelete);
     if (isToDeleteAdmin && adminEmails.length <= 1) {
-      setErrorMsg(t.atLeastOneAdmin || "최소 한 명 이상의 관리자가 존재해야 합니다.");
-      setTimeout(() => setErrorMsg(""), 3000);
+      toast.error(t.atLeastOneAdmin || "최소 한 명 이상의 관리자가 존재해야 합니다.");
+      setDeleteTarget(null);
       return;
     }
 
     const updatedEmails = allowedEmails.filter((email) => email !== emailToDelete);
     const updatedAdmins = adminEmails.filter((email) => email !== emailToDelete);
     await saveConfig(updatedEmails, updatedAdmins, t.deleteSuccess);
+    setDeleteTarget(null);
   };
 
-  // 임시 비밀번호 재발급
-  const handleResetPassword = async (email: string) => {
-    const confirmMsg = t.resetPasswordConfirm.replace("{email}", email);
-    if (!window.confirm(confirmMsg)) {
-      return;
-    }
+  // 임시 비밀번호 재발급 실행
+  const confirmResetPassword = async () => {
+    if (!resetTarget) return;
+    const email = resetTarget;
 
     setSaving(true);
-    setSuccessMsg("");
-    setErrorMsg("");
     setTempPassInfo(null);
     try {
       const isEmailAdmin = adminEmails.includes(email);
       const res = await addUserAccount(email, isEmailAdmin);
       if (res.ok && res.tempPassword) {
-        setSuccessMsg(t.resetPasswordSuccess);
-        setTimeout(() => setSuccessMsg(""), 3000);
+        toast.success(t.resetPasswordSuccess);
         setTempPassInfo({ email, tempPass: res.tempPassword });
       }
     } catch (err: any) {
       console.error("Failed to reset password:", err);
-      setErrorMsg(err.message || t.settingsSaveFailed);
+      toast.error(err.message || t.settingsSaveFailed);
     } finally {
       setSaving(false);
+      setResetTarget(null);
     }
   };
 
@@ -168,16 +170,12 @@ export function AllowedAccountsPage({ onChanged, currentUserEmail }: { onChanged
     let updatedAdmins: string[];
 
     if (isAdmin) {
-      // 본인의 관리자 권한 해제 제한
       if (currentUserEmail && email.toLowerCase() === currentUserEmail.toLowerCase()) {
-        setErrorMsg(t.cantRemoveSelfAdmin || "본인의 관리자 권한은 해제할 수 없습니다.");
-        setTimeout(() => setErrorMsg(""), 3000);
+        toast.warning(t.cantRemoveSelfAdmin || "본인의 관리자 권한은 해제할 수 없습니다.");
         return;
       }
-      // 최소 1명의 관리자 유지 검증
       if (adminEmails.length <= 1) {
-        setErrorMsg(t.atLeastOneAdmin || "최소 한 명 이상의 관리자가 존재해야 합니다.");
-        setTimeout(() => setErrorMsg(""), 3000);
+        toast.warning(t.atLeastOneAdmin || "최소 한 명 이상의 관리자가 존재해야 합니다.");
         return;
       }
       updatedAdmins = adminEmails.filter((e) => e !== email);
@@ -191,23 +189,20 @@ export function AllowedAccountsPage({ onChanged, currentUserEmail }: { onChanged
   // 서버에 저장하는 공통 함수
   const saveConfig = async (emailsArr: string[], adminsArr: string[], successNotification: string) => {
     setSaving(true);
-    setSuccessMsg("");
-    setErrorMsg("");
     try {
       const allowedEmailsStr = emailsArr.join(",");
       const adminEmailsStr = adminsArr.join(",");
       await saveSystemConfig({
         allowedEmails: allowedEmailsStr,
-        adminEmails: adminEmailsStr
+        adminEmails: adminEmailsStr,
       });
       setAllowedEmails(emailsArr);
       setAdminEmails(adminsArr);
-      setSuccessMsg(successNotification);
-      setTimeout(() => setSuccessMsg(""), 3000);
+      toast.success(successNotification);
       if (onChanged) onChanged();
     } catch (err: any) {
       console.error("Failed to save allowed emails:", err);
-      setErrorMsg(err.message || t.settingsSaveFailed);
+      toast.error(err.message || t.settingsSaveFailed);
     } finally {
       setSaving(false);
     }
@@ -230,76 +225,65 @@ export function AllowedAccountsPage({ onChanged, currentUserEmail }: { onChanged
           >
             <form onSubmit={handleAddEmail} className="space-y-4">
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-neutral">Account Email</label>
-                <div className="relative flex items-center">
-                  <Mail className="absolute left-3 h-4 w-4 text-assistive" />
-                  <input
-                    type="text"
-                    value={newEmail}
-                    onChange={(e) => setNewEmail(e.target.value)}
-                    placeholder={t.emailPlaceholder}
-                    disabled={loading || saving}
-                    className="w-full bg-normal border border-normal rounded-lg pl-10 pr-3 py-2.5 text-xs text-strong placeholder-assistive focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 px-1">
-                <input
-                  type="checkbox"
-                  id="isAdmin"
-                  checked={isAdminChecked}
-                  onChange={(e) => setIsAdminChecked(e.target.checked)}
+                <label className="text-xs font-semibold text-strong">Account Email</label>
+                <Input
+                  type="email"
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  placeholder={t.emailPlaceholder}
                   disabled={loading || saving}
-                  className="h-4 w-4 cursor-pointer rounded border-slate-300/80 bg-white/50 text-primary transition-colors focus:ring-primary dark:border-slate-800/80 dark:bg-slate-950/40 dark:focus:ring-primary"
+                  leftIcon={Mail}
+                  inputSize="md"
                 />
-                <label
-                  htmlFor="isAdmin"
-                  className="cursor-pointer select-none text-xs text-neutral hover:text-strong transition"
-                >
-                  {t.isAdminUser}
-                </label>
               </div>
 
-              <button
+              <Checkbox
+                id="isAdmin"
+                checked={isAdminChecked}
+                onChange={(e) => setIsAdminChecked(e.target.checked)}
+                disabled={loading || saving}
+                label={t.isAdminUser}
+              />
+
+              <Button
                 type="submit"
-                disabled={loading || saving || !newEmail.trim()}
-                className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 bg-primary hover:bg-primary/80 text-white text-xs font-bold rounded-lg shadow-lg shadow-primary/20 transition disabled:opacity-50"
+                variant="primary"
+                size="md"
+                fullWidth
+                loading={saving}
+                disabled={loading || !newEmail.trim()}
+                leftIcon={Plus}
               >
-                {saving ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Plus size={14} />
-                )}
-                <span>{saving ? "저장 중..." : t.addAccount}</span>
-              </button>
+                {t.addAccount}
+              </Button>
             </form>
 
             {tempPassInfo && (
-              <div className="mt-4 p-4 rounded-xl border border-blue-500/20 bg-blue-500/5 dark:bg-blue-500/10 space-y-2 animate-in fade-in slide-in-from-top duration-300">
-                <div className="text-xs font-bold text-blue-500 flex items-center gap-1.5">
+              <div className="mt-4 p-4 rounded-xl border border-primary/20 bg-primary-light/10 space-y-2 animate-fade-in-up">
+                <div className="text-xs font-bold text-primary flex items-center gap-1.5">
                   <ShieldAlert size={14} />
                   <span>{t.tempPasswordIssued}</span>
                 </div>
-                <p className="text-[11px] text-neutral leading-relaxed">
+                <p className="text-xs text-neutral leading-relaxed">
                   {t.tempPasswordAlert}
                 </p>
-                <div className="flex items-center gap-2 bg-normal/30 border border-normal p-2 rounded-lg mt-1">
+                <div className="flex items-center gap-2 bg-elevated border border-normal p-2 rounded-lg mt-1">
                   <code className="text-xs font-mono font-bold text-strong select-all flex-grow break-all px-1">
                     {tempPassInfo.tempPass}
                   </code>
-                  <button
-                    type="button"
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => {
                       navigator.clipboard.writeText(tempPassInfo.tempPass);
                       setCopied(true);
                       setTimeout(() => setCopied(false), 2000);
                     }}
-                    className="p-1.5 hover:bg-normal/50 rounded-md transition text-primary flex items-center gap-1 text-[11px] font-semibold flex-shrink-0"
+                    leftIcon={copied ? Check : Copy}
+                    className="text-xs"
                   >
-                    {copied ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
-                    <span>{copied ? t.copySuccess : t.copyTempPassword}</span>
-                  </button>
+                    {copied ? t.copySuccess : t.copyTempPassword}
+                  </Button>
                 </div>
               </div>
             )}
@@ -312,90 +296,105 @@ export function AllowedAccountsPage({ onChanged, currentUserEmail }: { onChanged
             title={t.allowedAccountsListTitle}
             right={<UserCheck className="h-4 w-4 text-primary" />}
           >
-            {successMsg && (
-              <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 text-xs px-4 py-3 rounded-lg mb-4 animate-in fade-in duration-300">
-                <CheckCircle size={14} />
-                <span>{successMsg}</span>
-              </div>
-            )}
-            {errorMsg && (
-              <div className="flex items-center gap-2 bg-warn/10 border border-warn/30 text-warn text-xs px-4 py-3 rounded-lg mb-4 animate-in fade-in duration-300">
-                <ShieldAlert size={14} />
-                <span>{errorMsg}</span>
-              </div>
-            )}
-
             {loading ? (
               <div className="flex justify-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+                <Spinner size="lg" color="primary" />
               </div>
             ) : allowedEmails.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-center bg-normal/10 border border-dashed border-normal rounded-xl p-6">
-                <ShieldAlert className="h-10 w-10 text-warn mb-3" />
-                <p className="text-sm font-semibold text-strong">{t.noAllowedAccounts}</p>
-                <p className="text-xs text-neutral mt-1">접근 제한을 해제하려면 최소 1개 이상의 이메일을 등록해야 합니다.</p>
-              </div>
+              <EmptyState
+                icon={ShieldAlert}
+                title={t.noAllowedAccounts}
+                description="접근 제한을 해제하려면 최소 1개 이상의 이메일을 등록해야 합니다."
+              />
             ) : (
-              <div className="border border-normal rounded-xl overflow-hidden bg-normal/10 divide-y divide-normal">
+              <div className="border border-normal rounded-xl overflow-hidden bg-elevated divide-y divide-normal">
                 {allowedEmails.map((email) => {
                   const isEmailAdmin = adminEmails.includes(email);
                   return (
                     <div
                       key={email}
-                      className="flex items-center justify-between px-4 py-3.5 hover:bg-normal/30 transition duration-150 group"
+                      className="flex items-center justify-between px-4 py-3.5 hover:bg-alternative/40 transition duration-150"
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className="bg-primary/10 text-primary p-2 rounded-lg flex-shrink-0">
+                        <div className="bg-primary-light text-primary p-2 rounded-lg shrink-0">
                           <Mail className="h-4 w-4" />
                         </div>
                         <span className="text-sm font-medium text-strong truncate break-all pr-2">
                           {email}
                         </span>
                       </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
+                      <div className="flex items-center gap-2 shrink-0">
                         <button
                           type="button"
                           onClick={() => handleToggleAdmin(email)}
                           disabled={saving}
-                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all ${
-                            isEmailAdmin 
-                              ? "bg-primary/10 text-primary border-primary/20 hover:bg-primary/20" 
-                              : "bg-normal border-normal text-neutral hover:text-strong hover:bg-normal/50"
-                          }`}
+                          className="cursor-pointer"
                           title={isEmailAdmin ? "일반 사용자로 변경" : "관리자로 변경"}
                         >
-                          {isEmailAdmin ? t.userRoleAdmin : t.userRoleNormal}
+                          <Badge
+                            tone={isEmailAdmin ? "primary" : "neutral"}
+                            variant="subtle"
+                            size="md"
+                          >
+                            {isEmailAdmin ? t.userRoleAdmin : t.userRoleNormal}
+                          </Badge>
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => handleResetPassword(email)}
+                        <IconButton
+                          aria-label={t.resetPasswordTooltip}
+                          icon={KeyRound}
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setResetTarget(email)}
                           disabled={saving}
-                          className="p-2 text-neutral hover:text-amber-600 hover:bg-amber-500/10 rounded-lg transition-colors flex-shrink-0"
-                          title={t.resetPasswordTooltip}
-                        >
-                          <KeyRound size={16} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteEmail(email)}
+                          className="text-neutral hover:text-warning"
+                        />
+                        <IconButton
+                          aria-label="삭제"
+                          icon={Trash2}
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setDeleteTarget(email)}
                           disabled={saving}
-                          className="p-2 text-neutral hover:text-rose-600 hover:bg-rose-500/10 rounded-lg transition-colors flex-shrink-0"
-                          title="삭제"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                          className="text-neutral hover:text-warn"
+                        />
                       </div>
                     </div>
                   );
                 })}
               </div>
             )}
-            <div className="mt-4 text-[10px] text-assistive">
+            <div className="mt-4 text-xs text-assistive">
               * 여기에 등록된 계정 이메일 주소로 구글 OAuth 인증 또는 발급된 임시 비밀번호를 통해 대시보드 시스템에 로그인할 수 있습니다.
             </div>
           </SectionCard>
         </div>
       </div>
+
+      {/* 계정 삭제 확인 다이얼로그 */}
+      <ConfirmDialog
+        isOpen={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={confirmDeleteEmail}
+        title="계정 삭제 확인"
+        message={t.deleteAccountConfirm}
+        confirmText="삭제"
+        cancelText="취소"
+        tone="danger"
+        loading={saving}
+      />
+
+      {/* 임시 비밀번호 재발급 확인 다이얼로그 */}
+      <ConfirmDialog
+        isOpen={Boolean(resetTarget)}
+        onClose={() => setResetTarget(null)}
+        onConfirm={confirmResetPassword}
+        title="임시 비밀번호 재발급"
+        message={t.resetPasswordConfirm.replace("{email}", resetTarget || "")}
+        confirmText="재발급"
+        cancelText="취소"
+        tone="primary"
+        loading={saving}
+      />
     </div>
   );
 }
