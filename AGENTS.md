@@ -7,6 +7,13 @@
 - 프론트엔드 모바일 퍼스트 — 390px 모바일·태블릿·데스크톱 검증.
 - 독립 가능 작업 subagent 병렬 진행.
 
+
+## 모듈러 아키텍처 규칙 (v0.3.5 이후)
+- **DB 계층**: 2,000줄 이상의 거대 단일 `db.ts` 대신 `packages/shared/src/db/` 하위 전용 도메인 모듈(`transactions.ts`, `analytics.ts`, `regions.ts` 등)에 기능 추가. `db.ts`는 하위 호환 re-export 배럴로 유지.
+- **서버 라우팅**: `server/routes.ts` 단일 파일에 비즈니스 로직을 누적하지 않고 `server/routes/` 하위 도메인 라우터(`ruleRoutes`, `configRoutes`, `transactionRoutes`, `logRoutes`)에 분리 배치.
+- **프론트엔드 차트**: Recharts 커스텀 도형 및 스타일은 `src/components/charts/` 공통 모듈 재사용.
+- **SQL 쿼리 작성**: 컬럼에 함수식을 씌우지 않는 SARGable 범위 비교 준수, N+1 상관 서브쿼리 지양(Window Function 또는 일괄 조인 활용).
+
 ## 안드레아 카파시(Andrej Karpathy)의 AI 협업 4대 원칙
 1. **읽기 우선 (Read before write)**: 코드 작성·수정 전 기존 소스 동작·맥락 완벽 파악.
 2. **작고 점진적인 변경 (Small, incremental changes)**: 방대 아키텍처 일괄 수정 금지, 빌드·동작 확인 가능 최소 단위 점진 수정.
