@@ -213,6 +213,20 @@ router.get("/complex/:name/detail", asyncHandler(async (req, res) => {
       }
     }
 
+    // 건축물대장 메타데이터(세대수 등)가 없으면 Lazy 건축HUB 동기화 수행
+    if (complexInfo.totalHouseholds == null) {
+      try {
+        const { syncComplexBuildingMeta } = await import("@myhome/shared");
+        const synced = await syncComplexBuildingMeta(complexInfo.id);
+        if (synced) {
+          const reloaded = getComplexGeo(complexName, lawdCode);
+          if (reloaded) complexInfo = reloaded;
+        }
+      } catch (err: any) {
+        console.warn(`[Lazy BuildingSync] 실패: ${complexInfo.name}:`, err.message);
+      }
+    }
+
     // 좌표가 있는 경우 주변 지하철역 검색 (반경 1km)
     if (complexInfo.lat !== null && complexInfo.lng !== null) {
       subways = await findSubwayStationsNearCoords(complexInfo.lat, complexInfo.lng, 1000);
