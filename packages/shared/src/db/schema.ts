@@ -50,6 +50,8 @@ export function initDb(): void {
     CREATE INDEX IF NOT EXISTS idx_transactions_deal_date ON transactions(deal_date);
     CREATE INDEX IF NOT EXISTS idx_transactions_complex_id ON transactions(complex_id);
     CREATE INDEX IF NOT EXISTS idx_complexes_lawd_code ON complexes(lawd_code);
+    CREATE INDEX IF NOT EXISTS idx_complexes_name ON complexes(name);
+    CREATE INDEX IF NOT EXISTS idx_transactions_complex_deal_date ON transactions(complex_id, deal_date DESC);
     CREATE INDEX IF NOT EXISTS idx_region_apartment_cache_lawd_code ON region_apartment_cache(lawd_code);
 
     CREATE TABLE IF NOT EXISTS sessions (
@@ -253,6 +255,8 @@ export function initDb(): void {
 
   // Complexes/Regions 단지명 및 지역명 검색 성능 개선용 인덱스 추가
   db.exec('CREATE INDEX IF NOT EXISTS idx_complexes_lawd_name ON complexes(lawd_code, name)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_complexes_name ON complexes(name)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_transactions_complex_deal_date ON transactions(complex_id, deal_date DESC)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_regions_display_name ON regions(display_name)');
 
   // FTS5 (Full-Text Search) 가상 테이블 생성

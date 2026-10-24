@@ -19,6 +19,7 @@ import { useBreakpoint } from "../../useBreakpoint";
 import { TrendingUp, DollarSign, Home, Activity } from "lucide-react";
 import { copy } from "../../locales/ko";
 import { calculateBoxPlot } from "../../lib/stats";
+import { tooltipContentStyle, BoxPlotShape, interpolateHeatColor } from "../../components/charts/index.js";
 
 interface OverviewTabProps {
   data: any[]; // searchTransactions 결과
@@ -28,129 +29,8 @@ interface OverviewTabProps {
   locale?: "ko" | "en";
 }
 
-const tooltipContentStyle = {
-  backgroundColor: "var(--color-semantic-background-elevated-normal)",
-  border: "1px solid var(--color-semantic-line-normal-normal)",
-  borderRadius: "8px",
-  color: "var(--color-semantic-label-strong)",
-  fontSize: "12px",
-};
+// 공통 차트 컴포넌트 & 스타일은 components/charts에서 import됨
 
-const BoxPlotShape = (props: any) => {
-  const { x, y, width, height, payload, yAxis, showWhiskers = true, showBox = true, showMedian = true, showMean = true } = props;
-  if (!payload) return null;
-
-  const min = payload.min;
-  const max = payload.max;
-  const q1 = payload.q1;
-  const q3 = payload.q3;
-  const median = payload.median;
-  const mean = payload.mean !== undefined ? payload.mean : payload.avg;
-
-  if (min === undefined || max === undefined || q1 === undefined || q3 === undefined || median === undefined || mean === undefined) {
-    return null;
-  }
-
-  const getY = (val: number) => {
-    if (yAxis && typeof yAxis.scale === "function") {
-      return yAxis.scale(val);
-    }
-    if (yAxis && yAxis.domain) {
-      const [minD, maxD] = yAxis.domain;
-      const range = maxD - minD;
-      if (range === 0) return yAxis.y + yAxis.height;
-      const ratio = (val - minD) / range;
-      return yAxis.y + yAxis.height - ratio * yAxis.height;
-    }
-    const assumedMinD = Math.max(0, Math.floor(min * 0.9));
-    const denom = mean - assumedMinD;
-    if (denom <= 0) return y;
-    const pixelsPerUnit = height / denom;
-    return y + height - (val - assumedMinD) * pixelsPerUnit;
-  };
-
-  const yMin = getY(min);
-  const yMax = getY(max);
-  const yQ1 = getY(q1);
-  const yQ3 = getY(q3);
-  const yMedian = getY(median);
-  const yMean = getY(mean);
-
-  const centerX = x + width / 2;
-  const boxWidth = Math.min(width * 0.7, 24);
-  const boxLeft = centerX - boxWidth / 2;
-
-  const boxStroke = "var(--color-chart-primary)";
-  const boxFill = "var(--color-chart-primary)";
-  const whiskerStroke = "var(--color-semantic-line-normal-normal)";
-  const medianStroke = "var(--color-chart-median)";
-  const meanFill = "var(--color-chart-accent)";
-
-  return (
-    <g>
-      {/* 1. Whisker (최소 ~ 최대 세로선) */}
-      {showWhiskers && (
-        <g>
-          <line x1={centerX} y1={yMin} x2={centerX} y2={yMax} stroke={whiskerStroke} strokeWidth={1.5} strokeDasharray="3 3" />
-          <line x1={centerX - boxWidth / 4} y1={yMin} x2={centerX + boxWidth / 4} y2={yMin} stroke={whiskerStroke} strokeWidth={1.5} />
-          <line x1={centerX - boxWidth / 4} y1={yMax} x2={centerX + boxWidth / 4} y2={yMax} stroke={whiskerStroke} strokeWidth={1.5} />
-        </g>
-      )}
-
-      {/* 2. Box (Q1 ~ Q3) */}
-      {showBox && (
-        <rect
-          x={boxLeft}
-          y={Math.min(yQ1, yQ3)}
-          width={boxWidth}
-          height={Math.max(1, Math.abs(yQ1 - yQ3))}
-          stroke={boxStroke}
-          strokeWidth={1.5}
-          fill={boxFill}
-          fillOpacity={0.15}
-          rx={1}
-        />
-      )}
-
-      {/* 3. Median Line */}
-      {showMedian && (
-        <line x1={boxLeft} y1={yMedian} x2={boxLeft + boxWidth} y2={yMedian} stroke={medianStroke} strokeWidth={2} />
-      )}
-
-      {/* 4. Mean Marker (다이아몬드) */}
-      {showMean && (
-        <polygon
-          points={`${centerX},${yMean - 4} ${centerX + 4},${yMean} ${centerX},${yMean + 4} ${centerX - 4},${yMean}`}
-          fill={meanFill}
-          stroke="var(--color-semantic-background-normal-normal)"
-          strokeWidth={1}
-        />
-      )}
-    </g>
-  );
-};
-
-// ─── 히트맵: 가격 → 색상 보간 헬퍼 (파랑 → 빨강) ────────────────────────────
-function interpolateHeatColor(value: number, min: number, max: number): string {
-  if (max <= min) return "rgba(99,102,241,0.55)"; // 단색 fallback
-  const ratio = Math.max(0, Math.min(1, (value - min) / (max - min)));
-  // 파랑(#6366f1) → 보라(#a855f7) → 빨강(#ef4444)
-  let r: number, g: number, b: number;
-  if (ratio < 0.5) {
-    const t = ratio * 2;
-    r = Math.round(99 + t * (168 - 99));
-    g = Math.round(102 + t * (85 - 102));
-    b = Math.round(241 + t * (247 - 241));
-  } else {
-    const t = (ratio - 0.5) * 2;
-    r = Math.round(168 + t * (239 - 168));
-    g = Math.round(85 + t * (68 - 85));
-    b = Math.round(247 + t * (68 - 247));
-  }
-  return `rgba(${r},${g},${b},0.82)`;
-}
-
-// 박스 플롯용 커스텀 툴팁 컴포넌트
 const BoxPlotTooltip = ({ active, payload, label, t }: any) => {
   if (active && payload && payload.length) {
     const metaRecord = payload[0]?.payload;
