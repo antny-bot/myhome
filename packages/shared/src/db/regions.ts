@@ -250,16 +250,22 @@ export function getRegionComplexesMapData(lawdCode: string): {
     maxPriceEok: number | null;
   }[];
 } {
-  const db = getDb();
   const regionRow = getPreparedStatement(`SELECT display_name FROM regions WHERE lawd_code = ?`).get(lawdCode) as { display_name: string } | undefined;
   const regionName = regionRow?.display_name || lawdCode;
 
-  const rows = db.prepare(`
-    WITH latest_tx AS (
-      SELECT complex_id, price_eok,
-             ROW_NUMBER() OVER (PARTITION BY complex_id ORDER BY deal_date DESC, rowid DESC) as rn
+  const rows = getPreparedStatement(`
+    WITH tx_summary AS (
+      SELECT 
+        complex_id,
+        COUNT(*) AS txCount,
+        MAX(deal_date) AS latestDealDate,
+        ROUND(AVG(price_eok), 2) AS avgPriceEok,
+        MIN(price_eok) AS minPriceEok,
+        MAX(price_eok) AS maxPriceEok,
+        FIRST_VALUE(price_eok) OVER (PARTITION BY complex_id ORDER BY deal_date DESC, rowid DESC) AS latestPriceEok
       FROM transactions
       WHERE lawd_code = ?
+      GROUP BY complex_id
     )
     SELECT 
       c.id,
@@ -271,18 +277,16 @@ export function getRegionComplexesMapData(lawdCode: string): {
       c.road_name AS roadName,
       c.lat,
       c.lng,
-      COUNT(t.dedupe_key) AS txCount,
-      MAX(t.deal_date) AS latestDealDate,
-      ROUND(AVG(t.price_eok), 2) AS avgPriceEok,
-      MIN(t.price_eok) AS minPriceEok,
-      MAX(t.price_eok) AS maxPriceEok,
-      lt.price_eok AS latestPriceEok
+      COALESCE(ts.txCount, 0) AS txCount,
+      ts.latestDealDate,
+      ts.avgPriceEok,
+      ts.minPriceEok,
+      ts.maxPriceEok,
+      ts.latestPriceEok
     FROM complexes c
     JOIN regions r ON c.lawd_code = r.lawd_code
-    LEFT JOIN transactions t ON c.id = t.complex_id
-    LEFT JOIN latest_tx lt ON c.id = lt.complex_id AND lt.rn = 1
+    LEFT JOIN tx_summary ts ON c.id = ts.complex_id
     WHERE c.lawd_code = ?
-    GROUP BY c.id
     ORDER BY txCount DESC, c.name ASC
   `).all(lawdCode, lawdCode) as any[];
 
