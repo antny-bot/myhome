@@ -86,6 +86,12 @@
   --color-primary-700: 0 62 156;
   --color-primary-800: 0 41 102;
   --color-primary-900: 0 21 54;
+
+  /* Control & Container Radii (Plan 11) */
+  --radius-control: 8px;
+  --radius-card: 12px;
+  --radius-dialog: 16px;
+  --color-focus-ring: rgb(var(--color-primary-500) / 0.4);
 }
 
 /* Accent — WDS Violet */
@@ -219,6 +225,9 @@ textarea {
 .bg-warn-light { background-color: color-mix(in srgb, var(--color-semantic-status-negative) 10%, transparent); }
 .bg-warning-light { background-color: color-mix(in srgb, var(--color-semantic-status-warning) 10%, transparent); }
 .bg-primary-light { background-color: color-mix(in srgb, var(--color-semantic-primary-normal) 10%, transparent); }
+.bg-primary-hover:hover { filter: brightness(0.95); }
+.bg-elevated-hover:hover { background-color: var(--color-semantic-background-normal-alternative); }
+.focus-ring:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-focus-ring); }
 
 /* 마우스/터치 클릭 시 발생하는 파란색/검은색 outline 테두리 제거 */
 *:focus:not(:focus-visible) {
@@ -311,4 +320,3 @@ button:focus {
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 }
-
