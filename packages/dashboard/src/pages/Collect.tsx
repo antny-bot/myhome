@@ -21,18 +21,12 @@ import { PageHeader } from "../components/PageHeader";
 import { SectionCard } from "../components/SectionCard";
 import { StatCard } from "../components/StatCard";
 import { useBreakpoint } from "../useBreakpoint";
-import { copy } from "../locales/ko";
+import { formatNumber, formatPrice } from "../lib/format";
+import { useLocale } from "../lib/i18n";
 import { Database, MapPin, Calendar, ClipboardList, TrendingUp, BarChart2, Building2, ChevronRight } from "lucide-react";
 
-const locale = "ko";
-const t = copy[locale];
-
-// 수 포맷 유틸
-const fmtCount = (v: number) => v.toLocaleString("ko-KR");
-const fmtPrice = (v: number) =>
-  v >= 10 ? `${v.toFixed(1)}억` : `${(v * 10000).toLocaleString("ko-KR")}만`;
-
 export function CollectPage() {
+  const { t, locale } = useLocale();
   const { isMobile } = useBreakpoint();
   const [periodTab, setPeriodTab] = useState<"recent30" | "all">("recent30");
   const [viewType, setViewType] = useState<"daily" | "monthly">("daily");
@@ -117,20 +111,20 @@ export function CollectPage() {
           </p>
           <div className="flex justify-between items-center gap-4">
             <span className="text-neutral flex items-center gap-1"><BarChart2 size={11} /> {t.collectCount}</span>
-            <span className="font-bold font-mono text-primary">
-              {fmtCount(data.count)} {t.unitCount}
+            <span className="font-bold font-mono text-primary tabular-nums">
+              {formatNumber(data.count)} {t.unitCount}
             </span>
           </div>
           <div className="flex justify-between items-center gap-4">
             <span className="text-neutral flex items-center gap-1"><TrendingUp size={11} /> 평균 거래가</span>
-            <span className="font-bold font-mono text-amber-500">
-              {fmtPrice(data.avgPriceEok)}
+            <span className="font-bold font-mono text-amber-500 tabular-nums">
+              {formatPrice(data.avgPriceEok, locale)}
             </span>
           </div>
           <div className="flex justify-between items-center gap-4">
             <span className="text-neutral flex items-center gap-1"><Building2 size={11} /> 단지 수</span>
-            <span className="font-bold font-mono text-strong">
-              {fmtCount(data.complexCount)}개
+            <span className="font-bold font-mono text-strong tabular-nums">
+              {formatNumber(data.complexCount)}개
             </span>
           </div>
         </div>
@@ -235,7 +229,7 @@ export function CollectPage() {
           <StatCard
             icon={BarChart2}
             label={t.accumulatedCollectCount}
-            value={`${fmtCount(kpi.totalCount)} ${t.unitCount}`}
+            value={`${formatNumber(kpi.totalCount)} ${t.unitCount}`}
           />
           <StatCard
             icon={TrendingUp}
@@ -246,7 +240,7 @@ export function CollectPage() {
           <StatCard
             icon={Building2}
             label={t.maxComplexCount}
-            value={`${fmtCount(kpi.totalComplex)} ${t.unitComplex}`}
+            value={`${formatNumber(kpi.totalComplex)} ${t.unitComplex}`}
           />
         </div>
       )}

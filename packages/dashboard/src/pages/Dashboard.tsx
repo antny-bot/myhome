@@ -31,10 +31,10 @@ import { RegionSearchInput } from "../components/RegionSearchInput";
 import { classNames, formatDate } from "../lib/format";
 import { searchTransactions, fetchDbRegionsSummary, addDbRegion, deleteDbRegion, logActivity } from "../api";
 import type { DashboardState, RegionSearchResult } from "../types";
-import { copy } from "../locales/ko";
+import { useLocale } from "../lib/i18n";
+import { formatNumber } from "../lib/format";
 
-const locale = "ko";
-const t = copy[locale];
+
 
 // 수집된 지역 요약 데이터 인터페이스
 interface RegionSummary {
@@ -46,7 +46,7 @@ interface RegionSummary {
   maxDealDate: string | null;
 }
 
-export function DashboardPage({ 
+export function DashboardPage({
   state, 
   onChanged,
   onNavigate,
@@ -57,6 +57,7 @@ export function DashboardPage({
   onNavigate?: (view: any) => void;
   isAdmin?: boolean;
 }) {
+  const { t, locale } = useLocale();
   const { isMobile } = useBreakpoint();
   
   // 아코디언 상태 관리 (모두 디폴트로 펼쳐진 상태로 설정)

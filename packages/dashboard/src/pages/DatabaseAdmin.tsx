@@ -4,14 +4,15 @@ import { loadAdminDbTables, executeAdminDbQuery, searchComplexNames, clearDataba
 import { PageHeader } from "../components/PageHeader";
 import { SectionCard } from "../components/SectionCard";
 import { Play, Database, RefreshCw, AlertCircle, CheckCircle2, ChevronRight, FileText, Settings, Building2, MapPin, Search, X, Copy, Check, Eye, WrapText } from "lucide-react";
-import { copy } from "../locales/ko";
+import { useLocale } from "../lib/i18n";
+import { formatNumber } from "../lib/format";
 import { RegionSearchInput } from "../components/RegionSearchInput";
 import { classNames } from "../lib/format";
 import type { RegionSearchResult } from "../types";
 import { CoordPickerMap } from "../components/CoordPickerMap";
+import { ResponsiveTabs, type TabItem } from "../components/common/ResponsiveTabs";
 
-const locale = "ko";
-const t = copy[locale];
+
 
 type SchemaInfo = {
   cid: number;
@@ -30,6 +31,7 @@ type QueryResult = {
 };
 
 export function DatabaseAdminPage() {
+  const { t, locale } = useLocale();
   const { isMobile } = useBreakpoint();
   const [tables, setTables] = useState<string[]>([]);
 
@@ -504,85 +506,15 @@ export function DatabaseAdminPage() {
       />
 
       {/* 2-mode 반응형 탭 스트립 */}
-      {isMobile ? (
-        <div className="overflow-x-auto scrollbar-none snap-x snap-mandatory flex flex-nowrap gap-2 pb-1 border-b border-normal/50">
-          <button
-            type="button"
-            onClick={() => handleTabChange("sql")}
-            className={classNames(
-              "snap-start shrink-0 px-4 py-2 text-xs font-bold transition-all whitespace-nowrap",
-              activeTab === "sql"
-                ? "bg-primary text-white rounded-full shadow-sm shadow-primary/20"
-                : "text-neutral hover:text-strong hover:bg-alternative rounded-full"
-            )}
-          >
-            {t.dbTabSql}
-          </button>
-          <button
-            type="button"
-            onClick={() => handleTabChange("geocode")}
-            className={classNames(
-              "snap-start shrink-0 px-4 py-2 text-xs font-bold transition-all whitespace-nowrap",
-              activeTab === "geocode"
-                ? "bg-primary text-white rounded-full shadow-sm shadow-primary/20"
-                : "text-neutral hover:text-strong hover:bg-alternative rounded-full"
-            )}
-          >
-            {t.dbTabGeocoding}
-          </button>
-          <button
-            type="button"
-            onClick={() => handleTabChange("manage")}
-            className={classNames(
-              "snap-start shrink-0 px-4 py-2 text-xs font-bold transition-all whitespace-nowrap",
-              activeTab === "manage"
-                ? "bg-primary text-white rounded-full shadow-sm shadow-primary/20"
-                : "text-neutral hover:text-strong hover:bg-alternative rounded-full"
-            )}
-          >
-            {t.dbTabManagement}
-          </button>
-        </div>
-      ) : (
-        <div className="border-b border-normal flex gap-6 text-sm">
-          <button
-            type="button"
-            onClick={() => handleTabChange("sql")}
-            className={classNames(
-              "pb-3 px-1 border-b-2 transition-all font-bold",
-              activeTab === "sql"
-                ? "border-primary text-primary"
-                : "border-transparent text-neutral hover:text-strong"
-            )}
-          >
-            {t.dbTabSql}
-          </button>
-          <button
-            type="button"
-            onClick={() => handleTabChange("geocode")}
-            className={classNames(
-              "pb-3 px-1 border-b-2 transition-all font-bold",
-              activeTab === "geocode"
-                ? "border-primary text-primary"
-                : "border-transparent text-neutral hover:text-strong"
-            )}
-          >
-            {t.dbTabGeocoding}
-          </button>
-          <button
-            type="button"
-            onClick={() => handleTabChange("manage")}
-            className={classNames(
-              "pb-3 px-1 border-b-2 transition-all font-bold",
-              activeTab === "manage"
-                ? "border-primary text-primary"
-                : "border-transparent text-neutral hover:text-strong"
-            )}
-          >
-            {t.dbTabManagement}
-          </button>
-        </div>
-      )}
+      <ResponsiveTabs
+        tabs={[
+          { id: "sql", label: t.dbTabSql },
+          { id: "geocode", label: t.dbTabGeocoding },
+          { id: "manage", label: t.dbTabManagement }
+        ]}
+        activeTab={activeTab}
+        onChange={(tabId) => handleTabChange(tabId as "sql" | "geocode" | "manage")}
+      />
 
       {/* 탭 1: SQL 탐색기 */}
       {activeTab === "sql" && (
