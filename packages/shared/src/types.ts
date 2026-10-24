@@ -119,6 +119,10 @@ export interface RegionMapComplexItem {
   avgPriceEok: number | null;
   minPriceEok: number | null;
   maxPriceEok: number | null;
+  totalHouseholds?: number | null;
+  totalParking?: number | null;
+  parkingPerHousehold?: number | null;
+  useApprovalDate?: string | null;
 }
 
 export interface RegionMapData {

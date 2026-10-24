@@ -1303,8 +1303,7 @@ export default function ComplexTab({
                 </div>
 
                 {detailData.complexInfo && (
-
-                  <div className="p-3 bg-alternative/40 border border-normal rounded-lg text-[11px] text-neutral space-y-1.5">
+                  <div className="p-3 bg-alternative/40 border border-normal rounded-lg text-[11px] text-neutral space-y-2">
                     <div className="flex items-start justify-between gap-2">
                       <span className="font-semibold text-strong shrink-0">단지 주소</span>
                       <span className="text-right">{detailData.complexInfo.regionName} {detailData.complexInfo.dongName || ""} {detailData.complexInfo.jibun || ""}</span>
@@ -1319,6 +1318,44 @@ export default function ComplexTab({
                       <div className="flex items-center justify-between">
                         <span className="font-semibold text-strong">좌표 (위·경도)</span>
                         <span className="font-mono text-[10px]">{detailData.complexInfo.lat.toFixed(5)}, {detailData.complexInfo.lng.toFixed(5)}</span>
+                      </div>
+                    )}
+
+                    {/* 건축HUB 건축물대장 세부 정보 */}
+                    {(detailData.complexInfo.totalHouseholds || detailData.complexInfo.parkingPerHousehold || detailData.complexInfo.useApprovalDate) && (
+                      <div className="pt-2 mt-2 border-t border-normal space-y-1.5">
+                        <div className="flex items-center justify-between font-medium">
+                          <span className="text-primary font-bold">건축HUB 대장 정보</span>
+                          <span className="text-[10px] text-neutral">국토교통부 세움터</span>
+                        </div>
+                        {detailData.complexInfo.totalHouseholds && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-strong">총 세대수</span>
+                            <span className="font-bold text-strong">{detailData.complexInfo.totalHouseholds.toLocaleString()}세대</span>
+                          </div>
+                        )}
+                        {detailData.complexInfo.parkingPerHousehold && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-strong">주차 대수</span>
+                            <span>
+                              세대당 {detailData.complexInfo.parkingPerHousehold}대
+                              {detailData.complexInfo.totalParking ? ` (총 ${detailData.complexInfo.totalParking.toLocaleString()}대)` : ""}
+                            </span>
+                          </div>
+                        )}
+                        {detailData.complexInfo.useApprovalDate && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-strong">사용승인일자</span>
+                            <span>
+                              {detailData.complexInfo.useApprovalDate}
+                              {(() => {
+                                const year = parseInt(detailData.complexInfo.useApprovalDate.substring(0, 4));
+                                const age = isNaN(year) ? null : new Date().getFullYear() - year + 1;
+                                return age !== null ? ` (${age}년차)` : "";
+                              })()}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

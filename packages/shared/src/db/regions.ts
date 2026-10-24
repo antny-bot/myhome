@@ -248,6 +248,10 @@ export function getRegionComplexesMapData(lawdCode: string): {
     avgPriceEok: number | null;
     minPriceEok: number | null;
     maxPriceEok: number | null;
+    totalHouseholds: number | null;
+    totalParking: number | null;
+    parkingPerHousehold: number | null;
+    useApprovalDate: string | null;
   }[];
 } {
   const regionRow = getPreparedStatement(`SELECT display_name FROM regions WHERE lawd_code = ?`).get(lawdCode) as { display_name: string } | undefined;
@@ -277,6 +281,10 @@ export function getRegionComplexesMapData(lawdCode: string): {
       c.road_name AS roadName,
       c.lat,
       c.lng,
+      c.total_households AS totalHouseholds,
+      c.total_parking AS totalParking,
+      c.parking_per_household AS parkingPerHousehold,
+      c.use_approval_date AS useApprovalDate,
       COALESCE(ts.txCount, 0) AS txCount,
       ts.latestDealDate,
       ts.avgPriceEok,

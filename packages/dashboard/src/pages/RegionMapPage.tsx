@@ -568,6 +568,10 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
       const overlayZIndex = isSelected ? 50 : isDotOnly ? 5 : hasLeaderLine ? 30 : 20;
       el.style.zIndex = String(overlayZIndex);
 
+      const badge = c.totalHouseholds
+        ? `${c.totalHouseholds >= 1000 ? "대단지 " : ""}${c.totalHouseholds.toLocaleString()}세대`
+        : undefined;
+
       if (isDotOnly) {
         el.className += " -translate-x-1/2 -translate-y-1/2";
         el.innerHTML = createComplexMarkerHtml({
@@ -575,6 +579,7 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
           priceEok: c.latestPriceEok,
           priceText: c.latestPriceEok !== null ? `${c.latestPriceEok}억` : "-",
           subText: c.txCount > 0 ? `${c.txCount}건` : undefined,
+          badgeText: badge,
           isSelected,
           isDotOnly: true,
           quartiles,
@@ -586,6 +591,7 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
           priceEok: c.latestPriceEok,
           priceText: c.latestPriceEok !== null ? `${c.latestPriceEok}억` : "-",
           subText: c.txCount > 0 ? `${c.txCount}건` : undefined,
+          badgeText: badge,
           isSelected,
           hasLeaderLine,
           quartiles,
@@ -1087,6 +1093,35 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
                               최근 거래일: {c.latestDealDate}
                             </div>
                           )}
+
+                          {(c.totalHouseholds || c.parkingPerHousehold || c.useApprovalDate) && (
+                            <div className="flex items-center gap-1.5 mt-1.5 flex-wrap text-[10px] text-slate-500 dark:text-slate-400">
+                              {c.totalHouseholds && (
+                                <span className={`px-1.5 py-0.5 rounded font-semibold ${
+                                  c.totalHouseholds >= 1000
+                                    ? "bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/60"
+                                    : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300"
+                                }`}>
+                                  🏠 {c.totalHouseholds.toLocaleString()}세대
+                                </span>
+                              )}
+                              {c.parkingPerHousehold && (
+                                <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300" title={c.totalParking ? `총 주차대수: ${c.totalParking}대` : undefined}>
+                                  🚗 {c.parkingPerHousehold}대
+                                </span>
+                              )}
+                              {c.useApprovalDate && (
+                                <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                                  📅 {c.useApprovalDate.substring(0, 4)}년
+                                  {(() => {
+                                    const y = parseInt(c.useApprovalDate.substring(0, 4));
+                                    const age = isNaN(y) ? null : new Date().getFullYear() - y + 1;
+                                    return age !== null ? ` (${age}년차)` : "";
+                                  })()}
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
 
                         {/* 단지 분석 및 지도 바로가기 액션 버튼 */}
@@ -1325,6 +1360,39 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
                   </span>
                 </div>
               </div>
+
+              {/* 건축HUB 건축물대장 정보 그리드 (세대수, 주차, 준공연차) */}
+              {(selectedComplex.totalHouseholds || selectedComplex.parkingPerHousehold || selectedComplex.useApprovalDate) && (
+                <div className="grid grid-cols-3 gap-2 pb-2 mb-2 text-center bg-slate-50/80 dark:bg-slate-800/50 rounded-xl p-2 border border-slate-100 dark:border-slate-800">
+                  <div className="flex flex-col">
+                    <span className="text-[10px] text-slate-400">총 세대수</span>
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                      {selectedComplex.totalHouseholds ? `${selectedComplex.totalHouseholds.toLocaleString()}세대` : "-"}
+                    </span>
+                  </div>
+                  <div className="flex flex-col border-x border-slate-200/60 dark:border-slate-700/60">
+                    <span className="text-[10px] text-slate-400">세대당 주차</span>
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200" title={selectedComplex.totalParking ? `총 주차대수: ${selectedComplex.totalParking}대` : undefined}>
+                      {selectedComplex.parkingPerHousehold ? `${selectedComplex.parkingPerHousehold}대` : "-"}
+                    </span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-[10px] text-slate-400">사용승인(준공)</span>
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                      {selectedComplex.useApprovalDate ? (
+                        <>
+                          {selectedComplex.useApprovalDate.substring(0, 4)}년
+                          {(() => {
+                            const year = parseInt(selectedComplex.useApprovalDate.substring(0, 4));
+                            const age = isNaN(year) ? null : new Date().getFullYear() - year + 1;
+                            return age !== null ? <span className="text-[9px] text-slate-400 ml-0.5">(${age}년차)</span> : null;
+                          })()}
+                        </>
+                      ) : "-"}
+                    </span>
+                  </div>
+                </div>
+              )}
 
               {/* 하단 액션 버튼 */}
               <div className="flex items-center gap-2 mt-3">
