@@ -50,7 +50,19 @@ myhome/                            ← 모노레포 루트
 │   ├── shared/                    ← @myhome/shared 공통 모듈
 │   │   └── src/
 │   │       ├── index.ts           ← barrel export
-│   │       ├── db.ts              ← SQLite 클라이언트 (테이블 초기화, 트랜잭션, SQL 집계 함수)
+│   │       ├── db.ts              ← 하위 호환 re-export 배럴
+│       ├── db/                ← 도메인별 분할 DB 계층 (8개 도메인 모듈화)
+│       │   ├── connection.ts  ← SQLite 연결 및 Prepared Statement 캐시
+│       │   ├── schema.ts      ← DDL 스키마, 인덱스, 마이그레이션, FTS5
+│       │   ├── transactions.ts← 실거래 배치 Upsert, 다중 필터 검색
+│       │   ├── analytics.ts   ← 시계열 추이 통계, 드릴다운 집계
+│       │   ├── regions.ts     ← 지역/단지 FTS5 검색, 지도 마커 데이터
+│       │   ├── geocoding.ts   ← 좌표 조회/갱신, 지오코딩 실패 관리
+│       │   ├── auth.ts        ← 세션 관리, 유저 설정, 인증
+│       │   ├── rules.ts       ← 감시 룰, 체크런, 알림 발송 기록
+│       │   ├── presets.ts     ← 조회 필터 프리셋 CRUD
+│       │   ├── activityLogs.ts← 시스템 설정, 감사 및 활동 로그
+│       │   └── index.ts       ← DB 통합 export
 │   │       ├── apiClient.ts       ← 국토부 API 직접 fetch 및 정규화(normalizeTransaction)
 │   │       ├── xmlParser.ts       ← fast-xml-parser 기반 공공데이터 XML 파서
 │   │       ├── types.ts           ← 공통 타입 (TransactionNode, RegionInfo 등)
@@ -66,8 +78,13 @@ myhome/                            ← 모노레포 루트
 │       ├── index.html             ← HTML 엔트리
 │       ├── server/                ← Express 백엔드
 │       │   ├── index.ts           ← 서버 엔트리 + SQLite 초기화 연동
-│       │   ├── routes.ts          ← 기본 REST API 라우팅 (rules, check-runs 등)
-│       │   ├── routes-graph.ts    ← SQLite 실거래 분석 및 통계 API
+│       │   ├── routes.ts          ← 모듈러 라우터 조합 진입점
+│       │   ├── routes/            ← 도메인별 분할 Express 라우터
+│       │   │   ├── configRoutes.ts ← 시스템 및 유저 설정 API
+│       │   │   ├── ruleRoutes.ts   ← 감시 룰, 체크런, 알림 API
+│       │   │   ├── transactionRoutes.ts ← 실거래 수집, 지역/단지 검색 API
+│       │   │   ├── logRoutes.ts    ← 감사 및 활동 로그 API
+│       │   │   └── graph/          ← SQLite 실거래 분석 및 통계 서브라우터
 │       │   ├── mcpClient.ts       ← 국토부 API 단일화 래퍼 (getApartmentPrices/getApartmentList), MCP는 자연어 NL 전용 예약
 │       │   ├── scheduler.ts       ← 주기적 매물 룰 감시 + 매일 새벽 수집 스케줄러 통합
 │       │   ├── ruleEngine.ts      ← 매물 매칭 + SQLite upsert
@@ -78,6 +95,7 @@ myhome/                            ← 모노레포 루트
 │           ├── main.tsx           ← 엔트리
 │           ├── App.tsx            ← 메인 UI + 뷰 라우팅
 │           ├── components/        ← 공통 컴포넌트
+│           │   └── charts/        ← 공통 Recharts 시각화 모듈 (BoxPlotShape, chartStyles)
 │           └── pages/             ← 페이지 컴포넌트
 │               ├── Dashboard.tsx  ← 홈 대시보드
 │               ├── RegionMapPage.tsx ← 지역별 단지 지도 (지도 탐색 & 단지 분석 연결)
@@ -93,8 +111,13 @@ myhome/                            ← 모노레포 루트
 - `@myhome/dashboard`: Express 백엔드, React 프론트엔드 포함. 백엔드 가동 시 수집 스케줄러 연동 작동.
 
 **백엔드 (Express)**:
+- **모듈러 라우터 & 도메인 분리**: `server/routes/` 하위에 `configRoutes`, `ruleRoutes`, `transactionRoutes`, `logRoutes`, `graph/`로 분리하여 단일 라우터 비대화 해소.
 - `scheduler.ts` 300초 간격 `ruleEngine` 구동, 텔레그램 알림 발송. 매일 새벽 6시 이후 1회 자동 `@myhome/collector` `runCollector` 호출, 로컬 SQLite DB 실거래 적재 파이프라인 가동.
 - `routes-graph.ts` 로컬 SQLite DB 파일(`data/myhome.db`) SQL 집계 함수(`AVG`, `COUNT`, `Window Function` 등) 수행, 대시보드 분석 데이터 고속 제공.
+- **SQL 쿼리 & 인덱스 최적화**:
+  - `idx_complexes_name`, `idx_transactions_complex_deal_date` 복합 인덱스로 시계열 및 최근 거래 풀 스캔 방지.
+  - `substr` 함수식 비교를 `deal_date >= ? AND deal_date <= ?` 직접 범위 비교로 전환(SARGable)하여 B-Tree 인덱스 스캔 복원.
+  - 지도 마커 집계 시 SQLite 윈도우 함수(`ROW_NUMBER() OVER`) CTE를 적용하여 N회 반복 상관 서브쿼리 제거.
 - **국토부 API 및 DB 적재 특징**: 국토부 API 한계로 단지별 조회 시 백엔드에서 **해당 법정동/지역구(5자리 LAWD_CD) 전체 실거래 데이터 수집**. 수집 데이터 전체 DB 적재(Upsert), 동일 지역 타 단지 조회 성능 향상 및 통계 정확도 보장 최적화.
 
 **프론트엔드 (React)**:
