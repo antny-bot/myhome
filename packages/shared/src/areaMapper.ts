@@ -108,7 +108,7 @@ export async function syncSupplyArea(params: {
   }
 
   // 2. 공공데이터 인증키가 없거나 법정동 코드를 못 찾은 경우 폴백 계산 (전용률 78% 가정)
-  const apiKey = process.env.DATA_GO_KR_API_KEY;
+  const apiKey = process.env.BLD_RGST_API_KEY || process.env.DATA_GO_KR_API_KEY;
   if (!apiKey || !bCode || bCode.length < 10) {
     const fallbackSupply = Number((areaM2 / 0.78).toFixed(2));
     upsertAreaMapping(complexId, areaM2, fallbackSupply, "fallback");
@@ -119,8 +119,8 @@ export async function syncSupplyArea(params: {
   const bjdongCd = bCode.slice(5, 10); // 5자리 법정동
   const { bun, ji } = parseJibun(jibun || "");
 
-  // 2.5 건축물대장 표제부 API 호출 및 메타정보 갱신 (세대수, 주차대수 등)
-  const titleUrl = `http://apis.data.go.kr/1613000/BldRgstService_v2/getBrTitleInfo?serviceKey=${apiKey}&sigunguCd=${sigunguCd}&bjdongCd=${bjdongCd}&bun=${bun}&ji=${ji}&numOfRows=10&pageNo=1`;
+  // 2.5 건축물대장 표제부 API 호출 및 메타정보 갱신 (건축HUB 신규 엔드포인트)
+  const titleUrl = `https://apis.data.go.kr/1613000/BldRgstHubService/getBrTitleInfo?serviceKey=${apiKey}&sigunguCd=${sigunguCd}&bjdongCd=${bjdongCd}&bun=${bun}&ji=${ji}&numOfRows=10&pageNo=1`;
   try {
     const titleRes = await fetch(titleUrl, { signal: AbortSignal.timeout(10000) });
     if (titleRes.ok) {
@@ -153,8 +153,8 @@ export async function syncSupplyArea(params: {
     console.warn(`[AreaMapper] 표제부 API 연동 실패 (${complexName}):`, err.message);
   }
 
-  // 3. 건축물대장 전유공용면적 API 호출
-  const url = `http://apis.data.go.kr/1613000/BldRgstService_v2/getBrExposPubuseAreaInfo?serviceKey=${apiKey}&sigunguCd=${sigunguCd}&bjdongCd=${bjdongCd}&bun=${bun}&ji=${ji}&numOfRows=1000&pageNo=1`;
+  // 3. 건축물대장 전유공용면적 API 호출 (건축HUB 신규 엔드포인트)
+  const url = `https://apis.data.go.kr/1613000/BldRgstHubService/getBrExposPubuseAreaInfo?serviceKey=${apiKey}&sigunguCd=${sigunguCd}&bjdongCd=${bjdongCd}&bun=${bun}&ji=${ji}&numOfRows=1000&pageNo=1`;
 
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
