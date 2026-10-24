@@ -7,6 +7,7 @@ import {
   loadRegionMapComplexes,
   triggerGeocodeBatch,
   loadGeocodeStats,
+  triggerBuildingMetaBatch,
 } from "../api";
 import type { RegionMapData, RegionMapComplexItem } from "@myhome/shared";
 import {
@@ -92,6 +93,13 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
 
   // Geocoding 일괄 수집 상태
   const [batchLoading, setBatchLoading] = useState(false);
+  const [buildingBatchLoading, setBuildingBatchLoading] = useState(false);
+  const [buildingBatchProgress, setBuildingBatchProgress] = useState<{
+    processed: number;
+    total: number;
+    success: number;
+    failed: number;
+  } | null>(null);
   const [batchProgress, setBatchProgress] = useState<{
     processed: number;
     total: number;
@@ -744,6 +752,46 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
     }
   };
 
+
+  // 건축물대장 미수집 단지 수 계산
+  const pendingBuildingMetaCount = useMemo(() => {
+    return mapData?.complexes?.filter(c => !c.totalHouseholds).length || 0;
+  }, [mapData]);
+
+  // 건축물대장(세대수/주차/준공일) 일괄 수집 트리거
+  const handleRunBuildingMetaBatch = async () => {
+    if (buildingBatchLoading || !selectedLawdCode) return;
+    setBuildingBatchLoading(true);
+    setBuildingBatchProgress(null);
+
+    try {
+      let processed = 0;
+      let success = 0;
+      let failed = 0;
+
+      // 최대 3회 분할 배치 처리 (회당 20개)
+      for (let step = 0; step < 3; step++) {
+        const res = await triggerBuildingMetaBatch(selectedLawdCode, 20);
+        if (res.total === 0) break;
+        processed += res.total;
+        success += res.success;
+        failed += res.failed;
+        setBuildingBatchProgress({ processed, total: processed, success, failed });
+        if (res.total < 20) break;
+        await new Promise(r => setTimeout(r, 800));
+      }
+
+      // 데이터 리로드
+      const updated = await loadRegionMapComplexes(selectedLawdCode);
+      setMapData(updated);
+    } catch (err: any) {
+      console.error("Building meta batch failed:", err);
+      alert("건축물대장 수집 중 오류가 발생했습니다: " + (err.message || ""));
+    } finally {
+      setBuildingBatchLoading(false);
+    }
+  };
+
   // 단지 좌표 일괄 지오코딩 트리거
   const handleRunGeocodeBatch = async () => {
     if (batchLoading || !selectedLawdCode) return;
@@ -909,21 +957,39 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
                   </span>
                 </div>
 
-                {mapData.totalComplexes > mapData.geocodedCount && (
-                  <button
-                    onClick={handleRunGeocodeBatch}
-                    disabled={batchLoading}
-                    className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-primary bg-primary/10 hover:bg-primary/20 rounded-lg border border-primary/20 transition-colors"
-                    title={t.runBatchGeocodeForRegion || "단지 좌표 일괄 수집"}
-                  >
-                    {batchLoading ? (
-                      <Loader2 size={12} className="animate-spin" />
-                    ) : (
-                      <RefreshCw size={12} />
-                    )}
-                    <span>좌표 수집</span>
-                  </button>
-                )}
+                <div className="flex items-center gap-1.5">
+                  {mapData.totalComplexes > mapData.geocodedCount && (
+                    <button
+                      onClick={handleRunGeocodeBatch}
+                      disabled={batchLoading}
+                      className="flex items-center gap-1 px-2 py-1 text-[11px] font-semibold text-primary bg-primary/10 hover:bg-primary/20 rounded-lg border border-primary/20 transition-colors"
+                      title={t.runBatchGeocodeForRegion || "단지 좌표 일괄 수집"}
+                    >
+                      {batchLoading ? (
+                        <Loader2 size={12} className="animate-spin" />
+                      ) : (
+                        <RefreshCw size={12} />
+                      )}
+                      <span>좌표 수집</span>
+                    </button>
+                  )}
+
+                  {pendingBuildingMetaCount > 0 && (
+                    <button
+                      onClick={handleRunBuildingMetaBatch}
+                      disabled={buildingBatchLoading}
+                      className="flex items-center gap-1 px-2 py-1 text-[11px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 rounded-lg border border-amber-500/20 transition-colors"
+                      title="건축물대장 정보(세대수, 주차, 준공일) 일괄 수집"
+                    >
+                      {buildingBatchLoading ? (
+                        <Loader2 size={12} className="animate-spin" />
+                      ) : (
+                        <Building2 size={12} />
+                      )}
+                      <span>대장 수집 ({pendingBuildingMetaCount})</span>
+                    </button>
+                  )}
+                </div>
               </div>
             )}
 

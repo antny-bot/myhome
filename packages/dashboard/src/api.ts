@@ -449,6 +449,18 @@ export function fetchComplexData(complexName: string, lawdCode: string, regionNa
 }
 
 
+export function triggerBuildingMetaBatch(lawdCode?: string, limit?: number) {
+  return request<{
+    total: number;
+    success: number;
+    failed: number;
+    remaining: number;
+  }>("/api/graph/building-meta-batch", {
+    method: "POST",
+    body: JSON.stringify({ lawdCode, limit })
+  });
+}
+
 export function triggerGeocodeBatch(lawdCode?: string, limit?: number) {
   return request<{
     total: number;

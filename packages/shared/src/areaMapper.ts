@@ -86,9 +86,9 @@ export async function syncSupplyArea(params: {
 }): Promise<number> {
   const { complexId, complexName, lawdCode, dongName, jibun, areaM2, regionDisplayName } = params;
 
-  // 0. 캐시 확인: 이미 매핑 정보가 적재되어 있다면 해당 분양면적 반환
+  // 0. 캐시 확인: 실측(api) 매핑 정보가 적재되어 있다면 반환
   const cached = getAreaMapping(complexId, areaM2);
-  if (cached) {
+  if (cached && cached.source !== "fallback") {
     return cached.supplyAreaM2;
   }
 
@@ -119,38 +119,11 @@ export async function syncSupplyArea(params: {
   const bjdongCd = bCode.slice(5, 10); // 5자리 법정동
   const { bun, ji } = parseJibun(jibun || "");
 
-  // 2.5 건축물대장 표제부 API 호출 및 메타정보 갱신 (건축HUB 신규 엔드포인트)
-  const titleUrl = `https://apis.data.go.kr/1613000/BldRgstHubService/getBrTitleInfo?serviceKey=${apiKey}&sigunguCd=${sigunguCd}&bjdongCd=${bjdongCd}&platGbCd=0&bun=${bun}&ji=${ji}&numOfRows=10&pageNo=1`;
+  // 2.5 건축물대장 메타정보 동기화 (총괄표제부 및 표제부)
   try {
-    const titleRes = await fetch(titleUrl, { signal: AbortSignal.timeout(10000) });
-    if (titleRes.ok) {
-      const titleXml = await titleRes.text();
-      const titleItems = parseRealEstateXml(titleXml);
-      if (titleItems && titleItems.length > 0) {
-        const target = titleItems.find((it: any) => String(it.bldNm).includes(complexName)) || titleItems[0];
-        const hhldCnt = Number(target.hhldCnt || 0);
-        const totPkngCnt = Number(target.totPkngCnt || 0);
-        const useAprDay = String(target.useAprDay || target.useAprvDay || "").trim();
-
-        let formattedDate: string | null = null;
-        if (useAprDay && useAprDay.length === 8) {
-          formattedDate = `${useAprDay.substring(0, 4)}-${useAprDay.substring(4, 6)}-${useAprDay.substring(6, 8)}`;
-        }
-
-        const parkingPerHousehold = hhldCnt > 0 ? Number((totPkngCnt / hhldCnt).toFixed(2)) : null;
-
-        const { updateComplexMeta } = await import("./db.js");
-        updateComplexMeta(complexId, {
-          totalHouseholds: hhldCnt || null,
-          totalParking: totPkngCnt || null,
-          parkingPerHousehold: parkingPerHousehold,
-          useApprovalDate: formattedDate,
-        });
-        console.log(`[AreaMapper] complexes 메타정보 갱신 성공: ${complexName} (${hhldCnt}세대, 세대당주차 ${parkingPerHousehold}대)`);
-      }
-    }
+    await syncComplexBuildingMeta(complexId);
   } catch (err: any) {
-    console.warn(`[AreaMapper] 표제부 API 연동 실패 (${complexName}):`, err.message);
+    console.warn(`[AreaMapper] 단지 메타 동기화 실패 (${complexName}):`, err.message);
   }
 
   // 3. 건축물대장 전유공용면적 API 호출 (건축HUB 신규 엔드포인트: numOfRows는 최대 100건 제한 준수)
@@ -231,4 +204,124 @@ export async function syncSupplyArea(params: {
   const fallbackSupply = Number((areaM2 / 0.78).toFixed(2));
   upsertAreaMapping(complexId, areaM2, fallbackSupply, "fallback");
   return fallbackSupply;
+}
+
+
+/**
+ * 건축HUB 오픈API를 통해 단지의 총괄표제부 및 표제부를 조회하고 complexes 메타정보를 갱신합니다.
+ */
+export async function syncComplexBuildingMeta(complexId: string): Promise<boolean> {
+  const { getDb, updateComplexMeta } = await import("./db.js");
+  const db = getDb();
+  const complex = db.prepare(`
+    SELECT c.id, c.name, c.lawd_code AS lawdCode, r.display_name AS regionName,
+           c.dong_name AS dongName, c.jibun, c.road_name AS roadName,
+           c.total_households AS totalHouseholds
+    FROM complexes c
+    JOIN regions r ON c.lawd_code = r.lawd_code
+    WHERE c.id = ?
+  `).get(complexId) as any;
+
+  if (!complex) return false;
+
+  const apiKey = process.env.BLD_RGST_API_KEY || process.env.DATA_GO_KR_API_KEY;
+  if (!apiKey) return false;
+
+  // 법정동코드 조회
+  let bCode: string | null = null;
+  if (complex.dongName && complex.jibun) {
+    bCode = await getBCode(`${complex.regionName} ${complex.dongName} ${complex.jibun}`.trim());
+  } else if (complex.roadName) {
+    bCode = await getBCode(`${complex.regionName} ${complex.roadName}`.trim());
+  } else if (complex.dongName) {
+    bCode = await getBCode(`${complex.regionName} ${complex.dongName}`.trim());
+  }
+
+  let sigunguCd = complex.lawdCode;
+  let bjdongCd = "";
+  if (bCode && bCode.length >= 10) {
+    sigunguCd = bCode.slice(0, 5);
+    bjdongCd = bCode.slice(5, 10);
+  }
+
+  const { bun, ji } = parseJibun(complex.jibun || "");
+
+  // 1. 총괄표제부 (getBrRecapTitleInfo) 우선 시도 (대단지 아파트 전체 세대수/주차대수 확보)
+  const recapUrl = `https://apis.data.go.kr/1613000/BldRgstHubService/getBrRecapTitleInfo?serviceKey=${apiKey}&sigunguCd=${sigunguCd}&bjdongCd=${bjdongCd}&platGbCd=0&bun=${bun}&ji=${ji}&numOfRows=10&pageNo=1`;
+  try {
+    const recapRes = await fetch(recapUrl, { signal: AbortSignal.timeout(8000) });
+    if (recapRes.ok) {
+      const xml = await recapRes.text();
+      const items = parseRealEstateXml(xml);
+      if (items && items.length > 0) {
+        const cleanName = complex.name.replace(/\(.*?\)/g, "").trim();
+        const target = items.find((it: any) => String(it.bldNm).includes(cleanName) || String(it.bldNm).includes(complex.name)) || items[0];
+        const hhldCnt = Number(target.hhldCnt || 0);
+        const totPkngCnt = Number(target.totPkngCnt || 0);
+        const useAprDay = String(target.useAprDay || target.useAprvDay || "").trim();
+        let formattedDate: string | null = null;
+        if (useAprDay && useAprDay.length === 8) {
+          formattedDate = `${useAprDay.substring(0, 4)}-${useAprDay.substring(4, 6)}-${useAprDay.substring(6, 8)}`;
+        }
+        const parkingPerHousehold = hhldCnt > 0 ? Number((totPkngCnt / hhldCnt).toFixed(2)) : null;
+
+        updateComplexMeta(complexId, {
+          totalHouseholds: hhldCnt || null,
+          totalParking: totPkngCnt || null,
+          parkingPerHousehold,
+          useApprovalDate: formattedDate,
+        });
+        console.log(`[syncComplexBuildingMeta:총괄표제부] ${complex.name}: ${hhldCnt}세대, 주차 ${parkingPerHousehold}대, 승인 ${formattedDate}`);
+        return true;
+      }
+    }
+  } catch (err: any) {
+    // 총괄표제부 실패 시 표제부로 폴백
+  }
+
+  // 2. 동별 표제부 (getBrTitleInfo) 폴백 (총괄표제부가 없는 단지 또는 1개동 단지)
+  const titleUrl = `https://apis.data.go.kr/1613000/BldRgstHubService/getBrTitleInfo?serviceKey=${apiKey}&sigunguCd=${sigunguCd}&bjdongCd=${bjdongCd}&platGbCd=0&bun=${bun}&ji=${ji}&numOfRows=50&pageNo=1`;
+  try {
+    const titleRes = await fetch(titleUrl, { signal: AbortSignal.timeout(8000) });
+    if (titleRes.ok) {
+      const xml = await titleRes.text();
+      const items = parseRealEstateXml(xml);
+      if (items && items.length > 0) {
+        const cleanName = complex.name.replace(/\(.*?\)/g, "").trim();
+        const matched = items.filter((it: any) => String(it.bldNm).includes(cleanName) || String(it.bldNm).includes(complex.name));
+        const targetItems = matched.length > 0 ? matched : items;
+
+        let totalHhld = 0;
+        let totalParking = 0;
+        let useAprDay = "";
+
+        for (const it of targetItems) {
+          totalHhld += Number(it.hhldCnt || 0);
+          totalParking += Number(it.totPkngCnt || 0);
+          if (!useAprDay && (it.useAprDay || it.useAprvDay)) {
+            useAprDay = String(it.useAprDay || it.useAprvDay).trim();
+          }
+        }
+
+        let formattedDate: string | null = null;
+        if (useAprDay && useAprDay.length === 8) {
+          formattedDate = `${useAprDay.substring(0, 4)}-${useAprDay.substring(4, 6)}-${useAprDay.substring(6, 8)}`;
+        }
+        const parkingPerHousehold = totalHhld > 0 ? Number((totalParking / totalHhld).toFixed(2)) : null;
+
+        updateComplexMeta(complexId, {
+          totalHouseholds: totalHhld || null,
+          totalParking: totalParking || null,
+          parkingPerHousehold,
+          useApprovalDate: formattedDate,
+        });
+        console.log(`[syncComplexBuildingMeta:동별표제부] ${complex.name}: ${totalHhld}세대, 주차 ${parkingPerHousehold}대, 승인 ${formattedDate}`);
+        return true;
+      }
+    }
+  } catch (err: any) {
+    console.warn(`[syncComplexBuildingMeta:동별표제부] 실패 (${complex.name}):`, err.message);
+  }
+
+  return false;
 }

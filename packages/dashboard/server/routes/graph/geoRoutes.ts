@@ -165,4 +165,53 @@ router.get("/geocode-pending", asyncHandler(async (_req, res) => {
   res.json(list);
 }));
 
+
+/** POST /api/graph/building-meta-batch — 건축물대장 미확보 단지 일괄 수집 */
+router.post("/building-meta-batch", asyncHandler(async (req, res) => {
+  const lawdCode = req.body?.lawdCode as string | undefined;
+  const limit = typeof req.body?.limit === "number" ? req.body.limit : 20;
+
+  const { getDb, syncComplexBuildingMeta } = await import("@myhome/shared");
+  const db = getDb();
+  let query = `
+    SELECT id, name FROM complexes 
+    WHERE total_households IS NULL
+  `;
+  const params: any[] = [];
+  if (lawdCode) {
+    query += " AND lawd_code = ?";
+    params.push(lawdCode);
+  }
+  query += " LIMIT ?";
+  params.push(limit);
+
+  const pending = db.prepare(query).all(...params) as { id: string; name: string }[];
+  let success = 0;
+  let failed = 0;
+
+  for (const c of pending) {
+    try {
+      const ok = await syncComplexBuildingMeta(c.id);
+      if (ok) success++;
+      else failed++;
+    } catch {
+      failed++;
+    }
+    if (pending.length > 1) {
+      await new Promise((r) => setTimeout(r, 150));
+    }
+  }
+
+  let remQuery = "SELECT COUNT(*) as cnt FROM complexes WHERE total_households IS NULL";
+  const remParams: any[] = [];
+  if (lawdCode) {
+    remQuery += " AND lawd_code = ?";
+    remParams.push(lawdCode);
+  }
+  const remaining = (db.prepare(remQuery).get(...remParams) as any)?.cnt || 0;
+
+  graphCache.invalidateByPrefix("region-map-complexes:");
+  res.json({ total: pending.length, success, failed, remaining });
+}));
+
 export default router;
