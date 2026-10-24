@@ -44,6 +44,7 @@ myhome/                            ← 모노레포 루트
 │   ├── 08-1_RONE_API_LIST.md      ← 부동산원 통계표 코드 목록
 │   ├── 08-2_RONE_API_REGION_CODE.md ← 부동산원 지역코드 마스터 목록
 │   ├── 09_ARCHITECTURE.md         ← 시스템 아키텍처 가이드 (컴포넌트·데이터 흐름·외부 연동)
+│   ├── 10_BUILDING_REGISTER_API.md ← 국토부 건축HUB 건축물대장 API 명세 & 연동 가이드
 │   └── archived/                  ← 완료 또는 지난 참조 문서 보관
 │
 ├── packages/
