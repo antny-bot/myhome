@@ -125,17 +125,19 @@ import { BarChart3 } from "lucide-react";
 
 ---
 
-## 6. 반응형 2-mode 탭 스트립 디자인
+## 6. 반응형 2-mode 탭 스트립 디자인 및 공통 모듈 (`ResponsiveTabs`)
 
-다중 탭 구조를 가지는 페이지(`GraphDashboard`, `Settings` 등)는 가독성과 공간 사용 효율화를 위해 768px 분기에 따라 완전히 상이한 2가지 스타일 모드로 렌더링해야 합니다.
+다중 탭 구조를 가지는 페이지(`GraphDashboard`, `DatabaseAdmin`, `Settings` 등)는 가독성과 공간 사용 효율화를 위해 768px 분기에 따라 완전히 상이한 2가지 스타일 모드로 렌더링해야 하며, 반드시 공통 컴포넌트인 **`ResponsiveTabs` (`packages/dashboard/src/components/common/ResponsiveTabs.tsx`)**를 사용합니다.
 
 - **데스크톱 (>= 768px - Underline 탭)**:
   - 밑줄 형태의 탭 링크 구조를 갖습니다 (`border-b-2 -mb-px`). 
-  - 활성 상태: `border-primary-600 text-primary-600 dark:border-primary-400 dark:text-primary-400 font-semibold`
+  - 활성 상태: `border-primary text-primary font-bold`
 - **모바일 (< 768px - Scrollable Pill 탭)**:
   - 가로 슬라이드가 가능하고 둥근 캡슐 형태의 알약 버튼 탭 스트립을 구성합니다.
-  - 컨테이너에 `overflow-x-auto scrollbar-none snap-x snap-mandatory flex flex-nowrap`을 선언하여 가로 스크롤을 활성화하고 스크롤바를 숨겨야 합니다.
-  - 활성 상태: `bg-primary-600 text-white dark:bg-primary-500 rounded-full`
+  - 컨테이너에 `overflow-x-auto scrollbar-none snap-x snap-mandatory flex flex-nowrap`을 선언하여 가로 스크롤을 활성화하고 스크롤바를 숨깁니다.
+  - 활성 상태: `bg-primary text-white rounded-full shadow-sm`
+- **우측 액션 슬롯 (`rightAction`)**:
+  - 단위 토글 버튼, 필터 칩 등을 슬롯 형태로 전달하여 모바일/데스크톱 반응형 위치를 자동 정렬합니다.
 
 ---
 

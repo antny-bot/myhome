@@ -5,18 +5,16 @@ import InsightTab from "./graph/InsightTab";
 import { GraphFilter } from "@myhome/shared";
 import { searchGraphTransactions } from "../api";
 import { BarChart3, Sparkles } from "lucide-react";
-import { copy } from "../locales/ko";
+import { useLocale } from "../lib/i18n";
 import { PageHeader } from "../components/PageHeader";
 import { classNames } from "../lib/format";
+import { ResponsiveTabs } from "../components/common/ResponsiveTabs";
+import { LoadingSpinner } from "../components/common/LoadingSpinner";
 import type { AppConfig } from "../types";
 
-const locale = "ko";
-const t = copy[locale];
 
-const tabs = [
-  { id: "overview" as const, label: "종합 현황", icon: BarChart3 },
-  { id: "insight" as const, label: t.analyticsTabInsight, icon: Sparkles },
-];
+
+
 
 interface GraphDashboardProps {
   onNavigateToRules?: (initData: { regionName: string; regionCode?: string; apartmentKeywords: string[] }) => void;
@@ -26,6 +24,11 @@ interface GraphDashboardProps {
 }
 
 export default function GraphDashboard({ onNavigateToRules, onSelectComplex, config }: GraphDashboardProps) {
+  const { t, locale } = useLocale();
+  const tabs = [
+    { id: "overview" as const, label: t.analyticsTabOverview || "종합 현황", icon: BarChart3 },
+    { id: "insight" as const, label: t.analyticsTabInsight || "AI 인사이트", icon: Sparkles },
+  ];
   const [activeTab, setActiveTab] = useState<"overview" | "insight">("overview");
 
   const [filter, setFilter] = useState<GraphFilter>(() => {
@@ -137,122 +140,80 @@ export default function GraphDashboard({ onNavigateToRules, onSelectComplex, con
         locale={locale}
       />
 
-      {/* Tabs */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-200 dark:border-slate-800 gap-2 pb-px overflow-visible">
-        {/* Desktop Underline Tabs */}
-        <div className="hidden md:flex gap-1">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={classNames(
-                  "flex items-center gap-1.5 px-4 py-3 text-sm font-semibold border-b-2 -mb-px transition-colors whitespace-nowrap",
-                  isActive
-                    ? "border-primary-600 text-primary-600 dark:border-primary-400 dark:text-primary-400"
-                    : "border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
-                )}
-              >
-                <Icon size={15} />
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
-        </div>
+      {/* 2-mode 반응형 탭 스트립 */}
+      <ResponsiveTabs
+        tabs={tabs}
+        activeTab={activeTab}
+        onChange={setActiveTab}
+        rightAction={
+          activeTab === "overview" && (
+            <div className="flex items-center gap-2">
+              {/* 분양 / 전용 탭 */}
+              <div className="flex items-center gap-0.5 rounded-lg border border-normal p-0.5 bg-alternative">
+                <button
+                  type="button"
+                  onClick={() => setAreaType("supply")}
+                  className={classNames(
+                    "rounded-md px-2 py-1 text-[10px] font-bold transition-colors",
+                    areaType === "supply"
+                      ? "bg-primary text-white"
+                      : "text-neutral hover:text-strong"
+                  )}
+                >
+                  분양
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAreaType("dedicated")}
+                  className={classNames(
+                    "rounded-md px-2 py-1 text-[10px] font-bold transition-colors",
+                    areaType === "dedicated"
+                      ? "bg-primary text-white"
+                      : "text-neutral hover:text-strong"
+                  )}
+                >
+                  전용
+                </button>
+              </div>
 
-        {/* Mobile Scrollable Pill Tabs */}
-        <div className="flex md:hidden overflow-x-auto scrollbar-none gap-2 pb-1 snap-x snap-mandatory flex-1 max-w-full">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={classNames(
-                  "snap-start shrink-0 px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5",
-                  isActive
-                    ? "bg-primary-600 text-white dark:bg-primary-500"
-                    : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
-                )}
-              >
-                <Icon size={14} />
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* 면적 구분(분양/전용) 및 단위 토글 버튼 */}
-        {activeTab === "overview" && (
-          <div className="flex items-center gap-2 shrink-0 mr-1 mb-1 justify-end w-full sm:w-auto mt-2 sm:mt-0">
-            {/* 분양 / 전용 탭 */}
-            <div className="flex items-center gap-0.5 rounded-lg border border-slate-200 dark:border-slate-800 p-0.5 bg-slate-50 dark:bg-slate-900">
-              <button
-                type="button"
-                onClick={() => setAreaType("supply")}
-                className={classNames(
-                  "rounded-md px-2 py-1 text-[10px] font-bold transition-colors",
-                  areaType === "supply"
-                    ? "bg-primary text-white"
-                    : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
-                )}
-              >
-                분양
-              </button>
-              <button
-                type="button"
-                onClick={() => setAreaType("dedicated")}
-                className={classNames(
-                  "rounded-md px-2 py-1 text-[10px] font-bold transition-colors",
-                  areaType === "dedicated"
-                    ? "bg-primary text-white"
-                    : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
-                )}
-              >
-                전용
-              </button>
+              {/* 평 / ㎡ 단위 탭 */}
+              <div className="flex items-center gap-0.5 rounded-lg border border-normal p-0.5 bg-alternative">
+                <button
+                  type="button"
+                  onClick={() => setAreaUnit("pyeong")}
+                  className={classNames(
+                    "rounded-md px-2 py-1 text-[10px] font-bold transition-colors",
+                    areaUnit === "pyeong"
+                      ? "bg-primary text-white"
+                      : "text-neutral hover:text-strong"
+                  )}
+                >
+                  평
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAreaUnit("m2")}
+                  className={classNames(
+                    "rounded-md px-2 py-1 text-[10px] font-bold transition-colors",
+                    areaUnit === "m2"
+                      ? "bg-primary text-white"
+                      : "text-neutral hover:text-strong"
+                  )}
+                >
+                  ㎡
+                </button>
+              </div>
             </div>
-
-            {/* 평 / ㎡ 단위 탭 */}
-            <div className="flex items-center gap-0.5 rounded-lg border border-slate-200 dark:border-slate-800 p-0.5 bg-slate-50 dark:bg-slate-900">
-              <button
-                type="button"
-                onClick={() => setAreaUnit("pyeong")}
-                className={classNames(
-                  "rounded-md px-2 py-1 text-[10px] font-bold transition-colors",
-                  areaUnit === "pyeong"
-                    ? "bg-primary text-white"
-                    : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
-                )}
-              >
-                평
-              </button>
-              <button
-                type="button"
-                onClick={() => setAreaUnit("m2")}
-                className={classNames(
-                  "rounded-md px-2 py-1 text-[10px] font-bold transition-colors",
-                  areaUnit === "m2"
-                    ? "bg-primary text-white"
-                    : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
-                )}
-              >
-                ㎡
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
+          )
+        }
+      />
 
       <div>
         {activeTab === "overview" && (
           <>
             {loading ? (
-              <div className="flex items-center justify-center py-24 bg-elevated border border-normal rounded-xl">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+              <div className="py-12 bg-elevated border border-normal rounded-xl">
+                <LoadingSpinner message={t.loading || "실거래 데이터를 불러오는 중..."} />
               </div>
             ) : (
               <OverviewTab

@@ -9,11 +9,11 @@ import { SectionCard } from "../components/SectionCard";
 import { classNames, formatDate } from "../lib/format";
 import type { ComparisonCriteria, DashboardState, RegionSearchResult, RuleInput, WatchRule, ComplexSearchResult } from "../types";
 import { MapPin } from "lucide-react";
-import { copy } from "../locales/ko";
+import { useLocale } from "../lib/i18n";
+import { formatNumber, formatPrice } from "../lib/format";
 import { TelegramGuideModal } from "../components/TelegramGuideModal";
 
-const locale = "ko";
-const t = copy[locale];
+
 
 const ALERT_TIME_OPTIONS = Array.from({ length: 24 }, (_, i) => {
   const hour = i.toString().padStart(2, "0");
@@ -44,6 +44,7 @@ const initialForm: RuleInput = {
 };
 
 function RuleForm({
+
   editingRule,
   initData,
   clearInitData,
@@ -60,6 +61,7 @@ function RuleForm({
   isAdmin?: boolean;
   currentRulesCount?: number;
 }) {
+  const { t, locale } = useLocale();
   const [step, setStep] = useState(1);
   const [isTelegramGuideOpen, setIsTelegramGuideOpen] = useState(false);
   const [form, setForm] = useState<RuleInput>(() => ({
@@ -686,6 +688,7 @@ function RuleList({
   onChanged: () => void;
   onEdit: (rule: WatchRule) => void;
 }) {
+  const { t, locale } = useLocale();
   const [busyId, setBusyId] = useState("");
   const [error, setError] = useState("");
 
@@ -789,16 +792,16 @@ function RuleList({
                   </span>
                 </div>
               </div>
-              <div className="flex flex-wrap items-center gap-2 sm:self-center">
+              <div className="w-full sm:w-auto flex items-center justify-end gap-1.5 pt-2 sm:pt-0 border-t sm:border-t-0 border-normal/40 shrink-0">
                 <button
-                  className="p-2.5 text-neutral hover:bg-alternative hover:text-strong rounded-lg transition-colors"
+                  className="p-2 min-h-[38px] min-w-[38px] flex items-center justify-center text-neutral hover:bg-alternative hover:text-strong rounded-lg transition-colors"
                   title={t.ruleEdit}
                   onClick={() => onEdit(rule)}
                 >
                   <Pencil className="h-4.5 w-4.5" />
                 </button>
                 <button
-                  className="p-2.5 text-neutral hover:bg-red-500/10 hover:text-red-500 rounded-lg transition-colors"
+                  className="p-2 min-h-[38px] min-w-[38px] flex items-center justify-center text-neutral hover:bg-red-500/10 hover:text-red-500 rounded-lg transition-colors"
                   title={t.ruleDelete}
                   onClick={() => remove(rule.id)}
                 >
@@ -851,6 +854,7 @@ export function RulesPage({
   onNavigate?: (view: any) => void;
   isAdmin?: boolean;
 }) {
+  const { t, locale } = useLocale();
   const { isMobile } = useBreakpoint();
   const [editingRule, setEditingRule] = useState<WatchRule | undefined>();
   const [isTelegramGuideOpen, setIsTelegramGuideOpen] = useState(false);

@@ -5,7 +5,8 @@ import { StatCard } from "../../components/StatCard";
 import { PageHeader } from "../../components/PageHeader";
 import { loadNearbyStation, triggerGeocodeBatch, loadGeocodeStats, fetchComplexData } from "../../api";
 import { MapPin, Search, Map, Compass, Play, RefreshCw, AlertTriangle, ArrowRight, Bell, Settings, CheckCircle2, X, Clock, Database, Download, Loader2, ChevronRight, Zap, SlidersHorizontal } from "lucide-react";
-import { copy } from "../../locales/ko";
+import { useLocale } from "../../lib/i18n";
+import { useLocalStorageHistory } from "../../hooks/useLocalStorageHistory";
 import { createComplexMarkerHtml, createStationMarkerHtml, getPriceTheme, MAP_CIRCLE_STYLES } from "../../lib/mapTheme";
 import { MapLegend } from "../../components/MapLegend";
 
@@ -91,8 +92,7 @@ interface NearbyStationTabProps {
 }
 
 export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }: NearbyStationTabProps) {
-  const locale = "ko";
-  const t = copy[locale];
+  const { t, locale } = useLocale();
   const { loaded: mapLoaded, error: mapError } = useKakaoMap();
   const [stationName, setStationName] = useState("");
   const [radiusM, setRadiusM] = useState(500);

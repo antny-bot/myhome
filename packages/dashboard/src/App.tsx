@@ -1,18 +1,21 @@
 import { useEffect, useState } from "react";
 import { loadDashboard, checkAuth, logout, logActivity } from "./api";
 import { Layout, type View } from "./components/Layout";
-import { DashboardPage } from "./pages/Dashboard";
-import { LoginPage } from "./pages/Login";
-import { RulesPage } from "./pages/Rules";
-import { SettingsPage } from "./pages/Settings";
-import GraphDashboard from "./pages/GraphDashboard";
-import ComplexAnalysisPage from "./pages/ComplexAnalysisPage";
-import NearbyStationTab from "./pages/graph/NearbyStationTab";
-import { RegionMapPage } from "./pages/RegionMapPage";
-import { DatabaseAdminPage } from "./pages/DatabaseAdmin";
-import { CollectPage } from "./pages/Collect";
-import { AllowedAccountsPage } from "./pages/AllowedAccountsPage";
-import { ActivityLogPage } from "./pages/ActivityLog";
+import React, { Suspense, lazy } from "react";
+import { LoadingSpinner } from "./components/common/LoadingSpinner";
+
+const DashboardPage = lazy(() => import("./pages/Dashboard").then(m => ({ default: m.DashboardPage })));
+const LoginPage = lazy(() => import("./pages/Login").then(m => ({ default: m.LoginPage })));
+const RulesPage = lazy(() => import("./pages/Rules").then(m => ({ default: m.RulesPage })));
+const SettingsPage = lazy(() => import("./pages/Settings").then(m => ({ default: m.SettingsPage })));
+const GraphDashboard = lazy(() => import("./pages/GraphDashboard"));
+const ComplexAnalysisPage = lazy(() => import("./pages/ComplexAnalysisPage"));
+const NearbyStationTab = lazy(() => import("./pages/graph/NearbyStationTab"));
+const RegionMapPage = lazy(() => import("./pages/RegionMapPage").then(m => ({ default: m.RegionMapPage })));
+const DatabaseAdminPage = lazy(() => import("./pages/DatabaseAdmin").then(m => ({ default: m.DatabaseAdminPage })));
+const CollectPage = lazy(() => import("./pages/Collect").then(m => ({ default: m.CollectPage })));
+const AllowedAccountsPage = lazy(() => import("./pages/AllowedAccountsPage").then(m => ({ default: m.AllowedAccountsPage })));
+const ActivityLogPage = lazy(() => import("./pages/ActivityLog").then(m => ({ default: m.ActivityLogPage })));
 import { TempPasswordResetModal } from "./components/TempPasswordResetModal";
 import type { DashboardState } from "./types";
 import { useLocale } from "./lib/i18n";
@@ -186,7 +189,7 @@ function App() {
   }
 
   if (!auth.isAuthenticated) {
-    return <LoginPage />;
+    return <Suspense fallback={<div className="min-h-screen bg-normal" />}><LoginPage /></Suspense>;
   }
 
   if (auth.isTemporaryPassword && auth.email) {
@@ -203,6 +206,7 @@ function App() {
 
   return (
     <Layout view={view} onNavigate={setView} onLogout={handleLogout} isAdmin={auth?.isAdmin} userEmail={auth?.email}>
+      <Suspense fallback={<LoadingSpinner message={t.loading || "페이지를 불러오는 중..."} className="py-24" />}>
       {error && <p className="mb-4 text-sm text-red-500 font-medium">{error}</p>}
       {view === "dashboard" && <DashboardPage state={state} onChanged={() => void refresh()} onNavigate={setView} isAdmin={auth?.isAdmin} />}
       {view === "regionMap" && (
@@ -254,6 +258,7 @@ function App() {
       {view === "dbAdmin" && <DatabaseAdminPage />}
       {view === "allowedAccounts" && <AllowedAccountsPage onChanged={() => void refresh()} currentUserEmail={auth?.email} />}
       {view === "settings" && <SettingsPage state={state} onChanged={() => void refresh()} isAdmin={auth?.isAdmin} userEmail={auth?.email} />}
+          </Suspense>
     </Layout>
   );
 }

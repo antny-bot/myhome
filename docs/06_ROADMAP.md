@@ -20,6 +20,7 @@
 | **Phase 7D** | **Docker 컨테이너화 및 GitHub Actions CI/CD 구축** | ✅ 완료 |
 | **Phase 7E** | **국토부 API 단일화 + MCP 자연어 전용 분리 + 역세권/어드민/활동로그 UX 개선** | ✅ 완료 |
 | **Phase 8** | **LLM API 직접 연동 (Gemini API + AI 인사이트 자동화)** | ✅ 완료 |
+| **Phase 8.5** | **모바일 UI/UX 최적화, 공통 컴포넌트 모듈화, 번들 코드 스플리팅 (-81.7% 용량 감축)** | ✅ 완료 |
 | Phase 9 | MCP 서버 (SQLite 데이터 외부 LLM 노출) | 📋 계획 |
 | Phase 10 | 매물·호가 데이터 확장 (실거래 외 소스 추가) | 📋 계획 |
 | Phase 11 | Kakao 알림 활성화 | 📋 계획 |

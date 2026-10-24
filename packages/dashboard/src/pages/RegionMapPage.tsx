@@ -36,6 +36,8 @@ import {
   Maximize2
 } from "lucide-react";
 import { useLocale } from "../lib/i18n";
+import { useBreakpoint } from "../useBreakpoint";
+import { useDragScroll } from "../hooks/useDragScroll";
 import { createComplexMarkerHtml, getPriceTheme, calculatePriceQuartiles } from "../lib/mapTheme";
 import { MapLegend } from "../components/MapLegend";
 
@@ -56,56 +58,8 @@ interface RegionMapPageProps {
 
 type SortOption = "txCount" | "latestDeal" | "priceHigh" | "priceLow" | "name";
 
-function useDragScroll() {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const isDownRef = useRef(false);
-  const startXRef = useRef(0);
-  const scrollLeftRef = useRef(0);
-  const hasDraggedRef = useRef(false);
-
-  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!containerRef.current) return;
-    isDownRef.current = true;
-    hasDraggedRef.current = false;
-    startXRef.current = e.pageX - containerRef.current.offsetLeft;
-    scrollLeftRef.current = containerRef.current.scrollLeft;
-  };
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isDownRef.current || !containerRef.current) return;
-    e.preventDefault();
-    const x = e.pageX - containerRef.current.offsetLeft;
-    const walk = (x - startXRef.current) * 1.5;
-    if (Math.abs(walk) > 4) {
-      hasDraggedRef.current = true;
-      if (!isDragging) setIsDragging(true);
-    }
-    containerRef.current.scrollLeft = scrollLeftRef.current - walk;
-  };
-
-  const handleMouseUpOrLeave = () => {
-    isDownRef.current = false;
-    setIsDragging(false);
-    setTimeout(() => {
-      hasDraggedRef.current = false;
-    }, 80);
-  };
-
-  return {
-    ref: containerRef,
-    isDragging,
-    hasDraggedRef,
-    events: {
-      onMouseDown: handleMouseDown,
-      onMouseMove: handleMouseMove,
-      onMouseUp: handleMouseUpOrLeave,
-      onMouseLeave: handleMouseUpOrLeave,
-    },
-  };
-}
-
 export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapPageProps) {
+  const { isMobile } = useBreakpoint();
   const { t } = useLocale();
   const { loaded: mapLoaded, error: mapError } = useKakaoMap();
 
@@ -168,10 +122,10 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
     const updateHeight = () => {
       if (!pageContainerRef.current) return;
 
-      const isMobile = window.innerWidth < 1024;
+      const isMobileLayout = isMobile || (window.innerWidth < 768);
       const viewportHeight = window.visualViewport?.height || window.innerHeight;
 
-      if (isMobile) {
+      if (isMobileLayout) {
         // 모바일 레이아웃 가용 높이 정밀 계산:
         // - TopBar: h-14 = 56px (sticky top-0)
         // - BottomNav: min-h-[56px] fixed, main에 pb-16(64px)로 공간 확보
@@ -936,7 +890,7 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
           }`}
           style={{ height: "100%" }}
         >
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 sm:p-3.5 flex flex-col h-full min-h-0 shadow-sm gap-2.5">
+          <div className="bg-elevated border border-normal rounded-2xl p-3 sm:p-3.5 flex flex-col h-full min-h-0 shadow-sm gap-2.5">
             {/* 상단 통계 요약 */}
             {mapData && (
               <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800 shrink-0">
@@ -975,7 +929,7 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={t.searchComplexInRegion || "단지명 또는 동 검색..."}
-                className="w-full pl-9 pr-8 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                className="w-full pl-9 pr-8 py-2 text-xs rounded-xl bg-normal border border-normal text-strong placeholder-neutral/60 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
               />
               {searchQuery && (
                 <button
@@ -1003,8 +957,8 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
                   }}
                   className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold whitespace-nowrap transition-colors select-none ${
                     selectedDong === "ALL"
-                      ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900"
-                      : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200"
+                      ? "bg-strong text-normal"
+                      : "bg-alternative text-neutral hover:bg-normal hover:text-strong"
                   }`}
                 >
                   {t.allDongs || "전체 동"}

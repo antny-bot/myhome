@@ -7,10 +7,7 @@ import { SectionCard } from "../components/SectionCard";
 import { StatCard } from "../components/StatCard";
 import { fetchActivityLogs, fetchActivityStats } from "../api";
 import { UserActivityLog, ActivityStats } from "../types";
-import { copy } from "../locales/ko";
-
-const locale = (typeof navigator !== "undefined" && navigator.language.startsWith("ko")) ? "ko" : "en";
-const t = copy[locale];
+import { useLocale } from "../lib/i18n";
 
 const CustomLegend = (props: any) => {
   const { payload } = props;
@@ -51,6 +48,7 @@ const CustomLegend = (props: any) => {
 const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#6b7280"];
 
 export function ActivityLogPage() {
+  const { t, locale } = useLocale();
   const { isMobile } = useBreakpoint();
   
   // 상태 변수
