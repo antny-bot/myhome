@@ -40,3 +40,4 @@
 | 08-1 | **부동산원 통계표 코드 목록** | [docs/08-1_RONE_API_LIST.md](file:///e:/apps/myhome/docs/08-1_RONE_API_LIST.md) |
 | 08-2 | **부동산원 지역코드 마스터 목록** | [docs/08-2_RONE_API_REGION_CODE.md](file:///e:/apps/myhome/docs/08-2_RONE_API_REGION_CODE.md) |
 | 09 | **시스템 아키텍처 가이드 (컴포넌트·데이터 흐름·외부 연동)** | [docs/09_ARCHITECTURE.md](file:///e:/apps/myhome/docs/09_ARCHITECTURE.md) |
+| 10 | **국토부 건축HUB 건축물대장 API 명세 & 연동 가이드** | [docs/10_BUILDING_REGISTER_API.md](file:///e:/apps/myhome/docs/10_BUILDING_REGISTER_API.md) |
