@@ -1,3 +1,4 @@
+import type { ComplexMetaFilter } from "@myhome/shared";
 import type { AppConfig, CheckRun, NotificationRecord, RegionSearchResult, RuleInput, TransactionRecord, WatchRule, ApartmentListResponse, UserActivityLog, ActivityStats } from "./types";
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
@@ -190,8 +191,14 @@ export function loadRegionsSummary() {
   }[]>("/api/graph/regions-summary");
 }
 
-export function loadRegionMapComplexes(lawdCode: string) {
-  return request<RegionMapData>(`/api/graph/region-map-complexes?lawdCode=${encodeURIComponent(lawdCode)}`);
+export function loadRegionMapComplexes(lawdCode: string, filter?: ComplexMetaFilter) {
+  const params = new URLSearchParams({ lawdCode });
+  if (filter?.minHouseholds) params.set("minHouseholds", String(filter.minHouseholds));
+  if (filter?.minTotalParking) params.set("minTotalParking", String(filter.minTotalParking));
+  if (filter?.minParkingPerHousehold) params.set("minParkingPerHousehold", String(filter.minParkingPerHousehold));
+  if (filter?.minBuildYear) params.set("minBuildYear", String(filter.minBuildYear));
+  if (filter?.maxBuildYear) params.set("maxBuildYear", String(filter.maxBuildYear));
+  return request<RegionMapData>(`/api/graph/region-map-complexes?${params.toString()}`);
 }
 
 export function fetchComplexesByRegion(lawdCode?: string) {

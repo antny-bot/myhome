@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from "react";
 import FilterPanel from "./graph/FilterPanel";
 import OverviewTab from "./graph/OverviewTab";
+import ComplexTab from "./graph/ComplexTab";
 import InsightTab from "./graph/InsightTab";
 import { GraphFilter } from "@myhome/shared";
 import { searchGraphTransactions } from "../api";
-import { BarChart3, Sparkles } from "lucide-react";
+import { BarChart3, Building2, Sparkles } from "lucide-react";
 import { useLocale } from "../lib/i18n";
 import { PageHeader } from "../components/PageHeader";
 import { classNames } from "../lib/format";
@@ -12,29 +13,38 @@ import { ResponsiveTabs } from "../components/common/ResponsiveTabs";
 import { LoadingSpinner } from "../components/common/LoadingSpinner";
 import type { AppConfig } from "../types";
 
-
-
-
-
 interface GraphDashboardProps {
   onNavigateToRules?: (initData: { regionName: string; regionCode?: string; apartmentKeywords: string[] }) => void;
   /** 종합 현황에서 단지 클릭 시 단지 분석으로 이동하는 콜백 */
   onSelectComplex?: (complexName: string, lawdCode?: string) => void;
   config?: AppConfig;
+  initialTab?: "overview" | "complex" | "insight";
+  initialComplexName?: string;
+  initialLawdCode?: string;
 }
 
-export default function GraphDashboard({ onNavigateToRules, onSelectComplex, config }: GraphDashboardProps) {
+export default function GraphDashboard({
+  onNavigateToRules,
+  onSelectComplex,
+  config,
+  initialTab = "overview",
+  initialComplexName,
+  initialLawdCode
+}: GraphDashboardProps) {
   const { t, locale } = useLocale();
   const tabs = [
     { id: "overview" as const, label: t.analyticsTabOverview || "종합 현황", icon: BarChart3 },
+    { id: "complex" as const, label: t.analyticsTabComplex || "단지 분석", icon: Building2 },
     { id: "insight" as const, label: t.analyticsTabInsight || "AI 인사이트", icon: Sparkles },
   ];
-  const [activeTab, setActiveTab] = useState<"overview" | "insight">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "complex" | "insight">(initialTab);
 
   const [filter, setFilter] = useState<GraphFilter>(() => {
     const defaultFilter: GraphFilter = {
       startDate: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().substring(0, 7),
       endDate: new Date().toISOString().substring(0, 7),
+      complexName: initialComplexName,
+      lawdCode: initialLawdCode
     };
     const saved = localStorage.getItem("myhome_selected_regions");
     if (saved) {
@@ -88,10 +98,17 @@ export default function GraphDashboard({ onNavigateToRules, onSelectComplex, con
     const urlRegionName = params.get("regionName");
     const urlStartDate = params.get("startDate");
     const urlEndDate = params.get("endDate");
+    const urlComplexName = params.get("complexName");
+    const urlTab = params.get("tab") as "overview" | "complex" | "insight";
 
-    if (urlLawdCode) {
+    if (urlTab && ["overview", "complex", "insight"].includes(urlTab)) {
+      setActiveTab(urlTab);
+    }
+
+    if (urlLawdCode || urlComplexName) {
       const activeFilter: GraphFilter = {
-        lawdCode: urlLawdCode,
+        lawdCode: urlLawdCode || filter.lawdCode,
+        complexName: urlComplexName || filter.complexName,
         startDate: urlStartDate || filter.startDate,
         endDate: urlEndDate || filter.endDate
       };
@@ -99,7 +116,9 @@ export default function GraphDashboard({ onNavigateToRules, onSelectComplex, con
       if (urlRegionName) {
         setRegionName(decodeURIComponent(urlRegionName));
       }
-      void fetchTransactions(activeFilter);
+      if (activeTab === "overview") {
+        void fetchTransactions(activeFilter);
+      }
     } else {
       void fetchTransactions(filter);
     }
@@ -111,102 +130,106 @@ export default function GraphDashboard({ onNavigateToRules, onSelectComplex, con
   };
 
   const handleApply = (appliedFilter?: GraphFilter) => {
-    fetchTransactions(appliedFilter || filter);
+    const targetFilter = appliedFilter || filter;
+    if (activeTab === "overview") {
+      void fetchTransactions(targetFilter);
+    }
   };
 
-  /** 종합 현황 차트에서 단지 클릭 → 단지 분석 페이지로 드릴다운 */
   const handleSelectComplex = (complexName: string, lawdCode?: string) => {
+    setFilter(prev => ({
+      ...prev,
+      complexName,
+      lawdCode: lawdCode ?? prev.lawdCode
+    }));
+    setActiveTab("complex");
     if (onSelectComplex) {
-      onSelectComplex(complexName, lawdCode ?? filter.lawdCode);
+      onSelectComplex(complexName, lawdCode);
     }
   };
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
       <PageHeader
-        title="종합 현황"
-        subtitle="실거래 적재 데이터를 지역·기간별로 거시 통계 분석합니다. 단지를 클릭하면 단지 분석으로 이동합니다."
+        title={t.analyticsTitle || "실거래 심층 분석"}
+        subtitle="로컬 SQLite 실거래 적재 데이터와 건축물대장을 시계열 차트 및 단지 입체 리포트로 분석합니다."
         icon={BarChart3}
       />
 
-      {/* 지역·기간 필터만 표시 (단지명·평형 숨김) */}
       <FilterPanel
         filter={filter}
         regionName={regionName}
         onFilterChange={handleFilterChange}
         onApply={handleApply}
-        hideComplexSearch={true}
-        locale={locale}
+        hideComplexSearch={activeTab === "overview"}
       />
 
-      {/* 2-mode 반응형 탭 스트립 */}
-      <ResponsiveTabs
-        tabs={tabs}
-        activeTab={activeTab}
-        onChange={setActiveTab}
-        rightAction={
-          activeTab === "overview" && (
-            <div className="flex items-center gap-2">
-              {/* 분양 / 전용 탭 */}
-              <div className="flex items-center gap-0.5 rounded-lg border border-normal p-0.5 bg-alternative">
-                <button
-                  type="button"
-                  onClick={() => setAreaType("supply")}
-                  className={classNames(
-                    "rounded-md px-2 py-1 text-[10px] font-bold transition-colors",
-                    areaType === "supply"
-                      ? "bg-primary text-white"
-                      : "text-neutral hover:text-strong"
-                  )}
-                >
-                  분양
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAreaType("dedicated")}
-                  className={classNames(
-                    "rounded-md px-2 py-1 text-[10px] font-bold transition-colors",
-                    areaType === "dedicated"
-                      ? "bg-primary text-white"
-                      : "text-neutral hover:text-strong"
-                  )}
-                >
-                  전용
-                </button>
-              </div>
+      {/* 탭 네비게이션 & 면적/단위 토글 */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-normal pb-1">
+        <ResponsiveTabs
+          tabs={tabs}
+          activeTab={activeTab}
+          onChange={(tabId) => setActiveTab(tabId as "overview" | "complex" | "insight")}
+        />
 
-              {/* 평 / ㎡ 단위 탭 */}
-              <div className="flex items-center gap-0.5 rounded-lg border border-normal p-0.5 bg-alternative">
-                <button
-                  type="button"
-                  onClick={() => setAreaUnit("pyeong")}
-                  className={classNames(
-                    "rounded-md px-2 py-1 text-[10px] font-bold transition-colors",
-                    areaUnit === "pyeong"
-                      ? "bg-primary text-white"
-                      : "text-neutral hover:text-strong"
-                  )}
-                >
-                  평
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAreaUnit("m2")}
-                  className={classNames(
-                    "rounded-md px-2 py-1 text-[10px] font-bold transition-colors",
-                    areaUnit === "m2"
-                      ? "bg-primary text-white"
-                      : "text-neutral hover:text-strong"
-                  )}
-                >
-                  ㎡
-                </button>
-              </div>
+        {activeTab !== "insight" && (
+          <div className="flex items-center gap-2 self-end sm:self-auto pb-1 sm:pb-0">
+            <div className="flex items-center gap-0.5 rounded-lg border border-normal p-0.5 bg-alternative">
+              <button
+                type="button"
+                onClick={() => setAreaType("supply")}
+                className={classNames(
+                  "rounded-md px-2 py-1 text-[10px] font-bold transition-colors",
+                  areaType === "supply"
+                    ? "bg-primary text-white"
+                    : "text-neutral hover:text-strong"
+                )}
+              >
+                공급
+              </button>
+              <button
+                type="button"
+                onClick={() => setAreaType("dedicated")}
+                className={classNames(
+                  "rounded-md px-2 py-1 text-[10px] font-bold transition-colors",
+                  areaType === "dedicated"
+                    ? "bg-primary text-white"
+                    : "text-neutral hover:text-strong"
+                )}
+              >
+                전용
+              </button>
             </div>
-          )
-        }
-      />
+
+            <div className="flex items-center gap-0.5 rounded-lg border border-normal p-0.5 bg-alternative">
+              <button
+                type="button"
+                onClick={() => setAreaUnit("pyeong")}
+                className={classNames(
+                  "rounded-md px-2 py-1 text-[10px] font-bold transition-colors",
+                  areaUnit === "pyeong"
+                    ? "bg-primary text-white"
+                    : "text-neutral hover:text-strong"
+                )}
+              >
+                평
+              </button>
+              <button
+                type="button"
+                onClick={() => setAreaUnit("m2")}
+                className={classNames(
+                  "rounded-md px-2 py-1 text-[10px] font-bold transition-colors",
+                  areaUnit === "m2"
+                    ? "bg-primary text-white"
+                    : "text-neutral hover:text-strong"
+                )}
+              >
+                ㎡
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
 
       <div>
         {activeTab === "overview" && (
@@ -225,6 +248,17 @@ export default function GraphDashboard({ onNavigateToRules, onSelectComplex, con
               />
             )}
           </>
+        )}
+
+        {activeTab === "complex" && (
+          <ComplexTab
+            initialComplexName={filter.complexName || "은마"}
+            lawdCode={filter.lawdCode}
+            areaUnit={areaUnit}
+            areaType={areaType}
+            startDate={filter.startDate}
+            endDate={filter.endDate}
+          />
         )}
 
         {activeTab === "insight" && (

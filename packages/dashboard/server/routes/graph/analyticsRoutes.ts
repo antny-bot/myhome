@@ -237,7 +237,8 @@ router.get("/complex/:name/detail", asyncHandler(async (req, res) => {
   infraRating = await getComplexInfraRating(
     complexInfo?.lat ?? null,
     complexInfo?.lng ?? null,
-    complexName
+    complexName,
+    complexInfo?.parkingPerHousehold ?? null
   );
 
   const resultPayload = {

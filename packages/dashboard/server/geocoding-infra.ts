@@ -72,14 +72,29 @@ function calculateCategoryScore(code: string, minDistance: number | null, count:
 }
 
 // ──────────────────────────────────────────────────
+// 내부 유틸: 세대당 주차대수 기반 주차 쾌적도 평점 계산
+// ──────────────────────────────────────────────────
+
+function calculateParkingScore(parkingPerHousehold?: number | null): { score: number; label: string } {
+  if (parkingPerHousehold === null || parkingPerHousehold === undefined || isNaN(parkingPerHousehold) || parkingPerHousehold <= 0) {
+    return { score: 70, label: "정보 없음 (중위값 70점)" };
+  }
+  if (parkingPerHousehold >= 1.5) return { score: 100, label: "여유 (1.5대 이상)" };
+  if (parkingPerHousehold >= 1.3) return { score: 85, label: "우수 (1.3~1.5대)" };
+  if (parkingPerHousehold >= 1.1) return { score: 70, label: "양호 (1.1~1.3대)" };
+  if (parkingPerHousehold >= 0.9) return { score: 50, label: "보통 (0.9~1.1대)" };
+  return { score: 30, label: "혼잡 (0.9대 미만)" };
+}
+
+// ──────────────────────────────────────────────────
 // Mock 입지 평가 (API 키 미설정 또는 좌표 없을 때)
 // ──────────────────────────────────────────────────
 
-function generateMockInfraRating(complexName: string) {
+function generateMockInfraRating(complexName: string, parkingPerHousehold?: number | null) {
   const hash = simpleStringHash(complexName);
   const categoryConfigs = [
     { code: "SW8", name: "역세권", weight: 1.5, radius: 1000, baseDist: 150, countMax: 4 },
-    { code: "SC4", name: "학교", weight: 1.0, radius: 500, baseDist: 100, countMax: 3 },
+    { code: "SC4", name: "학교", weight: 1.2, radius: 500, baseDist: 100, countMax: 3 },
     { code: "HP8", name: "병원", weight: 0.8, radius: 1000, baseDist: 200, countMax: 5 },
     { code: "MT1", name: "대형마트", weight: 0.7, radius: 1500, baseDist: 400, countMax: 2 }
   ];
@@ -236,6 +251,22 @@ function generateMockInfraRating(complexName: string) {
     weightSum += config.weight;
   }
 
+  // 주차 쾌적도 (PKG) 가산 (가중치 1.2)
+  const simulatedPkg = parkingPerHousehold ?? (0.8 + ((hash % 10) * 0.1));
+  const pkgScoreInfo = calculateParkingScore(simulatedPkg);
+  categories["PKG"] = {
+    name: "주차환경",
+    score: pkgScoreInfo.score,
+    count: 1,
+    minDistance: null,
+    details: {
+      parkingPerHousehold: simulatedPkg,
+      status: pkgScoreInfo.label
+    }
+  };
+  weightedScoreSum += pkgScoreInfo.score * 1.2;
+  weightSum += 1.2;
+
   const baseScore = Math.round((weightedScoreSum / weightSum) * 10) / 10;
 
   // NAT (조망/환경) 가상 데이터 생성 및 가산점화
@@ -329,27 +360,28 @@ const nearbyInfraCache = new Map<string, any>();
 export async function getComplexInfraRating(
   lat: number | null,
   lng: number | null,
-  complexName: string
+  complexName: string,
+  parkingPerHousehold?: number | null
 ): Promise<any> {
   if (lat === null || lng === null) {
-    return generateMockInfraRating(complexName);
+    return generateMockInfraRating(complexName, parkingPerHousehold);
   }
 
-  const cacheKey = `${lat.toFixed(5)},${lng.toFixed(5)}`;
+  const cacheKey = `${lat.toFixed(5)},${lng.toFixed(5)}:${parkingPerHousehold ?? ""}`;
   if (nearbyInfraCache.has(cacheKey)) {
     return nearbyInfraCache.get(cacheKey);
   }
 
   const apiKey = Config.KAKAO_REST_API_KEY;
   if (!apiKey) {
-    const mock = generateMockInfraRating(complexName);
+    const mock = generateMockInfraRating(complexName, parkingPerHousehold);
     nearbyInfraCache.set(cacheKey, mock);
     return mock;
   }
 
   const categoryConfigs = [
     { code: "SW8", name: "역세권", weight: 1.5, radius: 1000 },
-    { code: "SC4", name: "학교", weight: 1.0, radius: 500 },
+    { code: "SC4", name: "학교", weight: 1.2, radius: 500 },
     { code: "HP8", name: "병원", weight: 0.8, radius: 1000 },
     { code: "MT1", name: "대형마트", weight: 0.7, radius: 1500 }
   ];
@@ -641,6 +673,21 @@ export async function getComplexInfraRating(
       
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
+
+    // 주차 쾌적도 (PKG) 가중 반영 (가중치 1.2)
+    const pkgScoreInfo = calculateParkingScore(parkingPerHousehold);
+    categories["PKG"] = {
+      name: "주차환경",
+      score: pkgScoreInfo.score,
+      count: parkingPerHousehold ? 1 : 0,
+      minDistance: null,
+      details: {
+        parkingPerHousehold: parkingPerHousehold ?? null,
+        status: pkgScoreInfo.label
+      }
+    };
+    weightedScoreSum += pkgScoreInfo.score * 1.2;
+    weightSum += 1.2;
 
     const baseScore = Math.round((weightedScoreSum / weightSum) * 10) / 10;
 

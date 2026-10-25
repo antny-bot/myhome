@@ -60,20 +60,36 @@ router.get("/region-complexes", asyncHandler(async (req, res) => {
   res.json(complexes);
 }));
 
-/** GET /api/graph/region-map-complexes — 특정 지역의 지도용 단지 상세 및 거래 통계 */
+/** GET /api/graph/region-map-complexes — 특정 지역의 지도용 단지 상세 및 거래 통계 (건축물대장 메타 필터 지원) */
 router.get("/region-map-complexes", asyncHandler(async (req, res) => {
   const lawdCode = (req.query.lawdCode as string || "").trim();
   if (!lawdCode) {
     res.status(400).json({ error: "lawdCode 파라미터가 필요합니다." });
     return;
   }
-  const cacheKey = `region-map-complexes:${lawdCode}`;
+
+  const minHouseholds = req.query.minHouseholds ? parseInt(req.query.minHouseholds as string, 10) : undefined;
+  const minTotalParking = req.query.minTotalParking ? parseFloat(req.query.minTotalParking as string) : undefined;
+  const minParkingPerHousehold = req.query.minParkingPerHousehold ? parseFloat(req.query.minParkingPerHousehold as string) : undefined;
+  const minBuildYear = req.query.minBuildYear ? parseInt(req.query.minBuildYear as string, 10) : undefined;
+  const maxBuildYear = req.query.maxBuildYear ? parseInt(req.query.maxBuildYear as string, 10) : undefined;
+
+  const filter = {
+    minHouseholds,
+    minTotalParking,
+    minParkingPerHousehold,
+    minBuildYear,
+    maxBuildYear,
+  };
+
+  const filterKey = `${minHouseholds || ""}_${minTotalParking || ""}_${minParkingPerHousehold || ""}_${minBuildYear || ""}_${maxBuildYear || ""}`;
+  const cacheKey = `region-map-complexes:${lawdCode}:${filterKey}`;
   const cached = graphCache.get(cacheKey);
   if (cached) {
     res.json(cached);
     return;
   }
-  const data = await getRegionComplexesMapData(lawdCode);
+  const data = await getRegionComplexesMapData(lawdCode, filter);
   graphCache.set(cacheKey, data, TTL.STATIC);
   res.json(data);
 }));
