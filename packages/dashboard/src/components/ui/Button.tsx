@@ -2,6 +2,7 @@ import React from "react";
 import { LucideIcon } from "lucide-react";
 import { classNames } from "../../lib/format";
 import { Spinner } from "./Spinner";
+import { renderIconNode } from "./iconHelper";
 
 export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "link";
 export type ButtonSize = "sm" | "md" | "lg";
@@ -37,11 +38,8 @@ const sizeClasses: Record<ButtonSize, string> = {
 function renderIcon(icon: LucideIcon | React.ReactNode, size: ButtonSize) {
   if (!icon) return null;
   const iconSize = size === "sm" ? 14 : size === "md" ? 16 : 18;
-  if (typeof icon === "function") {
-    const IconComponent = icon as LucideIcon;
-    return <IconComponent size={iconSize} className="shrink-0" />;
-  }
-  return <span className="shrink-0 inline-flex items-center">{icon}</span>;
+  const content = renderIconNode(icon, { size: iconSize, className: "shrink-0" });
+  return <span className="shrink-0 inline-flex items-center">{content}</span>;
 }
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function Button(

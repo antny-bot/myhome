@@ -1,6 +1,7 @@
 import React from "react";
 import { LucideIcon } from "lucide-react";
 import { classNames } from "../../lib/format";
+import { renderIconNode } from "./iconHelper";
 
 export type InputSize = "sm" | "md" | "lg";
 
@@ -38,11 +39,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(function Inp
     if (!leftIcon) return null;
     return (
       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral pointer-events-none flex items-center justify-center">
-        {typeof leftIcon === "function" ? (
-          React.createElement(leftIcon as LucideIcon, { size: iconSize })
-        ) : (
-          leftIcon
-        )}
+        {renderIconNode(leftIcon, { size: iconSize })}
       </span>
     );
   };

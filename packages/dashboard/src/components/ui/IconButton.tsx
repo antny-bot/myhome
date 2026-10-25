@@ -2,6 +2,7 @@ import React from "react";
 import { LucideIcon } from "lucide-react";
 import { classNames } from "../../lib/format";
 import { Spinner } from "./Spinner";
+import { renderIconNode } from "./iconHelper";
 import { ButtonVariant, ButtonSize } from "./Button";
 
 export interface IconButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -58,11 +59,7 @@ export const IconButton = React.forwardRef<HTMLButtonElement, IconButtonProps>(f
         />
       );
     }
-    if (typeof icon === "function") {
-      const IconComp = icon as LucideIcon;
-      return <IconComp size={iconSize} />;
-    }
-    return icon;
+    return renderIconNode(icon, { size: iconSize });
   };
 
   return (

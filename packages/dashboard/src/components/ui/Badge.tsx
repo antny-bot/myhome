@@ -1,6 +1,7 @@
 import React from "react";
 import { LucideIcon } from "lucide-react";
 import { classNames } from "../../lib/format";
+import { renderIconNode } from "./iconHelper";
 
 export type BadgeTone = "neutral" | "primary" | "positive" | "warn" | "danger";
 export type BadgeVariant = "subtle" | "solid" | "outline";
@@ -74,11 +75,7 @@ export const Badge = React.forwardRef<HTMLSpanElement, BadgeProps>(function Badg
     >
       {icon && (
         <span className="shrink-0 inline-flex items-center">
-          {typeof icon === "function" ? (
-            React.createElement(icon as LucideIcon, { size: size === "sm" ? 11 : 13 })
-          ) : (
-            icon
-          )}
+          {renderIconNode(icon, { size: size === "sm" ? 11 : 13 })}
         </span>
       )}
       {children}
