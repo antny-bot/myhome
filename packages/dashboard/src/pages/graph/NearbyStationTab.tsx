@@ -89,9 +89,10 @@ interface FetchResult {
 interface NearbyStationTabProps {
   onSelectComplex: (complexName: string, lawdCode?: string) => void;
   onNavigateToRules?: (initData: { regionName: string; regionCode?: string; apartmentKeywords: string[] }) => void;
+  hideHeader?: boolean;
 }
 
-export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }: NearbyStationTabProps) {
+export default function NearbyStationTab({ onSelectComplex, onNavigateToRules, hideHeader = false }: NearbyStationTabProps) {
   const { t, locale } = useLocale();
   const { loaded: mapLoaded, error: mapError } = useKakaoMap();
   const [stationName, setStationName] = useState("");
@@ -760,11 +761,13 @@ export default function NearbyStationTab({ onSelectComplex, onNavigateToRules }:
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <PageHeader
-        title={t.nearbyStationTitle || "역세권 아파트 검색"}
-        subtitle={t.nearbyStationSubtitle || "지하철역 주변 관심 반경 내의 아파트 단지 정보와 위치를 검색합니다."}
-        icon={Compass}
-      />
+      {!hideHeader && (
+        <PageHeader
+          title={t.nearbyStationTitle || "역세권 아파트 검색"}
+          subtitle={t.nearbyStationSubtitle || "지하철역 주변 관심 반경 내의 아파트 단지 정보와 위치를 검색합니다."}
+          icon={Compass}
+        />
+      )}
 
       {/* 검색 & 정보 패널 */}
       <div className="space-y-6">

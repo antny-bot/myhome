@@ -239,12 +239,13 @@ function App() {
           />
         )}
 
-        {/* 4. 실거래 분석 (종합 통계) */}
-        {view === "analytics" && (
+        {/* 4. 실거래 분석 (종합 통계 / 단지 분석 / 역세권 반경 / AI 인사이트) */}
+        {(view === "analytics" || view === "nearby") && (
           <GraphDashboard
             onNavigateToRules={handleNavigateToRules}
             onSelectComplex={handleSelectComplex}
             config={state?.config}
+            initialTab={view === "nearby" ? "nearby" : undefined}
           />
         )}
 
@@ -258,18 +259,6 @@ function App() {
               setDrilldownFromOverview(false);
               setView("analytics");
             } : undefined}
-          />
-        )}
-
-        {/* 역세권 분석 (하위 호환) */}
-        {view === "nearby" && (
-          <NearbyStationTab
-            onSelectComplex={(complexName, lawdCode) => {
-              setComplexAnalysisInitData({ complexName, lawdCode });
-              setDrilldownFromOverview(false);
-              setView("complexAnalysis");
-            }}
-            onNavigateToRules={handleNavigateToRules}
           />
         )}
 

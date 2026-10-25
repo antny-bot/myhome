@@ -2,10 +2,11 @@ import React, { useState, useEffect } from "react";
 import FilterPanel from "./graph/FilterPanel";
 import OverviewTab from "./graph/OverviewTab";
 import ComplexTab from "./graph/ComplexTab";
+import NearbyStationTab from "./graph/NearbyStationTab";
 import InsightTab from "./graph/InsightTab";
 import { GraphFilter } from "@myhome/shared";
 import { searchGraphTransactions } from "../api";
-import { BarChart3, Building2, Sparkles } from "lucide-react";
+import { BarChart3, Building2, Compass, Sparkles } from "lucide-react";
 import { useLocale } from "../lib/i18n";
 import { PageHeader } from "../components/PageHeader";
 import { classNames } from "../lib/format";
@@ -18,7 +19,7 @@ interface GraphDashboardProps {
   /** 종합 현황에서 단지 클릭 시 단지 분석으로 이동하는 콜백 */
   onSelectComplex?: (complexName: string, lawdCode?: string) => void;
   config?: AppConfig;
-  initialTab?: "overview" | "complex" | "insight";
+  initialTab?: "overview" | "complex" | "nearby" | "insight";
   initialComplexName?: string;
   initialLawdCode?: string;
 }
@@ -35,9 +36,10 @@ export default function GraphDashboard({
   const tabs = [
     { id: "overview" as const, label: t.analyticsTabOverview || "종합 현황", icon: BarChart3 },
     { id: "complex" as const, label: t.analyticsTabComplex || "단지 분석", icon: Building2 },
+    { id: "nearby" as const, label: t.nearbyStationTitle || "역세권 분석", icon: Compass },
     { id: "insight" as const, label: t.analyticsTabInsight || "AI 인사이트", icon: Sparkles },
   ];
-  const [activeTab, setActiveTab] = useState<"overview" | "complex" | "insight">(initialTab);
+  const [activeTab, setActiveTab] = useState<"overview" | "complex" | "nearby" | "insight">(initialTab);
 
   const [filter, setFilter] = useState<GraphFilter>(() => {
     const defaultFilter: GraphFilter = {
@@ -99,9 +101,9 @@ export default function GraphDashboard({
     const urlStartDate = params.get("startDate");
     const urlEndDate = params.get("endDate");
     const urlComplexName = params.get("complexName");
-    const urlTab = params.get("tab") as "overview" | "complex" | "insight";
+    const urlTab = params.get("tab") as "overview" | "complex" | "nearby" | "insight";
 
-    if (urlTab && ["overview", "complex", "insight"].includes(urlTab)) {
+    if (urlTab && ["overview", "complex", "nearby", "insight"].includes(urlTab)) {
       setActiveTab(urlTab);
     }
 
@@ -156,23 +158,25 @@ export default function GraphDashboard({
         icon={BarChart3}
       />
 
-      <FilterPanel
-        filter={filter}
-        regionName={regionName}
-        onFilterChange={handleFilterChange}
-        onApply={handleApply}
-        hideComplexSearch={activeTab === "overview"}
-      />
+      {activeTab !== "nearby" && (
+        <FilterPanel
+          filter={filter}
+          regionName={regionName}
+          onFilterChange={handleFilterChange}
+          onApply={handleApply}
+          hideComplexSearch={activeTab === "overview"}
+        />
+      )}
 
       {/* 탭 네비게이션 & 면적/단위 토글 */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-normal pb-1">
         <ResponsiveTabs
           tabs={tabs}
           activeTab={activeTab}
-          onChange={(tabId) => setActiveTab(tabId as "overview" | "complex" | "insight")}
+          onChange={(tabId) => setActiveTab(tabId as "overview" | "complex" | "nearby" | "insight")}
         />
 
-        {activeTab !== "insight" && (
+        {activeTab !== "insight" && activeTab !== "nearby" && (
           <div className="flex items-center gap-2 self-end sm:self-auto pb-1 sm:pb-0">
             <div className="flex items-center gap-0.5 rounded-lg border border-normal p-0.5 bg-alternative">
               <button
@@ -265,6 +269,14 @@ export default function GraphDashboard({
               minBuildYear: filter.minBuildYear,
               maxBuildYear: filter.maxBuildYear,
             }}
+          />
+        )}
+
+        {activeTab === "nearby" && (
+          <NearbyStationTab
+            onSelectComplex={handleSelectComplex}
+            onNavigateToRules={onNavigateToRules}
+            hideHeader={true}
           />
         )}
 
