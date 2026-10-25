@@ -49,7 +49,8 @@ export function resolveComplexName(db: DatabaseSync, complexName: string, lawdCo
  */
 export async function searchComplexNames(
   query: string,
-  lawdCode?: string
+  lawdCode?: string,
+  filter?: ComplexMetaFilter
 ): Promise<ComplexSearchResult[]> {
   const db = getDb();
   
@@ -64,6 +65,22 @@ export async function searchComplexNames(
     if (lawdCode) {
       queryStr += ` AND c.lawd_code LIKE ? || '%'`;
       params.push(lawdCode);
+    }
+    if (filter?.minHouseholds !== undefined && filter.minHouseholds > 0) {
+      queryStr += ` AND c.total_households >= ?`;
+      params.push(filter.minHouseholds);
+    }
+    if (filter?.minParkingPerHousehold !== undefined && filter.minParkingPerHousehold > 0) {
+      queryStr += ` AND c.parking_per_household >= ?`;
+      params.push(filter.minParkingPerHousehold);
+    }
+    if (filter?.minBuildYear !== undefined && filter.minBuildYear > 0) {
+      queryStr += ` AND CAST(substr(c.use_approval_date, 1, 4) AS INTEGER) >= ?`;
+      params.push(filter.minBuildYear);
+    }
+    if (filter?.maxBuildYear !== undefined && filter.maxBuildYear > 0) {
+      queryStr += ` AND CAST(substr(c.use_approval_date, 1, 4) AS INTEGER) <= ?`;
+      params.push(filter.maxBuildYear);
     }
     queryStr += ` ORDER BY c.name LIMIT 30`;
     const rows = db.prepare(queryStr).all(...params);
@@ -90,6 +107,22 @@ export async function searchComplexNames(
   if (lawdCode) {
     queryStr += ` AND c.lawd_code LIKE ? || '%'`;
     params.push(lawdCode);
+  }
+  if (filter?.minHouseholds !== undefined && filter.minHouseholds > 0) {
+    queryStr += ` AND c.total_households >= ?`;
+    params.push(filter.minHouseholds);
+  }
+  if (filter?.minParkingPerHousehold !== undefined && filter.minParkingPerHousehold > 0) {
+    queryStr += ` AND c.parking_per_household >= ?`;
+    params.push(filter.minParkingPerHousehold);
+  }
+  if (filter?.minBuildYear !== undefined && filter.minBuildYear > 0) {
+    queryStr += ` AND CAST(substr(c.use_approval_date, 1, 4) AS INTEGER) >= ?`;
+    params.push(filter.minBuildYear);
+  }
+  if (filter?.maxBuildYear !== undefined && filter.maxBuildYear > 0) {
+    queryStr += ` AND CAST(substr(c.use_approval_date, 1, 4) AS INTEGER) <= ?`;
+    params.push(filter.maxBuildYear);
   }
   queryStr += ` ORDER BY c.name LIMIT 30`;
 
@@ -206,16 +239,37 @@ export function insertDbRegion(lawdCode: string, displayName: string): void {
   `).run(lawdCode, displayName, now);
 }
 
-export function getComplexesByRegion(lawdCode?: string): string[] {
+export function getComplexesByRegion(lawdCode?: string, filter?: ComplexMetaFilter): string[] {
   const db = getDb();
   let query = `
     SELECT DISTINCT name
     FROM complexes
+    WHERE 1=1
   `;
   const params: any[] = [];
   if (lawdCode && lawdCode.trim() !== "") {
-    query += ` WHERE lawd_code = ?`;
+    query += ` AND lawd_code = ?`;
     params.push(lawdCode);
+  }
+  if (filter?.minHouseholds !== undefined && filter.minHouseholds > 0) {
+    query += ` AND total_households >= ?`;
+    params.push(filter.minHouseholds);
+  }
+  if (filter?.minTotalParking !== undefined && filter.minTotalParking > 0) {
+    query += ` AND total_parking >= ?`;
+    params.push(filter.minTotalParking);
+  }
+  if (filter?.minParkingPerHousehold !== undefined && filter.minParkingPerHousehold > 0) {
+    query += ` AND parking_per_household >= ?`;
+    params.push(filter.minParkingPerHousehold);
+  }
+  if (filter?.minBuildYear !== undefined && filter.minBuildYear > 0) {
+    query += ` AND CAST(substr(use_approval_date, 1, 4) AS INTEGER) >= ?`;
+    params.push(filter.minBuildYear);
+  }
+  if (filter?.maxBuildYear !== undefined && filter.maxBuildYear > 0) {
+    query += ` AND CAST(substr(use_approval_date, 1, 4) AS INTEGER) <= ?`;
+    params.push(filter.maxBuildYear);
   }
   query += ` ORDER BY name ASC`;
   const rows = db.prepare(query).all(...params) as { name: string }[];

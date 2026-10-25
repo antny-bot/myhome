@@ -49,13 +49,24 @@ router.post("/regions", asyncHandler(async (req, res) => {
 /** GET /api/graph/region-complexes — 특정 지역에 등록된 아파트 단지 목록 */
 router.get("/region-complexes", asyncHandler(async (req, res) => {
   const lawdCode = req.query.lawdCode as string | undefined;
-  const cacheKey = `region-complexes:${lawdCode ?? ""}`;
+  const minHouseholds = req.query.minHouseholds ? parseInt(req.query.minHouseholds as string, 10) : undefined;
+  const minTotalParking = req.query.minTotalParking ? parseFloat(req.query.minTotalParking as string) : undefined;
+  const minParkingPerHousehold = req.query.minParkingPerHousehold ? parseFloat(req.query.minParkingPerHousehold as string) : undefined;
+  const minBuildYear = req.query.minBuildYear ? parseInt(req.query.minBuildYear as string, 10) : undefined;
+  const maxBuildYear = req.query.maxBuildYear ? parseInt(req.query.maxBuildYear as string, 10) : undefined;
+
+  const filter = (minHouseholds || minTotalParking || minParkingPerHousehold || minBuildYear || maxBuildYear)
+    ? { minHouseholds, minTotalParking, minParkingPerHousehold, minBuildYear, maxBuildYear }
+    : undefined;
+
+  const filterKey = `${minHouseholds || ""}_${minTotalParking || ""}_${minParkingPerHousehold || ""}_${minBuildYear || ""}_${maxBuildYear || ""}`;
+  const cacheKey = `region-complexes:${lawdCode ?? ""}:${filterKey}`;
   const cached = graphCache.get(cacheKey);
   if (cached) {
     res.json(cached);
     return;
   }
-  const complexes = await getComplexesByRegion(lawdCode);
+  const complexes = await getComplexesByRegion(lawdCode, filter);
   graphCache.set(cacheKey, complexes, TTL.STATIC);
   res.json(complexes);
 }));
@@ -102,7 +113,17 @@ router.get("/complexes/search", asyncHandler(async (req, res) => {
     res.json([]);
     return;
   }
-  const results = await searchComplexNames(query, lawdCode);
+  const minHouseholds = req.query.minHouseholds ? parseInt(req.query.minHouseholds as string, 10) : undefined;
+  const minTotalParking = req.query.minTotalParking ? parseFloat(req.query.minTotalParking as string) : undefined;
+  const minParkingPerHousehold = req.query.minParkingPerHousehold ? parseFloat(req.query.minParkingPerHousehold as string) : undefined;
+  const minBuildYear = req.query.minBuildYear ? parseInt(req.query.minBuildYear as string, 10) : undefined;
+  const maxBuildYear = req.query.maxBuildYear ? parseInt(req.query.maxBuildYear as string, 10) : undefined;
+
+  const filter = (minHouseholds || minTotalParking || minParkingPerHousehold || minBuildYear || maxBuildYear)
+    ? { minHouseholds, minTotalParking, minParkingPerHousehold, minBuildYear, maxBuildYear }
+    : undefined;
+
+  const results = await searchComplexNames(query, lawdCode, filter);
   res.json(results);
 }));
 

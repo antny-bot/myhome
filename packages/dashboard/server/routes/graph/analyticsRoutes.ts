@@ -91,6 +91,11 @@ router.get("/search", asyncHandler(async (req, res) => {
     endDate: req.query.endDate as string | undefined,
     minArea: req.query.minArea ? Number(req.query.minArea) : undefined,
     maxArea: req.query.maxArea ? Number(req.query.maxArea) : undefined,
+    minHouseholds: req.query.minHouseholds ? Number(req.query.minHouseholds) : undefined,
+    minTotalParking: req.query.minTotalParking ? Number(req.query.minTotalParking) : undefined,
+    minParkingPerHousehold: req.query.minParkingPerHousehold ? Number(req.query.minParkingPerHousehold) : undefined,
+    minBuildYear: req.query.minBuildYear ? Number(req.query.minBuildYear) : undefined,
+    maxBuildYear: req.query.maxBuildYear ? Number(req.query.maxBuildYear) : undefined,
   };
 
   const cacheKey = `search:${JSON.stringify(filter)}`;

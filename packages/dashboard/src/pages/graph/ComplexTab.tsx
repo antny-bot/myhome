@@ -1,4 +1,5 @@
 import { ComplexMetaBadges } from "../../components/common/ComplexMetaBadges";
+import type { ComplexMetaFilter } from "@myhome/shared";
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -219,6 +220,7 @@ interface ComplexTabProps {
   areaType?: "supply" | "dedicated";
   startDate?: string;
   endDate?: string;
+  metaFilter?: ComplexMetaFilter;
 }
 
 // BoxPlotShape -> components/charts
@@ -286,6 +288,7 @@ export default function ComplexTab({
   areaType = "supply",
   startDate,
   endDate,
+  metaFilter,
 }: ComplexTabProps) {
   const formatSizeString = (sizeStr: string, unit: "pyeong" | "m2") => {
     let num = parseFloat(sizeStr);
@@ -712,6 +715,39 @@ export default function ComplexTab({
                 {detailData.infraRating.grade}등급 ({detailData.infraRating.totalScore}점)
               </span>
             )}
+            {(() => {
+              if (!metaFilter || (!metaFilter.minHouseholds && !metaFilter.minParkingPerHousehold && !metaFilter.minBuildYear && !metaFilter.maxBuildYear)) {
+                return null;
+              }
+              if (!detailData?.complexInfo) return null;
+              const info = detailData.complexInfo;
+              const reasons: string[] = [];
+              if (metaFilter.minHouseholds && (info.totalHouseholds ?? 0) < metaFilter.minHouseholds) {
+                reasons.push(`${metaFilter.minHouseholds}세대 미만`);
+              }
+              if (metaFilter.minParkingPerHousehold && (info.parkingPerHousehold ?? 0) < metaFilter.minParkingPerHousehold) {
+                reasons.push(`주차 ${metaFilter.minParkingPerHousehold}대 미만`);
+              }
+              const buildYear = info.useApprovalDate ? parseInt(info.useApprovalDate.substring(0, 4)) : null;
+              if (metaFilter.minBuildYear && (!buildYear || buildYear < metaFilter.minBuildYear)) {
+                reasons.push(`${metaFilter.minBuildYear}년 이전 준공`);
+              }
+              if (metaFilter.maxBuildYear && (!buildYear || buildYear > metaFilter.maxBuildYear)) {
+                reasons.push(`${metaFilter.maxBuildYear}년 이후 준공`);
+              }
+              if (reasons.length === 0) {
+                return (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border bg-emerald-500/10 text-emerald-500 border-emerald-500/20">
+                    ✓ 필터 조건 일치
+                  </span>
+                );
+              }
+              return (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border bg-amber-500/10 text-amber-500 border-amber-500/20" title={reasons.join(", ")}>
+                  ⚠ 필터 조건 미부합 ({reasons.join(", ")})
+                </span>
+              );
+            })()}
           </div>
           {detailData?.complexInfo && (detailData.complexInfo.totalHouseholds || detailData.complexInfo.parkingPerHousehold || detailData.complexInfo.useApprovalDate) && (
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-2 text-[10px] font-bold text-neutral">
@@ -1239,6 +1275,66 @@ export default function ComplexTab({
                   </div>
                 )}
               </div>
+
+              {/* 모바일 단지 주소 및 건축HUB 대장 정보 */}
+              {detailData.complexInfo && (
+                <div className="p-3 bg-alternative/40 border border-normal rounded-lg text-[11px] text-neutral space-y-2 mb-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="font-semibold text-strong shrink-0">단지 주소</span>
+                    <span className="text-right">{detailData.complexInfo.regionName} {detailData.complexInfo.dongName || ""} {detailData.complexInfo.jibun || ""}</span>
+                  </div>
+                  {detailData.complexInfo.roadName && (
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="font-semibold text-strong shrink-0">도로명</span>
+                      <span className="text-right">{detailData.complexInfo.roadName}</span>
+                    </div>
+                  )}
+                  {(detailData.complexInfo.lat && detailData.complexInfo.lng) && (
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-strong">좌표 (위·경도)</span>
+                      <span className="font-mono text-[10px]">{detailData.complexInfo.lat.toFixed(5)}, {detailData.complexInfo.lng.toFixed(5)}</span>
+                    </div>
+                  )}
+
+                  {/* 건축HUB 건축물대장 세부 정보 */}
+                  {(detailData.complexInfo.totalHouseholds || detailData.complexInfo.parkingPerHousehold || detailData.complexInfo.useApprovalDate) && (
+                    <div className="pt-2 mt-2 border-t border-normal space-y-1.5">
+                      <div className="flex items-center justify-between font-medium">
+                        <span className="text-primary font-bold">건축HUB 대장 정보</span>
+                        <span className="text-[10px] text-neutral">국토교통부 세움터</span>
+                      </div>
+                      {detailData.complexInfo.totalHouseholds && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-strong">총 세대수</span>
+                          <span className="font-bold text-strong">{detailData.complexInfo.totalHouseholds.toLocaleString()}세대</span>
+                        </div>
+                      )}
+                      {detailData.complexInfo.parkingPerHousehold && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-strong">주차 대수</span>
+                          <span>
+                            세대당 {detailData.complexInfo.parkingPerHousehold}대
+                            {detailData.complexInfo.totalParking ? ` (총 ${detailData.complexInfo.totalParking.toLocaleString()}대)` : ""}
+                          </span>
+                        </div>
+                      )}
+                      {detailData.complexInfo.useApprovalDate && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-strong">사용승인일자</span>
+                          <span>
+                            {detailData.complexInfo.useApprovalDate}
+                            {(() => {
+                              const year = parseInt(detailData.complexInfo.useApprovalDate.substring(0, 4));
+                              const age = isNaN(year) ? null : new Date().getFullYear() - year + 1;
+                              return age !== null ? ` (${age}년차)` : "";
+                            })()}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         ) : (
@@ -1248,12 +1344,12 @@ export default function ComplexTab({
               {/* 지도 컨테이너 */}
               <div className="lg:col-span-2 space-y-4">
                 {!mapSdkLoaded ? (
-                  <div className="h-80 lg:h-[400px] w-full flex items-center justify-center bg-alternative border border-normal rounded-xl text-neutral">
+                  <div className="h-80 lg:h-[480px] w-full flex items-center justify-center bg-alternative border border-normal rounded-xl text-neutral">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mr-2" />
                     <span>지도 서비스를 로딩 중입니다...</span>
                   </div>
                 ) : detailData.complexInfo.lat === null || detailData.complexInfo.lng === null ? (
-                  <div className="h-80 lg:h-[400px] w-full flex flex-col items-center justify-center bg-alternative border border-normal rounded-xl text-neutral p-4 text-center">
+                  <div className="h-80 lg:h-[480px] w-full flex flex-col items-center justify-center bg-alternative border border-normal rounded-xl text-neutral p-4 text-center">
                     <MapPin size={36} className="mb-2 opacity-30" />
                     <p className="text-sm font-semibold">좌표 정보를 확보할 수 없습니다.</p>
                     <p className="text-xs text-assistive mt-1">단지의 주소가 불명확하여 지도를 렌더링하지 못했습니다.</p>
@@ -1261,7 +1357,7 @@ export default function ComplexTab({
                 ) : (
                   <div className="relative rounded-xl border border-normal overflow-hidden shadow-inner">
                     {/* 카카오 지도 렌더링 노드 */}
-                    <div ref={mapContainerRef} className="h-80 lg:h-[400px] w-full" />
+                    <div ref={mapContainerRef} className="h-80 lg:h-[480px] w-full" />
                     
                     {/* 편의시설 필터 퀵 패널 */}
                     <div className="absolute top-3 left-3 z-10 flex flex-wrap gap-1.5 max-w-[calc(100%-24px)] pointer-events-auto bg-elevated/95 backdrop-blur-sm p-1.5 rounded-lg shadow-md border border-normal">
@@ -1290,22 +1386,22 @@ export default function ComplexTab({
               </div>
 
               {/* 인근 역세권 정보 패널 */}
-              <div className="flex flex-col justify-between gap-4 lg:h-[400px]">
-                <div>
-                  <h3 className="text-sm font-bold text-strong flex items-center gap-1.5 mb-2">
+              <div className="flex flex-col justify-between gap-4 min-h-[440px] lg:h-[480px]">
+                <div className="flex flex-col min-h-0 flex-1">
+                  <h3 className="text-sm font-bold text-strong flex items-center gap-1.5 mb-2 shrink-0">
                     <Train size={16} className="text-primary" />
                     <span>인근 역세권 (반경 1km 이내)</span>
                   </h3>
-                  <p className="text-xs text-neutral mb-3 leading-relaxed">
+                  <p className="text-xs text-neutral mb-3 leading-relaxed shrink-0">
                     단지 기준 직선 반경 1km 이내에 위치한 철도/지하철역 목록입니다. 도보/차량 시간은 직선거리 기준 추정값입니다.
                   </p>
 
                   {detailData.subways && detailData.subways.length > 0 ? (
-                    <div className="space-y-3 overflow-y-auto max-h-60 lg:max-h-[200px] pr-1">
+                    <div className="space-y-2.5 overflow-y-auto max-h-52 lg:max-h-[180px] pr-1">
                       {detailData.subways.map((sub: any) => {
                         const { walkMin, carMin } = getTravelTime(sub.distanceM);
                         return (
-                          <div key={sub.name} className="flex flex-col p-3 rounded-lg border border-normal bg-normal/30 hover:bg-normal/70 transition">
+                          <div key={sub.name} className="flex flex-col p-2.5 rounded-lg border border-normal bg-normal/30 hover:bg-normal/70 transition shrink-0">
                             <div className="flex items-center justify-between">
                               <span className="text-xs font-bold text-strong flex items-center gap-1.5">
                                 <span className="inline-block w-2 h-2 rounded-full bg-amber-500" />
@@ -1318,13 +1414,13 @@ export default function ComplexTab({
                               </span>
                             </div>
                             
-                            <div className="flex items-center gap-4 mt-2 border-t border-normal/50 pt-2">
+                            <div className="flex items-center gap-4 mt-1.5 border-t border-normal/50 pt-1.5">
                               <span className="text-[10px] text-neutral flex items-center gap-1">
-                                <Clock size={12} className="text-assistive" />
+                                <Clock size={11} className="text-assistive" />
                                 <span>도보 <strong className="text-strong">{walkMin}분</strong></span>
                               </span>
                               <span className="text-[10px] text-neutral flex items-center gap-1">
-                                <Navigation size={12} className="text-assistive" />
+                                <Navigation size={11} className="text-assistive" />
                                 <span>차량 <strong className="text-strong">{carMin}분</strong></span>
                               </span>
                             </div>
@@ -1333,7 +1429,7 @@ export default function ComplexTab({
                       })}
                     </div>
                   ) : (
-                    <div className="flex flex-col items-center justify-center py-8 bg-normal/20 border border-normal border-dashed rounded-xl text-neutral">
+                    <div className="flex flex-col items-center justify-center py-6 bg-normal/20 border border-normal border-dashed rounded-xl text-neutral">
                       <Train size={32} className="mb-2 opacity-20 text-warn" />
                       <p className="text-xs font-semibold text-warn">1km 이내에 철도/지하철역이 없습니다.</p>
                     </div>
@@ -1341,7 +1437,7 @@ export default function ComplexTab({
                 </div>
 
                 {detailData.complexInfo && (
-                  <div className="p-3 bg-alternative/40 border border-normal rounded-lg text-[11px] text-neutral space-y-2">
+                  <div className="p-3 bg-alternative/40 border border-normal rounded-lg text-[11px] text-neutral space-y-1.5 shrink-0">
                     <div className="flex items-start justify-between gap-2">
                       <span className="font-semibold text-strong shrink-0">단지 주소</span>
                       <span className="text-right">{detailData.complexInfo.regionName} {detailData.complexInfo.dongName || ""} {detailData.complexInfo.jibun || ""}</span>
@@ -1361,7 +1457,7 @@ export default function ComplexTab({
 
                     {/* 건축HUB 건축물대장 세부 정보 */}
                     {(detailData.complexInfo.totalHouseholds || detailData.complexInfo.parkingPerHousehold || detailData.complexInfo.useApprovalDate) && (
-                      <div className="pt-2 mt-2 border-t border-normal space-y-1.5">
+                      <div className="pt-2 mt-1.5 border-t border-normal space-y-1.5">
                         <div className="flex items-center justify-between font-medium">
                           <span className="text-primary font-bold">건축HUB 대장 정보</span>
                           <span className="text-[10px] text-neutral">국토교통부 세움터</span>
