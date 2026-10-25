@@ -169,6 +169,26 @@ export async function searchTransactions(filter: GraphFilter): Promise<any[]> {
     queryStr += " AND COALESCE(m.supply_area_m2, t.area_m2 / 0.78) <= ?";
     params.push(filter.maxArea);
   }
+  if (filter.minHouseholds !== undefined && filter.minHouseholds > 0) {
+    queryStr += " AND c.total_households >= ?";
+    params.push(filter.minHouseholds);
+  }
+  if (filter.minTotalParking !== undefined && filter.minTotalParking > 0) {
+    queryStr += " AND c.total_parking >= ?";
+    params.push(filter.minTotalParking);
+  }
+  if (filter.minParkingPerHousehold !== undefined && filter.minParkingPerHousehold > 0) {
+    queryStr += " AND c.parking_per_household >= ?";
+    params.push(filter.minParkingPerHousehold);
+  }
+  if (filter.minBuildYear !== undefined && filter.minBuildYear > 0) {
+    queryStr += " AND CAST(substr(c.use_approval_date, 1, 4) AS INTEGER) >= ?";
+    params.push(filter.minBuildYear);
+  }
+  if (filter.maxBuildYear !== undefined && filter.maxBuildYear > 0) {
+    queryStr += " AND CAST(substr(c.use_approval_date, 1, 4) AS INTEGER) <= ?";
+    params.push(filter.maxBuildYear);
+  }
 
   queryStr += " ORDER BY t.deal_date DESC LIMIT 3000";
 

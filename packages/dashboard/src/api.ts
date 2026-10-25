@@ -105,9 +105,14 @@ export function loadGraphStats() {
   return request<GraphStats>("/api/graph/stats");
 }
 
-export function searchComplexNames(query: string, lawdCode?: string) {
+export function searchComplexNames(query: string, lawdCode?: string, filter?: ComplexMetaFilter) {
   const params = new URLSearchParams({ q: query });
   if (lawdCode) params.set("lawdCode", lawdCode);
+  if (filter?.minHouseholds) params.set("minHouseholds", String(filter.minHouseholds));
+  if (filter?.minTotalParking) params.set("minTotalParking", String(filter.minTotalParking));
+  if (filter?.minParkingPerHousehold) params.set("minParkingPerHousehold", String(filter.minParkingPerHousehold));
+  if (filter?.minBuildYear) params.set("minBuildYear", String(filter.minBuildYear));
+  if (filter?.maxBuildYear) params.set("maxBuildYear", String(filter.maxBuildYear));
   return request<ComplexSearchResult[]>(`/api/graph/complexes/search?${params.toString()}`);
 }
 
@@ -134,6 +139,11 @@ export function searchGraphTransactions(filter: GraphFilter) {
   if (filter.endDate) params.set("endDate", filter.endDate);
   if (filter.minArea !== undefined) params.set("minArea", String(filter.minArea));
   if (filter.maxArea !== undefined) params.set("maxArea", String(filter.maxArea));
+  if (filter.minHouseholds !== undefined) params.set("minHouseholds", String(filter.minHouseholds));
+  if (filter.minTotalParking !== undefined) params.set("minTotalParking", String(filter.minTotalParking));
+  if (filter.minParkingPerHousehold !== undefined) params.set("minParkingPerHousehold", String(filter.minParkingPerHousehold));
+  if (filter.minBuildYear !== undefined) params.set("minBuildYear", String(filter.minBuildYear));
+  if (filter.maxBuildYear !== undefined) params.set("maxBuildYear", String(filter.maxBuildYear));
 
   return request<any[]>(`/api/graph/search?${params.toString()}`);
 }
@@ -201,9 +211,14 @@ export function loadRegionMapComplexes(lawdCode: string, filter?: ComplexMetaFil
   return request<RegionMapData>(`/api/graph/region-map-complexes?${params.toString()}`);
 }
 
-export function fetchComplexesByRegion(lawdCode?: string) {
+export function fetchComplexesByRegion(lawdCode?: string, filter?: ComplexMetaFilter) {
   const params = new URLSearchParams();
   if (lawdCode) params.set("lawdCode", lawdCode);
+  if (filter?.minHouseholds) params.set("minHouseholds", String(filter.minHouseholds));
+  if (filter?.minTotalParking) params.set("minTotalParking", String(filter.minTotalParking));
+  if (filter?.minParkingPerHousehold) params.set("minParkingPerHousehold", String(filter.minParkingPerHousehold));
+  if (filter?.minBuildYear) params.set("minBuildYear", String(filter.minBuildYear));
+  if (filter?.maxBuildYear) params.set("maxBuildYear", String(filter.maxBuildYear));
   const query = params.toString() ? `?${params.toString()}` : "";
   return request<string[]>(`/api/graph/region-complexes${query}`);
 }

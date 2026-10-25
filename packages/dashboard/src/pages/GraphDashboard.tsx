@@ -258,6 +258,13 @@ export default function GraphDashboard({
             areaType={areaType}
             startDate={filter.startDate}
             endDate={filter.endDate}
+            metaFilter={{
+              minHouseholds: filter.minHouseholds,
+              minTotalParking: filter.minTotalParking,
+              minParkingPerHousehold: filter.minParkingPerHousehold,
+              minBuildYear: filter.minBuildYear,
+              maxBuildYear: filter.maxBuildYear,
+            }}
           />
         )}
 

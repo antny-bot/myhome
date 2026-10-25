@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { RegionSearchInput } from "../../components/RegionSearchInput";
 
-import { GraphFilter, GraphPreset } from "@myhome/shared";
+import { GraphFilter, GraphPreset, ComplexMetaFilter } from "@myhome/shared";
+import { ComplexMetaFilterBar } from "../../components/common/ComplexMetaFilterBar";
 import {
   loadPresets,
   savePreset,
@@ -132,6 +133,23 @@ export default function FilterPanel({
   const [complexName, setComplexName] = useState(filter.complexName || "");
   const [minArea, setMinArea] = useState(filter.minArea !== undefined ? String(filter.minArea) : "");
   const [maxArea, setMaxArea] = useState(filter.maxArea !== undefined ? String(filter.maxArea) : "");
+  const [metaFilter, setMetaFilter] = useState<ComplexMetaFilter>({
+    minHouseholds: filter.minHouseholds,
+    minTotalParking: filter.minTotalParking,
+    minParkingPerHousehold: filter.minParkingPerHousehold,
+    minBuildYear: filter.minBuildYear,
+    maxBuildYear: filter.maxBuildYear,
+  });
+
+  useEffect(() => {
+    setMetaFilter({
+      minHouseholds: filter.minHouseholds,
+      minTotalParking: filter.minTotalParking,
+      minParkingPerHousehold: filter.minParkingPerHousehold,
+      minBuildYear: filter.minBuildYear,
+      maxBuildYear: filter.maxBuildYear,
+    });
+  }, [filter.minHouseholds, filter.minTotalParking, filter.minParkingPerHousehold, filter.minBuildYear, filter.maxBuildYear]);
   const [selectedRegions, setSelectedRegions] = useState<Array<{ lawdCode: string; regionName: string }>>(() => {
     if (hideComplexSearch) {
       const saved = localStorage.getItem("myhome_selected_regions");
@@ -246,6 +264,11 @@ export default function FilterPanel({
           lawdCodes: selectedRegions.map((r) => r.lawdCode),
           startDate: start,
           endDate: end,
+          minHouseholds: metaFilter.minHouseholds,
+          minTotalParking: metaFilter.minTotalParking,
+          minParkingPerHousehold: metaFilter.minParkingPerHousehold,
+          minBuildYear: metaFilter.minBuildYear,
+          maxBuildYear: metaFilter.maxBuildYear,
         }
       : {
           lawdCode: filter.lawdCode,
@@ -254,6 +277,11 @@ export default function FilterPanel({
           endDate: end,
           minArea: minArea ? Number(minArea) : undefined,
           maxArea: maxArea ? Number(maxArea) : undefined,
+          minHouseholds: metaFilter.minHouseholds,
+          minTotalParking: metaFilter.minTotalParking,
+          minParkingPerHousehold: metaFilter.minParkingPerHousehold,
+          minBuildYear: metaFilter.minBuildYear,
+          maxBuildYear: metaFilter.maxBuildYear,
         };
 
     const targetRegionName = hideComplexSearch
@@ -287,7 +315,7 @@ export default function FilterPanel({
 
     (async () => {
       try {
-        const result = await fetchComplexesByRegion(filter.lawdCode);
+        const result = await fetchComplexesByRegion(filter.lawdCode, metaFilter);
         if (cancelled) return;
         if (result && result.length > 0) {
           setApartments(result);
@@ -303,7 +331,7 @@ export default function FilterPanel({
     return () => {
       cancelled = true;
     };
-  }, [filter.lawdCode]);
+  }, [filter.lawdCode, metaFilter]);
 
   // 로컬 필터링 및 글로벌 제안 결과 통합 계산
   const filteredSuggestions = React.useMemo(() => {
@@ -338,7 +366,7 @@ export default function FilterPanel({
 
     debounceRef.current = setTimeout(async () => {
       try {
-        const results = await searchComplexNamesApi(query);
+        const results = await searchComplexNamesApi(query, undefined, metaFilter);
         setGlobalSuggestions(results);
         const isCurrentFocused = document.activeElement === complexInputRef.current;
         setShowSuggestions(results.length > 0 && isCurrentFocused);
@@ -351,7 +379,7 @@ export default function FilterPanel({
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [complexName, filter.lawdCode]);
+  }, [complexName, filter.lawdCode, metaFilter]);
 
   useEffect(() => {
     setRegionText(regionName || "");
@@ -454,6 +482,11 @@ export default function FilterPanel({
       endDate: endDate || undefined,
       minArea: minArea ? Number(minArea) : undefined,
       maxArea: maxArea ? Number(maxArea) : undefined,
+      minHouseholds: metaFilter.minHouseholds,
+      minTotalParking: metaFilter.minTotalParking,
+      minParkingPerHousehold: metaFilter.minParkingPerHousehold,
+      minBuildYear: metaFilter.minBuildYear,
+      maxBuildYear: metaFilter.maxBuildYear,
     };
     onFilterChange(nextFilter, item.regionName);
     setTimeout(() => onApply(nextFilter), 50);
@@ -502,6 +535,11 @@ export default function FilterPanel({
         lawdCodes: selectedCodes,
         startDate: startDate || undefined,
         endDate: endDate || undefined,
+        minHouseholds: metaFilter.minHouseholds,
+        minTotalParking: metaFilter.minTotalParking,
+        minParkingPerHousehold: metaFilter.minParkingPerHousehold,
+        minBuildYear: metaFilter.minBuildYear,
+        maxBuildYear: metaFilter.maxBuildYear,
       };
       onFilterChange(nextFilter, selectedNames);
     } else {
@@ -512,6 +550,11 @@ export default function FilterPanel({
         endDate: endDate || undefined,
         minArea: minArea ? Number(minArea) : undefined,
         maxArea: maxArea ? Number(maxArea) : undefined,
+        minHouseholds: metaFilter.minHouseholds,
+        minTotalParking: metaFilter.minTotalParking,
+        minParkingPerHousehold: metaFilter.minParkingPerHousehold,
+        minBuildYear: metaFilter.minBuildYear,
+        maxBuildYear: metaFilter.maxBuildYear,
       };
       onFilterChange(nextFilter, regionText);
     }
@@ -528,6 +571,7 @@ export default function FilterPanel({
     setPeriod('none');
     setSelectedPresetId("");
     setSelectedRegions([]);
+    setMetaFilter({});
     onFilterChange({}, "");
   };
 
@@ -544,6 +588,11 @@ export default function FilterPanel({
           regionName: selectedRegions.map((r) => r.regionName).join(", "),
           startDate: startDate || undefined,
           endDate: endDate || undefined,
+          minHouseholds: metaFilter.minHouseholds,
+          minTotalParking: metaFilter.minTotalParking,
+          minParkingPerHousehold: metaFilter.minParkingPerHousehold,
+          minBuildYear: metaFilter.minBuildYear,
+          maxBuildYear: metaFilter.maxBuildYear,
         };
         await savePresetOverview(newPresetName, currentFilter);
       } else {
@@ -612,6 +661,13 @@ export default function FilterPanel({
       }
       setStartDate(f.startDate || "");
       setEndDate(f.endDate || "");
+      setMetaFilter({
+        minHouseholds: f.minHouseholds,
+        minTotalParking: f.minTotalParking,
+        minParkingPerHousehold: f.minParkingPerHousehold,
+        minBuildYear: f.minBuildYear,
+        maxBuildYear: f.maxBuildYear,
+      });
       onFilterChange(f, f.regionName || preset.name);
       onApply(f);
     } else {
@@ -670,7 +726,21 @@ export default function FilterPanel({
     const complexText = !hideComplexSearch && complexName ? ` · ${complexName}` : "";
     const areaText = !hideComplexSearch && (minArea || maxArea) ? ` · ${usePyung ? toPyung(minArea) : minArea}~${usePyung ? toPyung(maxArea) : maxArea}${usePyung ? '평' : '㎡'}` : "";
     
-    return `${regionTextStr}${complexText}${areaText}${periodText ? ` · ${periodText}` : ""}`;
+    const metaParts: string[] = [];
+    if (metaFilter.minHouseholds) metaParts.push(`${metaFilter.minHouseholds}세대+`);
+    if (metaFilter.minParkingPerHousehold) metaParts.push(`주차 ${metaFilter.minParkingPerHousehold}대+`);
+    if (metaFilter.minBuildYear && !metaFilter.maxBuildYear) {
+      const currentYear = new Date().getFullYear();
+      const age = currentYear - metaFilter.minBuildYear + 1;
+      metaParts.push(`${age}년 이내`);
+    } else if (metaFilter.maxBuildYear && !metaFilter.minBuildYear) {
+      const currentYear = new Date().getFullYear();
+      const age = currentYear - metaFilter.maxBuildYear;
+      metaParts.push(`${age}년 이상`);
+    }
+    const metaText = metaParts.length > 0 ? ` · ${metaParts.join(', ')}` : "";
+
+    return `${regionTextStr}${complexText}${areaText}${periodText ? ` · ${periodText}` : ""}${metaText}`;
   };
 
   return (
@@ -707,10 +777,11 @@ export default function FilterPanel({
       {(expanded || !isMobile) && (
         <div className="space-y-3">
           {hideComplexSearch ? (
-            /* 종합 현황 모드 (반응형 2행/1행 스마트 레이아웃) */
-            <div className="flex flex-col lg:flex-row lg:items-end gap-3">
-              {/* 1행 / 좌측: 프리셋 & 지역 선택 */}
-              <div className="grid grid-cols-1 sm:grid-cols-[auto_1fr] items-end gap-2 flex-1 min-w-0">
+            /* 종합 현황 모드 (반응형 2행/1행 스마트 레이아웃 + 건축물대장 메타 필터) */
+            <div className="space-y-2.5">
+              <div className="flex flex-col lg:flex-row lg:items-end gap-3">
+                {/* 1행 / 좌측: 프리셋 & 지역 선택 */}
+                <div className="grid grid-cols-1 sm:grid-cols-[auto_1fr] items-end gap-2 flex-1 min-w-0">
                 {/* 프리셋 셀렉트 박스 */}
                 <div className="flex flex-col gap-1 shrink-0">
                   <label className="text-[11px] font-semibold text-neutral">프리셋</label>
@@ -926,7 +997,13 @@ export default function FilterPanel({
                 </div>
               </div>
             </div>
-          ) : (
+
+            {/* 건축물대장 메타 필터 (세대수, 세대당 주차수, 준공연도/연차) */}
+            <div className="pt-2 border-t border-normal/60">
+              <ComplexMetaFilterBar filter={metaFilter} onChange={setMetaFilter} />
+            </div>
+          </div>
+        ) : (
             /* 단지 분석 모드 (2줄 조밀 레이아웃) */
             <div className="space-y-3">
               {/* 1행: 입력 필드 */}
@@ -1208,6 +1285,11 @@ export default function FilterPanel({
                     <span>{t.buttonApply}</span>
                   </button>
                 </div>
+              </div>
+
+              {/* 건축물대장 메타 필터 (세대수, 세대당 주차수, 준공연도/연차) */}
+              <div className="pt-2 border-t border-normal/60">
+                <ComplexMetaFilterBar filter={metaFilter} onChange={setMetaFilter} />
               </div>
             </div>
           )}
