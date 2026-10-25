@@ -41,6 +41,9 @@ import { useBreakpoint } from "../useBreakpoint";
 import { useDragScroll } from "../hooks/useDragScroll";
 import { createComplexMarkerHtml, getPriceTheme, calculatePriceQuartiles } from "../lib/mapTheme";
 import { MapLegend } from "../components/MapLegend";
+import type { ComplexMetaFilter } from "@myhome/shared";
+import { ComplexMetaBadges } from "../components/common/ComplexMetaBadges";
+import { ComplexMetaFilterBar } from "../components/common/ComplexMetaFilterBar";
 
 const LOCAL_STORAGE_KEY_REGION = "myhome_recent_map_region";
 
@@ -81,6 +84,7 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
   const [selectedComplex, setSelectedComplex] = useState<RegionMapComplexItem | null>(null);
 
   // 검색 및 필터 상태
+  const [metaFilter, setMetaFilter] = useState<ComplexMetaFilter>({});
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedDong, setSelectedDong] = useState<string>("ALL");
   const [sortBy, setSortBy] = useState<SortOption>("txCount");
@@ -237,7 +241,7 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
       setSearchQuery("");
 
       try {
-        const data = await loadRegionMapComplexes(selectedLawdCode);
+        const data = await loadRegionMapComplexes(selectedLawdCode, metaFilter);
         if (isMounted) {
           setMapData(data);
           try {
@@ -900,6 +904,9 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
               );
             })}
           </div>
+
+          {/* 1-1. 건축물대장 4대 메타 필터 (세대수, 주차대수, 세대당 주차, 연차) */}
+          <ComplexMetaFilterBar filter={metaFilter} onChange={setMetaFilter} className="pt-1 border-t border-slate-100 dark:border-slate-800" />
         </div>
 
         {/* 모바일 뷰 전환 탭 (지도 ↔ 목록) */}
@@ -1160,34 +1167,14 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
                             </div>
                           )}
 
-                          {(c.totalHouseholds || c.parkingPerHousehold || c.useApprovalDate) && (
-                            <div className="flex items-center gap-1.5 mt-1.5 flex-wrap text-[10px] text-slate-500 dark:text-slate-400">
-                              {c.totalHouseholds && (
-                                <span className={`px-1.5 py-0.5 rounded font-semibold ${
-                                  c.totalHouseholds >= 1000
-                                    ? "bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/60"
-                                    : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300"
-                                }`}>
-                                  🏠 {c.totalHouseholds.toLocaleString()}세대
-                                </span>
-                              )}
-                              {c.parkingPerHousehold && (
-                                <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300" title={c.totalParking ? `총 주차대수: ${c.totalParking}대` : undefined}>
-                                  🚗 {c.parkingPerHousehold}대
-                                </span>
-                              )}
-                              {c.useApprovalDate && (
-                                <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                                  📅 {c.useApprovalDate.substring(0, 4)}년
-                                  {(() => {
-                                    const y = parseInt(c.useApprovalDate.substring(0, 4));
-                                    const age = isNaN(y) ? null : new Date().getFullYear() - y + 1;
-                                    return age !== null ? ` (${age}년차)` : "";
-                                  })()}
-                                </span>
-                              )}
-                            </div>
-                          )}
+                          <ComplexMetaBadges
+                            totalHouseholds={c.totalHouseholds}
+                            totalParking={c.totalParking}
+                            parkingPerHousehold={c.parkingPerHousehold}
+                            useApprovalDate={c.useApprovalDate}
+                            size="sm"
+                            className="mt-1.5"
+                          />
                         </div>
 
                         {/* 단지 분석 및 지도 바로가기 액션 버튼 */}
@@ -1404,6 +1391,16 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
                   <X size={16} />
                 </button>
               </div>
+
+              {/* 건축물대장 4대 메타 뱃지 */}
+              <ComplexMetaBadges
+                totalHouseholds={selectedComplex.totalHouseholds}
+                totalParking={selectedComplex.totalParking}
+                parkingPerHousehold={selectedComplex.parkingPerHousehold}
+                useApprovalDate={selectedComplex.useApprovalDate}
+                size="md"
+                className="mb-2"
+              />
 
               {/* 가격 및 거래 정보 그리드 */}
               <div className="grid grid-cols-3 gap-2 py-2.5 my-2 border-y border-slate-100 dark:border-slate-800 text-center">

@@ -1,3 +1,4 @@
+import { ComplexMetaBadges } from "../../components/common/ComplexMetaBadges";
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -15,7 +16,7 @@ import { SectionCard } from "../../components/SectionCard";
 import { StatCard } from "../../components/StatCard";
 import { useBreakpoint } from "../../useBreakpoint";
 import { useKakaoMap } from "../../useKakaoMap";
-import { Home, Calendar, DollarSign, Layers, MapPin, Train, ShoppingBag, School, Activity, Clock, Navigation, ArrowUpDown, TrendingUp, HelpCircle, X, Trees, ChevronDown, ChevronUp, Zap, BookOpen, PenTool, GraduationCap, Building2, Stethoscope, ShoppingCart, Store, Waves, BarChart3, Map, Ruler } from "lucide-react";
+import { Home, Calendar, DollarSign, Layers, MapPin, Train, ShoppingBag, School, Activity, Clock, Navigation, ArrowUpDown, TrendingUp, HelpCircle, X, Trees, Car, ChevronDown, ChevronUp, Zap, BookOpen, PenTool, GraduationCap, Building2, Stethoscope, ShoppingCart, Store, Waves, BarChart3, Map, Ruler } from "lucide-react";
 import { createComplexMarkerHtml, createStationMarkerHtml, MAP_CIRCLE_STYLES, getPriceTheme } from "../../lib/mapTheme";
 import { tooltipContentStyle, lineColors, BoxPlotShape } from "../../components/charts/index.js";
 
@@ -110,7 +111,7 @@ const i18n = {
     infraModalCountDesc: "반경 내 시설 1개당 20점이 부여되며, 5개 이상일 시 만점(100점)을 획득합니다 (최대 20점 기여).",
     infraModalWeightTitle: "3. 종합 등급 산출 및 가산점 기준",
     infraModalWeightDesc: "주거 선호도(역세권, 학교, 병원, 대형마트)에 따른 기본 가중 평균 점수에 조망/환경 점수의 10%를 가산점(최대 +10점)으로 더하여 최종 등급을 산출합니다.",
-    infraModalWeightList: "기본 가중치: 역세권 (1.5) > 학교 (1.0) > 병원 (0.8) > 대형마트 (0.7) + [가산] 조망/환경 (최대 +10점)",
+    infraModalWeightList: "기본 가중치: 역세권 (1.5) > 주차 쾌적도 (1.2) = 학군 (1.2) > 병원 (0.8) > 대형마트 (0.7) + [가산] 조망/환경 (최대 +10점)",
     close: "닫기"
   },
   en: {
@@ -202,7 +203,7 @@ const i18n = {
     infraModalCountDesc: "Each facility within the radius gives 20pts, up to 100pts for 5+ facilities (contributing up to 20pts to final score).",
     infraModalWeightTitle: "3. Final Grade & Bonus Points Standards",
     infraModalWeightDesc: "The final grade is calculated by adding 10% of the Nature/View score as a bonus (up to +10 pts) to the base weighted average of core infrastructures (Station, School, Hospital, Mart).",
-    infraModalWeightList: "Base Weights: Station (1.5) > School (1.0) > Hospital (0.8) > Mart (0.7) + [Bonus] Nature/View (Up to +10 pts)",
+    infraModalWeightList: "Base Weights: Station (1.5) > Parking (1.2) = School (1.2) > Hospital (0.8) > Mart (0.7) + [Bonus] Nature/View (Up to +10 pts)",
     close: "Close"
   }
 };
@@ -828,10 +829,11 @@ export default function ComplexTab({
             {/* 개별 인프라 그리드 (아코디언 슬라이드) */}
             <div className={`grid transition-all duration-300 ease-in-out ${showDetailInfras ? "grid-rows-[1fr] opacity-100 mt-2" : "grid-rows-[0fr] opacity-0 overflow-hidden"}`}>
               <div className="min-h-0">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3">
                   {[
                     { code: "SW8", name: t("infraCategorySubway"), weight: "1.5 (최상)", color: "emerald", icon: Train },
-                    { code: "SC4", name: t("infraCategorySchool"), weight: "1.0 (상)", color: "blue", icon: School },
+                    { code: "SC4", name: t("infraCategorySchool"), weight: "1.2 (상)", color: "blue", icon: School },
+                    { code: "PKG", name: "주차 쾌적도", weight: "1.2 (상)", color: "amber", icon: Car },
                     { code: "HP8", name: t("infraCategoryHospital"), weight: "0.8 (중상)", color: "indigo", icon: Activity },
                     { code: "MT1", name: t("infraCategoryMart"), weight: "0.7 (중)", color: "purple", icon: ShoppingBag },
                     { code: "NAT", name: t("infraCategoryNatural"), weight: t("infraWeightBonus"), color: "teal", icon: Trees }
@@ -1044,6 +1046,23 @@ export default function ComplexTab({
                                 </div>
                               </>
                             )}
+                            {item.code === "PKG" && (
+                              <div className="space-y-1">
+                                <div className="flex justify-between items-center">
+                                  <span className="text-assistive flex items-center gap-1">
+                                    <Car size={12} className="text-primary shrink-0" />
+                                    세대당 주차
+                                  </span>
+                                  <span className="font-semibold text-strong">
+                                    {info.details.parkingPerHousehold ? `${info.details.parkingPerHousehold}대` : "-"}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                  <span className="text-assistive">상태 판정</span>
+                                  <span className="font-semibold text-primary">{info.details.status}</span>
+                                </div>
+                              </div>
+                            )}
                             {item.code === "NAT" && (
                               <>
                                 <div className="flex justify-between items-center">
@@ -1081,20 +1100,39 @@ export default function ComplexTab({
 
                         {/* 거리 및 개수 통계 */}
                         <div className="border-t border-normal/50 pt-2.5 flex items-center justify-between text-[11px] text-neutral font-medium">
-                          <div className="flex flex-col gap-0.5 min-w-0">
-                            <span className="text-[10px] text-assistive font-semibold">{t("infraMinDistance")}</span>
-                            <span className="text-strong font-semibold font-mono truncate">
-                              {info.minDistance !== null 
-                                ? `${info.minDistance}m (${walkTime}분)` 
-                                : "-"}
-                            </span>
-                          </div>
-                          <div className="flex flex-col items-end gap-0.5 shrink-0 ml-2">
-                            <span className="text-[10px] text-assistive font-semibold">{t("infraCount")}</span>
-                            <span className="text-strong font-extrabold font-mono bg-primary/10 text-primary px-2 py-0.5 rounded-full text-[10px]">
-                              {info.count}개
-                            </span>
-                          </div>
+                          {item.code === "PKG" ? (
+                            <>
+                              <div className="flex flex-col gap-0.5 min-w-0">
+                                <span className="text-[10px] text-assistive font-semibold">주차 쾌적도</span>
+                                <span className="text-strong font-semibold font-mono truncate">
+                                  {info.details?.parkingPerHousehold ? `세대당 ${info.details.parkingPerHousehold}대` : "정보없음"}
+                                </span>
+                              </div>
+                              <div className="flex flex-col items-end gap-0.5 shrink-0 ml-2">
+                                <span className="text-[10px] text-assistive font-semibold">등급 가중치</span>
+                                <span className="text-strong font-extrabold font-mono bg-primary/10 text-primary px-2 py-0.5 rounded-full text-[10px]">
+                                  1.2
+                                </span>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="flex flex-col gap-0.5 min-w-0">
+                                <span className="text-[10px] text-assistive font-semibold">{t("infraMinDistance")}</span>
+                                <span className="text-strong font-semibold font-mono truncate">
+                                  {info.minDistance !== null 
+                                    ? `${info.minDistance}m (${walkTime}분)` 
+                                    : "-"}
+                                </span>
+                              </div>
+                              <div className="flex flex-col items-end gap-0.5 shrink-0 ml-2">
+                                <span className="text-[10px] text-assistive font-semibold">{t("infraCount")}</span>
+                                <span className="text-strong font-extrabold font-mono bg-primary/10 text-primary px-2 py-0.5 rounded-full text-[10px]">
+                                  {info.count}개
+                                </span>
+                              </div>
+                            </>
+                          )}
                         </div>
                       </div>
                     );

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { loadDashboard, checkAuth, logout, logActivity } from "./api";
-import { Layout, type View } from "./components/Layout";
+import { Layout, type View, normalizeView } from "./components/Layout";
 import React, { Suspense, lazy } from "react";
 import { LoadingSpinner } from "./components/common/LoadingSpinner";
 
@@ -12,10 +12,7 @@ const GraphDashboard = lazy(() => import("./pages/GraphDashboard"));
 const ComplexAnalysisPage = lazy(() => import("./pages/ComplexAnalysisPage"));
 const NearbyStationTab = lazy(() => import("./pages/graph/NearbyStationTab"));
 const RegionMapPage = lazy(() => import("./pages/RegionMapPage").then(m => ({ default: m.RegionMapPage })));
-const DatabaseAdminPage = lazy(() => import("./pages/DatabaseAdmin").then(m => ({ default: m.DatabaseAdminPage })));
-const CollectPage = lazy(() => import("./pages/Collect").then(m => ({ default: m.CollectPage })));
-const AllowedAccountsPage = lazy(() => import("./pages/AllowedAccountsPage").then(m => ({ default: m.AllowedAccountsPage })));
-const ActivityLogPage = lazy(() => import("./pages/ActivityLog").then(m => ({ default: m.ActivityLogPage })));
+const AdminPage = lazy(() => import("./pages/AdminPage").then(m => ({ default: m.AdminPage })));
 import { TempPasswordResetModal } from "./components/TempPasswordResetModal";
 import type { DashboardState } from "./types";
 import { useLocale } from "./lib/i18n";
@@ -29,25 +26,17 @@ function App() {
     const params = new URLSearchParams(window.location.search);
     const viewParam = params.get("view") as View;
     const validViews: View[] = [
-      "dashboard",
-      "regionMap",
-      "rules",
-      "settings",
-      "analytics",
-      "complexAnalysis",
-      "dbAdmin",
-      "collect",
-      "nearby",
-      "allowedAccounts",
-      "activityLog"
+      "home", "map", "analytics", "alerts", "admin", "settings",
+      "dashboard", "regionMap", "rules", "complexAnalysis",
+      "dbAdmin", "collect", "nearby", "allowedAccounts", "activityLog"
     ];
-    return validViews.includes(viewParam) ? viewParam : "regionMap";
+    return validViews.includes(viewParam) ? viewParam : "map";
   });
   const [rulesInitData, setRulesInitData] = useState<{ regionName: string; regionCode?: string; apartmentKeywords: string[] } | null>(null);
   const [complexAnalysisInitData, setComplexAnalysisInitData] = useState<{ complexName: string; lawdCode?: string } | null>(null);
   const [drilldownFromOverview, setDrilldownFromOverview] = useState(false);
 
-  const adminViews: View[] = ["dashboard", "collect", "activityLog", "dbAdmin", "allowedAccounts"];
+  const adminViews: View[] = ["admin", "dashboard", "collect", "activityLog", "dbAdmin", "allowedAccounts"];
   
   // 뒤로가기 / 앞으로가기 (popstate) 이벤트 감지 및 처리
   useEffect(() => {
@@ -55,7 +44,7 @@ function App() {
       if (event.state && typeof event.state === "object" && "view" in event.state) {
         const targetView = event.state.view as View;
         if (!auth?.isAdmin && adminViews.includes(targetView)) {
-          setView("regionMap");
+          setView("map");
         } else {
           setView(targetView);
         }
@@ -63,17 +52,18 @@ function App() {
         const params = new URLSearchParams(window.location.search);
         const viewParam = params.get("view") as View;
         const validViews: View[] = [
-          "dashboard", "regionMap", "rules", "settings", "analytics", 
-          "complexAnalysis", "dbAdmin", "collect", "nearby", "allowedAccounts", "activityLog"
+          "home", "map", "analytics", "alerts", "admin", "settings",
+          "dashboard", "regionMap", "rules", "complexAnalysis",
+          "dbAdmin", "collect", "nearby", "allowedAccounts", "activityLog"
         ];
         if (validViews.includes(viewParam)) {
           if (!auth?.isAdmin && adminViews.includes(viewParam)) {
-            setView("regionMap");
+            setView("map");
           } else {
             setView(viewParam);
           }
         } else {
-          setView(auth?.isAdmin ? "dashboard" : "regionMap");
+          setView(auth?.isAdmin ? "home" : "map");
         }
       }
     };
@@ -99,7 +89,7 @@ function App() {
 
   useEffect(() => {
     if (auth?.isAuthenticated && !auth.isAdmin && adminViews.includes(view)) {
-      setView("regionMap");
+      setView("map");
     }
   }, [view, auth]);
 
@@ -126,7 +116,7 @@ function App() {
             if (defaultPg && (!adminViews.includes(defaultPg) || res.isAdmin)) {
               setView(defaultPg);
             } else {
-              setView(res.isAdmin ? "dashboard" : "regionMap");
+              setView(res.isAdmin ? "home" : "map");
             }
           }
         }
@@ -140,11 +130,15 @@ function App() {
   useEffect(() => {
     if (auth?.isAuthenticated && view) {
       const viewNames: Record<View, string> = {
+        home: "홈 대시보드",
+        map: "지도 탐색",
+        analytics: t.analyticsTitle || "실거래 분석",
+        alerts: "알림 및 관심",
+        admin: "관리자 센터",
         dashboard: t.dashboardTitle,
         regionMap: t.regionMapTitle || "지역별 단지 지도",
         rules: t.rulesTitle,
         settings: t.settingsTitle,
-        analytics: t.analyticsTitle,
         complexAnalysis: t.analyticsTabComplex,
         dbAdmin: t.dbAdminTitle,
         collect: t.collectReportTitle,
@@ -161,7 +155,7 @@ function App() {
     try {
       await logout();
       setAuth({ isAuthenticated: false });
-      setView("regionMap");
+      setView("map");
       window.history.pushState({}, "", "/");
     } catch (err) {
       console.error("로그아웃 실패:", err);
@@ -170,7 +164,7 @@ function App() {
 
   const handleNavigateToRules = (initData: { regionName: string; regionCode?: string; apartmentKeywords: string[] }) => {
     setRulesInitData(initData);
-    setView("rules");
+    setView("alerts");
   };
 
   /** 종합 현황 차트에서 단지 클릭 → 단지 분석 페이지로 드릴다운 */
@@ -204,61 +198,95 @@ function App() {
     );
   }
 
+  const currentNormalized = normalizeView(view);
+
+  // 관리자 서브탭 매핑
+  const getAdminInitialTab = () => {
+    if (view === "collect") return "collect";
+    if (view === "dbAdmin") return "dbAdmin";
+    if (view === "allowedAccounts") return "allowedAccounts";
+    if (view === "activityLog") return "activityLog";
+    return "collect";
+  };
+
   return (
     <Layout view={view} onNavigate={setView} onLogout={handleLogout} isAdmin={auth?.isAdmin} userEmail={auth?.email}>
       <Suspense fallback={<LoadingSpinner message={t.loading || "페이지를 불러오는 중..."} className="py-24" />}>
-      {error && <p className="mb-4 text-sm text-red-500 font-medium">{error}</p>}
-      {view === "dashboard" && <DashboardPage state={state} onChanged={() => void refresh()} onNavigate={setView} isAdmin={auth?.isAdmin} />}
-      {view === "regionMap" && (
-        <RegionMapPage
-          onSelectComplex={handleSelectComplex}
-          onNavigateToRules={handleNavigateToRules}
-        />
-      )}
-      {view === "rules" && (
-        <RulesPage
-          state={state}
-          onChanged={() => void refresh()}
-          initData={rulesInitData}
-          clearInitData={() => setRulesInitData(null)}
-          onNavigate={setView}
-          isAdmin={auth?.isAdmin}
-        />
-      )}
-      {view === "analytics" && (
-        <GraphDashboard
-          onNavigateToRules={handleNavigateToRules}
-          onSelectComplex={handleSelectComplex}
-          config={state?.config}
-        />
-      )}
-      {view === "complexAnalysis" && (
-        <ComplexAnalysisPage
-          onNavigateToRules={handleNavigateToRules}
-          initData={complexAnalysisInitData}
-          clearInitData={() => setComplexAnalysisInitData(null)}
-          onBackToOverview={drilldownFromOverview ? () => {
-            setDrilldownFromOverview(false);
-            setView("analytics");
-          } : undefined}
-        />
-      )}
-      {view === "nearby" && (
-        <NearbyStationTab
-          onSelectComplex={(complexName, lawdCode) => {
-            setComplexAnalysisInitData({ complexName, lawdCode });
-            setDrilldownFromOverview(false);
-            setView("complexAnalysis");
-          }}
-          onNavigateToRules={handleNavigateToRules}
-        />
-      )}
-      {view === "collect" && <CollectPage />}
-      {view === "activityLog" && <ActivityLogPage />}
-      {view === "dbAdmin" && <DatabaseAdminPage />}
-      {view === "allowedAccounts" && <AllowedAccountsPage onChanged={() => void refresh()} currentUserEmail={auth?.email} />}
-      {view === "settings" && <SettingsPage state={state} onChanged={() => void refresh()} isAdmin={auth?.isAdmin} userEmail={auth?.email} />}
-          </Suspense>
+        {error && <p className="mb-4 text-sm text-red-500 font-medium">{error}</p>}
+
+        {/* 1. 홈 / 대시보드 */}
+        {(view === "home" || view === "dashboard") && (
+          <DashboardPage state={state} onChanged={() => void refresh()} onNavigate={setView} isAdmin={auth?.isAdmin} />
+        )}
+
+        {/* 2. 지도 탐색 */}
+        {(view === "map" || view === "regionMap") && (
+          <RegionMapPage
+            onSelectComplex={handleSelectComplex}
+            onNavigateToRules={handleNavigateToRules}
+          />
+        )}
+
+        {/* 3. 알림 & 관심 매물 */}
+        {(view === "alerts" || view === "rules") && (
+          <RulesPage
+            state={state}
+            onChanged={() => void refresh()}
+            initData={rulesInitData}
+            clearInitData={() => setRulesInitData(null)}
+            onNavigate={setView}
+            isAdmin={auth?.isAdmin}
+          />
+        )}
+
+        {/* 4. 실거래 분석 (종합 통계) */}
+        {view === "analytics" && (
+          <GraphDashboard
+            onNavigateToRules={handleNavigateToRules}
+            onSelectComplex={handleSelectComplex}
+            config={state?.config}
+          />
+        )}
+
+        {/* 단지 심층 분석 (하위 호환 및 드릴다운) */}
+        {view === "complexAnalysis" && (
+          <ComplexAnalysisPage
+            onNavigateToRules={handleNavigateToRules}
+            initData={complexAnalysisInitData}
+            clearInitData={() => setComplexAnalysisInitData(null)}
+            onBackToOverview={drilldownFromOverview ? () => {
+              setDrilldownFromOverview(false);
+              setView("analytics");
+            } : undefined}
+          />
+        )}
+
+        {/* 역세권 분석 (하위 호환) */}
+        {view === "nearby" && (
+          <NearbyStationTab
+            onSelectComplex={(complexName, lawdCode) => {
+              setComplexAnalysisInitData({ complexName, lawdCode });
+              setDrilldownFromOverview(false);
+              setView("complexAnalysis");
+            }}
+            onNavigateToRules={handleNavigateToRules}
+          />
+        )}
+
+        {/* 5. 관리자 센터 (Admin Console) */}
+        {(view === "admin" || view === "collect" || view === "dbAdmin" || view === "allowedAccounts" || view === "activityLog") && (
+          <AdminPage
+            state={state}
+            onChanged={() => void refresh()}
+            initialTab={getAdminInitialTab()}
+          />
+        )}
+
+        {/* 6. 환경 설정 */}
+        {view === "settings" && (
+          <SettingsPage state={state} onChanged={() => void refresh()} isAdmin={auth?.isAdmin} userEmail={auth?.email} />
+        )}
+      </Suspense>
     </Layout>
   );
 }

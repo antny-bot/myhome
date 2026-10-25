@@ -50,7 +50,20 @@ export type GraphFilter = {
   complexName?: string;
   minArea?: number;
   maxArea?: number;
+  minHouseholds?: number;
+  minTotalParking?: number;
+  minParkingPerHousehold?: number;
+  minBuildYear?: number;
+  maxBuildYear?: number;
 };
+
+export interface ComplexMetaFilter {
+  minHouseholds?: number;
+  minTotalParking?: number;
+  minParkingPerHousehold?: number;
+  minBuildYear?: number;
+  maxBuildYear?: number;
+}
 
 export type GraphPreset = {
   id: string;

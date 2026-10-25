@@ -1,6 +1,6 @@
 import { DatabaseSync } from "node:sqlite";
 import { getDb, getPreparedStatement } from "./connection.js";
-import { ComplexSearchResult } from "../types.js";
+import { ComplexSearchResult, ComplexMetaFilter } from "../types.js";
 
 /**
  * 검색 단지명 유연 해석 (정확 일치 우선, 없으면 FTS5 가상 테이블 및 거래량 기준 매칭)
@@ -225,8 +225,12 @@ export function getComplexesByRegion(lawdCode?: string): string[] {
 /**
  * 특정 지역(lawdCode)에 속한 단지들의 지도 시각화용 상세 정보 및 거래 통계 조회
  * - Window Function CTE를 적용하여 N회 상관 서브쿼리 제거 (단 1회 일괄 집계)
+ * - 건축물대장 메타 필터 (세대수, 주차대수, 세대당 주차, 준공연도) 조건부 검색 지원
  */
-export function getRegionComplexesMapData(lawdCode: string): {
+export function getRegionComplexesMapData(
+  lawdCode: string,
+  filter?: ComplexMetaFilter
+): {
   lawdCode: string;
   regionName: string;
   totalComplexes: number;
@@ -254,10 +258,35 @@ export function getRegionComplexesMapData(lawdCode: string): {
     useApprovalDate: string | null;
   }[];
 } {
-  const regionRow = getPreparedStatement(`SELECT display_name FROM regions WHERE lawd_code = ?`).get(lawdCode) as { display_name: string } | undefined;
+  const db = getDb();
+  const regionRow = db.prepare(`SELECT display_name FROM regions WHERE lawd_code = ?`).get(lawdCode) as { display_name: string } | undefined;
   const regionName = regionRow?.display_name || lawdCode;
 
-  const rows = getPreparedStatement(`
+  let filterConditions = "WHERE c.lawd_code = ?";
+  const params: any[] = [lawdCode];
+
+  if (filter?.minHouseholds !== undefined && filter.minHouseholds > 0) {
+    filterConditions += " AND c.total_households >= ?";
+    params.push(filter.minHouseholds);
+  }
+  if (filter?.minTotalParking !== undefined && filter.minTotalParking > 0) {
+    filterConditions += " AND c.total_parking >= ?";
+    params.push(filter.minTotalParking);
+  }
+  if (filter?.minParkingPerHousehold !== undefined && filter.minParkingPerHousehold > 0) {
+    filterConditions += " AND c.parking_per_household >= ?";
+    params.push(filter.minParkingPerHousehold);
+  }
+  if (filter?.minBuildYear !== undefined && filter.minBuildYear > 0) {
+    filterConditions += " AND CAST(substr(c.use_approval_date, 1, 4) AS INTEGER) >= ?";
+    params.push(filter.minBuildYear);
+  }
+  if (filter?.maxBuildYear !== undefined && filter.maxBuildYear > 0) {
+    filterConditions += " AND CAST(substr(c.use_approval_date, 1, 4) AS INTEGER) <= ?";
+    params.push(filter.maxBuildYear);
+  }
+
+  const sql = `
     WITH tx_summary AS (
       SELECT 
         complex_id,
@@ -294,9 +323,12 @@ export function getRegionComplexesMapData(lawdCode: string): {
     FROM complexes c
     JOIN regions r ON c.lawd_code = r.lawd_code
     LEFT JOIN tx_summary ts ON c.id = ts.complex_id
-    WHERE c.lawd_code = ?
+    ${filterConditions}
     ORDER BY txCount DESC, c.name ASC
-  `).all(lawdCode, lawdCode) as any[];
+  `;
+
+  // tx_summary의 lawd_code 파라미터가 1번째, 이후 filterConditions의 params가 결합
+  const rows = db.prepare(sql).all(lawdCode, ...params) as any[];
 
   let totalLat = 0;
   let totalLng = 0;
