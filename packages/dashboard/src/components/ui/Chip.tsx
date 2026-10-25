@@ -1,6 +1,7 @@
 import React from "react";
 import { X, LucideIcon } from "lucide-react";
 import { classNames } from "../../lib/format";
+import { renderIconNode } from "./iconHelper";
 
 export interface ChipProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   active?: boolean;
@@ -43,11 +44,7 @@ export const Chip = React.forwardRef<HTMLButtonElement, ChipProps>(function Chip
     >
       {icon && (
         <span className="shrink-0 inline-flex items-center">
-          {typeof icon === "function" ? (
-            React.createElement(icon as LucideIcon, { size: size === "sm" ? 12 : 14 })
-          ) : (
-            icon
-          )}
+          {renderIconNode(icon, { size: size === "sm" ? 12 : 14 })}
         </span>
       )}
       <span>{children}</span>

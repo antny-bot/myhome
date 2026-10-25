@@ -15,3 +15,4 @@ export * from "./BottomSheet";
 export * from "./ConfirmDialog";
 export * from "./Toast";
 export * from "./ShaderBackground";
+export * from "./iconHelper";
