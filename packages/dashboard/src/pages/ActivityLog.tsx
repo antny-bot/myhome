@@ -8,6 +8,15 @@ import { StatCard } from "../components/StatCard";
 import { fetchActivityLogs, fetchActivityStats } from "../api";
 import { UserActivityLog, ActivityStats } from "../types";
 import { useLocale } from "../lib/i18n";
+import {
+  CHART_THEME,
+  chartGridProps,
+  chartXAxisProps,
+  chartYAxisProps,
+  chartSecondaryYAxisProps,
+  tooltipContentStyle,
+  lineColors,
+} from "../components/charts/index.js";
 
 const CustomLegend = (props: any) => {
   const { payload } = props;
@@ -45,7 +54,7 @@ const CustomLegend = (props: any) => {
 };
 
 // Chart colors tailwind compatible
-const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#6b7280"];
+const COLORS = lineColors;
 
 export function ActivityLogPage() {
   const { t, locale } = useLocale();
@@ -306,38 +315,26 @@ export function ActivityLogPage() {
                   <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart
                       data={areaChartData}
-                      margin={{ top: 10, right: 5, left: -10, bottom: 0 }}
+                      margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
                       onClick={handleChartClick}
                       className="cursor-pointer select-none"
                     >
                       <defs>
                         <linearGradient id="colorLogCount" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.15}/>
-                          <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                        </linearGradient>
-                        <linearGradient id="colorUserCount" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.15}/>
-                          <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                          <stop offset="5%" stopColor="var(--color-chart-primary)" stopOpacity={0.2}/>
+                          <stop offset="95%" stopColor="var(--color-chart-primary)" stopOpacity={0}/>
                         </linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(148, 163, 184, 0.15)" />
+                      <CartesianGrid {...chartGridProps} />
                       <XAxis
                         dataKey="fullDate"
                         tickFormatter={(v: string) => (v ? v.substring(5) : "")}
-                        tickLine={false}
-                        axisLine={false}
-                        style={{ fontSize: 10, fill: "#94a3b8" }}
+                        {...chartXAxisProps}
                       />
-                      <YAxis yAxisId="left" tickLine={false} axisLine={false} style={{ fontSize: 10, fill: "#94a3b8" }} width={35} allowDecimals={false} />
-                      <YAxis yAxisId="right" orientation="right" tickLine={false} axisLine={false} style={{ fontSize: 10, fill: "#94a3b8" }} width={30} allowDecimals={false} />
+                      <YAxis yAxisId="left" {...chartYAxisProps} width={38} allowDecimals={false} />
+                      <YAxis yAxisId="right" {...chartSecondaryYAxisProps} width={34} allowDecimals={false} />
                       <Tooltip
-                        contentStyle={{
-                          backgroundColor: "rgba(255, 255, 255, 0.95)",
-                          border: "1px solid #e2e8f0",
-                          borderRadius: "8px",
-                          fontSize: "11px",
-                          boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.05)"
-                        }}
+                        contentStyle={tooltipContentStyle}
                         labelFormatter={(label, payload) => {
                           const fullDate = payload?.[0]?.payload?.fullDate || label;
                           return fullDate ? `${fullDate} (클릭하여 필터링)` : label;
@@ -352,7 +349,7 @@ export function ActivityLogPage() {
                         yAxisId="left"
                         type="monotone"
                         dataKey="logCount"
-                        stroke="#3b82f6"
+                        stroke={CHART_THEME.primary}
                         strokeWidth={2}
                         fillOpacity={1}
                         fill="url(#colorLogCount)"
@@ -367,6 +364,7 @@ export function ActivityLogPage() {
                         dataKey="userCount"
                         radius={[4, 4, 0, 0]}
                         maxBarSize={20}
+                        fill={CHART_THEME.accent}
                         name={t.activeUsers || "액티브 사용자 (명)"}
                         onClick={(entry: any) => {
                           const target = entry?.payload?.fullDate || entry?.fullDate;
@@ -378,8 +376,9 @@ export function ActivityLogPage() {
                           return (
                             <Cell
                               key={`bar-cell-${index}`}
-                              fill={isSelected ? "#059669" : (filterDate ? "#a7f3d0" : "#10b981")}
-                              stroke={isSelected ? "#047857" : "none"}
+                              fill={isSelected ? CHART_THEME.accent : (filterDate ? "var(--color-semantic-line-normal-normal)" : CHART_THEME.accent)}
+                              fillOpacity={isSelected ? 1.0 : (filterDate ? 0.35 : 0.75)}
+                              stroke={isSelected ? CHART_THEME.accent : "none"}
                               strokeWidth={isSelected ? 1.5 : 0}
                               className="cursor-pointer"
                               onClick={(e: any) => {
@@ -428,7 +427,7 @@ export function ActivityLogPage() {
                           <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
                       </Pie>
-                      <Tooltip formatter={(value) => [`${value}건`, '건수']} />
+                      <Tooltip contentStyle={tooltipContentStyle} formatter={(value) => [`${value}건`, '건수']} />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>

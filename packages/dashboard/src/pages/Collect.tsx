@@ -24,6 +24,14 @@ import { useBreakpoint } from "../useBreakpoint";
 import { formatNumber, formatPrice } from "../lib/format";
 import { useLocale } from "../lib/i18n";
 import { Database, MapPin, Calendar, ClipboardList, TrendingUp, BarChart2, Building2, ChevronRight } from "lucide-react";
+import {
+  CHART_THEME,
+  chartGridProps,
+  chartXAxisProps,
+  chartYAxisProps,
+  chartSecondaryYAxisProps,
+  tooltipContentStyle,
+} from "../components/charts/index.js";
 
 export function CollectPage() {
   const { t, locale } = useLocale();
@@ -117,7 +125,7 @@ export function CollectPage() {
           </div>
           <div className="flex justify-between items-center gap-4">
             <span className="text-neutral flex items-center gap-1"><TrendingUp size={11} /> 평균 거래가</span>
-            <span className="font-bold font-mono text-amber-500 tabular-nums">
+            <span className="font-bold font-mono font-mono tabular-nums text-primary font-bold">
               {formatPrice(data.avgPriceEok, locale)}
             </span>
           </div>
@@ -137,11 +145,11 @@ export function CollectPage() {
   const CustomLegend = () => (
     <div className="flex items-center justify-center gap-5 mt-2 text-[11px] text-neutral">
       <span className="flex items-center gap-1.5">
-        <span className="inline-block w-3 h-3 rounded-sm bg-[var(--color-semantic-primary-normal)] opacity-70" />
+        <span className="inline-block w-3 h-3 rounded-sm" style={{ backgroundColor: CHART_THEME.primary, opacity: 0.8 }} />
         수집 건수
       </span>
       <span className="flex items-center gap-1.5">
-        <span className="inline-block w-5 h-0.5 bg-amber-400 rounded-full" />
+        <span className="inline-block w-4 h-0.5 rounded-full" style={{ backgroundColor: CHART_THEME.accent }} />
         평균 거래가
       </span>
     </div>
@@ -272,34 +280,28 @@ export function CollectPage() {
                   <ComposedChart
                     data={chartData}
                     onClick={handleChartClick}
-                    margin={{ top: 10, right: 58, left: 0, bottom: 0 }}
+                    margin={{ top: 12, right: 10, left: -15, bottom: 0 }}
                   >
+                    <CartesianGrid {...chartGridProps} />
                     <XAxis
                       dataKey="collectDate"
-                      tick={{ fontSize: 11, fill: "var(--color-semantic-label-neutral)" }}
-                      axisLine={{ stroke: "var(--color-semantic-line-normal-normal)" }}
-                      tickLine={false}
+                      {...chartXAxisProps}
                       interval="preserveStartEnd"
                     />
                     {/* 좌측 Y: 수집 건수 */}
                     <YAxis
                       yAxisId="count"
-                      orientation="left"
-                      width={62}
-                      tick={{ fontSize: 11, fill: "var(--color-semantic-label-neutral)", fontFamily: "monospace" }}
-                      axisLine={false}
-                      tickLine={false}
+                      {...chartYAxisProps}
+                      width={56}
                       tickFormatter={(v) => v.toLocaleString("ko-KR")}
                       domain={[(dataMin: number) => Math.max(0, Math.floor(dataMin * 0.9)), "auto"]}
                     />
                     {/* 우측 Y: 평균 거래가 (억) */}
                     <YAxis
                       yAxisId="price"
-                      orientation="right"
-                      width={52}
-                      tick={{ fontSize: 11, fill: "#f59e0b", fontFamily: "monospace" }}
-                      axisLine={false}
-                      tickLine={false}
+                      {...chartSecondaryYAxisProps}
+                      width={48}
+                      tick={{ fontSize: 11, fill: CHART_THEME.accent, fontFamily: "monospace" }}
                       tickFormatter={(v) => `${v}억`}
                     />
                     <Tooltip
@@ -312,14 +314,14 @@ export function CollectPage() {
                       yAxisId="count"
                       dataKey="count"
                       radius={[4, 4, 0, 0]}
-                      maxBarSize={40}
+                      maxBarSize={36}
                     >
                       {chartData.map((entry, index) => {
                         const isSelected = entry.collectDate === selectedDate;
                         return (
                           <Cell
                             key={`cell-${index}`}
-                            fill="var(--color-semantic-primary-normal)"
+                            fill={CHART_THEME.primary}
                             opacity={isSelected ? 1.0 : 0.35}
                             className="transition-all duration-200 cursor-pointer hover:opacity-80"
                           />
@@ -331,10 +333,10 @@ export function CollectPage() {
                       yAxisId="price"
                       type="monotone"
                       dataKey="avgPriceEok"
-                      stroke="#f59e0b"
-                      strokeWidth={2}
+                      stroke={CHART_THEME.accent}
+                      strokeWidth={2.5}
                       dot={false}
-                      activeDot={{ r: 5, stroke: "#f59e0b", strokeWidth: 2, fill: "#fef3c7" }}
+                      activeDot={{ r: 5, stroke: CHART_THEME.accent, strokeWidth: 2, fill: "var(--color-semantic-background-elevated-normal)" }}
                     />
                   </ComposedChart>
                 </ResponsiveContainer>

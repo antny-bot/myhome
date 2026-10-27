@@ -10,7 +10,8 @@ import {
   XAxis,
   YAxis,
   Tooltip,
-  Bar
+  Bar,
+  CartesianGrid
 } from "recharts";
 import { loadComplexDetail } from "../../api";
 import { SectionCard } from "../../components/SectionCard";
@@ -19,7 +20,16 @@ import { useBreakpoint } from "../../useBreakpoint";
 import { useKakaoMap } from "../../useKakaoMap";
 import { Home, Calendar, DollarSign, Layers, MapPin, Train, ShoppingBag, School, Activity, Clock, Navigation, ArrowUpDown, TrendingUp, HelpCircle, X, Trees, Car, ChevronDown, ChevronUp, Zap, BookOpen, PenTool, GraduationCap, Building2, Stethoscope, ShoppingCart, Store, Waves, BarChart3, Map, Ruler } from "lucide-react";
 import { createComplexMarkerHtml, createStationMarkerHtml, MAP_CIRCLE_STYLES, getPriceTheme } from "../../lib/mapTheme";
-import { tooltipContentStyle, lineColors, BoxPlotShape } from "../../components/charts/index.js";
+import {
+  tooltipContentStyle,
+  lineColors,
+  BoxPlotShape,
+  CHART_THEME,
+  chartGridProps,
+  chartXAxisProps,
+  chartYAxisProps,
+  chartSecondaryYAxisProps,
+} from "../../components/charts/index.js";
 
 
 const i18n = {
@@ -254,7 +264,7 @@ const BoxPlotTooltip = ({ active, payload, label, unit, type }: any) => {
       <div className="grid grid-cols-2 gap-y-1 gap-x-3 text-neutral font-medium">
         <div className="flex items-center gap-1.5 justify-between">
           <span className="text-assistive">{labelMax}:</span>
-          <span className="font-mono text-strong font-bold">{(data.max || 0).toFixed(2)}{labelEok}</span>
+          <span className="font-mono font-bold" style={{ color: CHART_THEME.max }}>{(data.max || 0).toFixed(2)}{labelEok}</span>
         </div>
         <div className="flex items-center gap-1.5 justify-between">
           <span className="text-assistive">{labelQ3} (75%):</span>
@@ -262,11 +272,11 @@ const BoxPlotTooltip = ({ active, payload, label, unit, type }: any) => {
         </div>
         <div className="flex items-center gap-1.5 justify-between">
           <span className="text-assistive">{labelMean}:</span>
-          <span className="font-mono text-primary font-bold">{(data.mean || 0).toFixed(2)}{labelEok}</span>
+          <span className="font-mono font-bold" style={{ color: CHART_THEME.accent }}>{(data.mean || 0).toFixed(2)}{labelEok}</span>
         </div>
         <div className="flex items-center gap-1.5 justify-between">
           <span className="text-assistive">{labelMedian}:</span>
-          <span className="font-mono text-strong font-semibold">{(data.median || 0).toFixed(2)}{labelEok}</span>
+          <span className="font-mono font-semibold" style={{ color: CHART_THEME.median }}>{(data.median || 0).toFixed(2)}{labelEok}</span>
         </div>
         <div className="flex items-center gap-1.5 justify-between">
           <span className="text-assistive">{labelQ1} (25%):</span>
@@ -274,7 +284,7 @@ const BoxPlotTooltip = ({ active, payload, label, unit, type }: any) => {
         </div>
         <div className="flex items-center gap-1.5 justify-between">
           <span className="text-assistive">{labelMin}:</span>
-          <span className="font-mono text-strong font-bold">{(data.min || 0).toFixed(2)}{labelEok}</span>
+          <span className="font-mono font-bold" style={{ color: CHART_THEME.min }}>{(data.min || 0).toFixed(2)}{labelEok}</span>
         </div>
       </div>
     </div>
@@ -608,6 +618,23 @@ export default function ComplexTab({
       g.items.push(tx);
     });
     return groups;
+  }, [detailData?.recentTx]);
+
+  // 최근 실거래 10건 메타 통계 (최고, 최저, 평균)
+  const recentTxStats = React.useMemo(() => {
+    if (!detailData?.recentTx || detailData.recentTx.length === 0) {
+      return { maxPrice: 0, minPrice: 0, avgPrice: 0, totalCount: 0 };
+    }
+    const prices = detailData.recentTx.map((tx: any) => tx.priceEok);
+    const maxPrice = Math.max(...prices);
+    const minPrice = Math.min(...prices);
+    const sum = prices.reduce((acc: number, p: number) => acc + p, 0);
+    return {
+      maxPrice,
+      minPrice,
+      avgPrice: sum / prices.length,
+      totalCount: detailData.recentTx.length,
+    };
   }, [detailData?.recentTx]);
 
   const fetchDetail = async (name: string, area?: number) => {
@@ -1554,11 +1581,11 @@ export default function ComplexTab({
             {/* 커스텀 범례 (클릭 시 토글 가능) */}
             <div className="flex flex-wrap items-center gap-4 mb-4">
               {[
-                { key: "최대가", label: "최대가", color: "var(--color-chart-max)", type: "line" },
-                { key: "평균가", label: "평균가", color: "var(--color-chart-primary)", type: "area" },
-                { key: "중위값", label: "중위값", color: "var(--color-chart-median)", type: "line" },
-                { key: "최소가", label: "최소가", color: "var(--color-chart-min)", type: "line" },
-                { key: "거래량", label: "거래량", color: "var(--color-chart-primary)", type: "bar" }
+                { key: "최대가", label: "최대가", color: CHART_THEME.max, type: "line" },
+                { key: "평균가", label: "평균가", color: CHART_THEME.primary, type: "area" },
+                { key: "중위값", label: "중위값", color: CHART_THEME.median, type: "line" },
+                { key: "최소가", label: "최소가", color: CHART_THEME.min, type: "line" },
+                { key: "거래량", label: "거래량", color: CHART_THEME.volume, type: "bar" }
               ].map((item) => {
                 const isHidden = hiddenKeys[item.key];
                 return (
@@ -1581,17 +1608,18 @@ export default function ComplexTab({
             </div>
             <div className="h-72 w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={detailData.trend} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
-                  <XAxis dataKey="month" stroke="#64748b" fontSize={11} tickLine={false} interval="preserveStartEnd" />
+                <ComposedChart data={detailData.trend} margin={{ top: 12, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid {...chartGridProps} />
+                  <XAxis dataKey="month" {...chartXAxisProps} interval="preserveStartEnd" />
                   {/* 좌측 Y축: 가격 */}
-                  <YAxis yAxisId="left" width={52} stroke="#64748b" fontSize={11} tickLine={false} domain={[(dataMin) => Math.max(0, Math.floor(dataMin * 0.9)), "auto"]} />
+                  <YAxis yAxisId="left" {...chartYAxisProps} domain={[(dataMin) => Math.max(0, Math.floor(dataMin * 0.9)), "auto"]} />
                   {/* 우측 Y축: 거래량 */}
-                  <YAxis yAxisId="right" orientation="right" width={35} stroke="#64748b" fontSize={11} tickLine={false} allowDecimals={false} domain={[(dataMin) => Math.max(0, Math.floor(dataMin * 0.9)), "auto"]} />
+                  <YAxis yAxisId="right" {...chartSecondaryYAxisProps} allowDecimals={false} domain={[(dataMin) => Math.max(0, Math.floor(dataMin * 0.9)), "auto"]} />
                   <Tooltip contentStyle={tooltipContentStyle} />
                   
                   {/* 우측 Y축 기준의 거래량 Bar (뒷배경) */}
                   {!hiddenKeys["거래량"] && (
-                    <Bar yAxisId="right" dataKey="거래량" name="거래량" fill="var(--color-chart-primary)" fillOpacity={0.15} radius={[4, 4, 0, 0]} barSize={24} />
+                    <Bar yAxisId="right" dataKey="거래량" name="거래량" fill={CHART_THEME.volume} fillOpacity={0.16} radius={[4, 4, 0, 0]} barSize={22} />
                   )}
 
                   {/* 평균가를 배경 반투명 Area 스타일로 뒷배경에 깔아줌 */}
@@ -1602,21 +1630,21 @@ export default function ComplexTab({
                       dataKey="평균가"
                       name="평균가 (배경)"
                       stroke="none"
-                      fill="var(--color-chart-primary)"
+                      fill={CHART_THEME.primary}
                       fillOpacity={0.08}
                       connectNulls={true}
                     />
                   )}
                   
-                  {/* 최대가, 중위값, 최소가 선 그래프 드로잉 (평균가 Line 제거) */}
+                  {/* 최대가, 중위값, 최소가 선 그래프 드로잉 (통일된 테마 색상) */}
                   {!hiddenKeys["최대가"] && (
-                    <Line yAxisId="left" type="monotone" dataKey="최대가" name="최대가" stroke="var(--color-chart-max)" strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 4 }} connectNulls={true} />
+                    <Line yAxisId="left" type="monotone" dataKey="최대가" name="최대가" stroke={CHART_THEME.max} strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 4 }} connectNulls={true} />
                   )}
                   {!hiddenKeys["중위값"] && (
-                    <Line yAxisId="left" type="monotone" dataKey="중위값" name="중위값" stroke="var(--color-chart-median)" strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 4 }} connectNulls={true} />
+                    <Line yAxisId="left" type="monotone" dataKey="중위값" name="중위값" stroke={CHART_THEME.median} strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 4 }} connectNulls={true} />
                   )}
                   {!hiddenKeys["최소가"] && (
-                    <Line yAxisId="left" type="monotone" dataKey="최소가" name="최소가" stroke="var(--color-chart-min)" strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 4 }} connectNulls={true} />
+                    <Line yAxisId="left" type="monotone" dataKey="최소가" name="최소가" stroke={CHART_THEME.min} strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 4 }} connectNulls={true} />
                   )}
                 </ComposedChart>
               </ResponsiveContainer>
@@ -1629,11 +1657,11 @@ export default function ComplexTab({
               {/* 커스텀 범례 */}
               <div className="flex flex-wrap items-center gap-4 mb-4">
                 {[
-                  { key: "최대/최소", label: t("maxPrice") + "/" + t("minPrice"), color: "var(--color-semantic-line-normal-normal)", type: "line" },
-                  { key: "Q1/Q3", label: t("q1Price") + "/" + t("q3Price") + " " + t("box"), color: "var(--color-chart-primary)", type: "area" },
-                  { key: "평균", label: t("avgPrice"), color: "var(--color-chart-accent)", type: "line" },
-                  { key: "중위값", label: t("medianPrice"), color: "var(--color-chart-median)", type: "line" },
-                  { key: "거래량", label: t("txCount") + ` (${t("countUnit")})`, color: "var(--color-chart-min)", type: "line" }
+                  { key: "최대/최소", label: t("maxPrice") + "/" + t("minPrice"), color: CHART_THEME.axisMuted, type: "line" },
+                  { key: "Q1/Q3", label: t("q1Price") + "/" + t("q3Price") + " " + t("box"), color: CHART_THEME.primary, type: "area" },
+                  { key: "평균", label: t("avgPrice"), color: CHART_THEME.accent, type: "line" },
+                  { key: "중위값", label: t("medianPrice"), color: CHART_THEME.median, type: "line" },
+                  { key: "거래량", label: t("txCount") + ` (${t("countUnit")})`, color: CHART_THEME.floor, type: "line" }
                 ].map((item) => {
                   const isHidden = areaHiddenKeys[item.key];
                   return (
@@ -1661,12 +1689,13 @@ export default function ComplexTab({
               </div>
               <div className="h-64 w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={detailData.areaBreakdown} margin={{ top: 10, right: -5, left: -25, bottom: 0 }}>
-                    <XAxis dataKey="area" stroke="#64748b" fontSize={11} tickLine={false} interval="preserveStartEnd" tickFormatter={(v) => formatSizeString(v, areaUnit)} />
+                  <ComposedChart data={detailData.areaBreakdown} margin={{ top: 12, right: 5, left: -20, bottom: 0 }}>
+                    <CartesianGrid {...chartGridProps} />
+                    <XAxis dataKey="area" {...chartXAxisProps} interval="preserveStartEnd" tickFormatter={(v) => formatSizeString(v, areaUnit)} />
                     {/* Y축 1: 가격 (억 원) */}
-                    <YAxis yAxisId="left" width={52} stroke="#64748b" fontSize={11} tickLine={false} domain={[(dataMin) => Math.max(0, Math.floor(dataMin * 0.9)), "auto"]} />
+                    <YAxis yAxisId="left" {...chartYAxisProps} domain={[(dataMin) => Math.max(0, Math.floor(dataMin * 0.9)), "auto"]} />
                     {/* Y축 2: 거래 건수 (건) */}
-                    <YAxis yAxisId="right" orientation="right" width={35} stroke="#64748b" fontSize={11} tickLine={false} allowDecimals={false} domain={[(dataMin) => Math.max(0, Math.floor(dataMin * 0.9)), "auto"]} />
+                    <YAxis yAxisId="right" {...chartSecondaryYAxisProps} allowDecimals={false} domain={[(dataMin) => Math.max(0, Math.floor(dataMin * 0.9)), "auto"]} />
                     
                     <Tooltip content={<BoxPlotTooltip unit={areaUnit} type="area" />} />
 
@@ -1702,11 +1731,11 @@ export default function ComplexTab({
 
                     {/* 평균가 시계열 라인 */}
                     {!areaHiddenKeys["평균"] && (
-                      <Line yAxisId="left" type="monotone" dataKey="mean" name={t("avgPrice")} stroke="var(--color-chart-accent)" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                      <Line yAxisId="left" type="monotone" dataKey="mean" name={t("avgPrice")} stroke={CHART_THEME.accent} strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
                     )}
 
                     {!areaHiddenKeys["거래량"] && (
-                      <Line yAxisId="right" type="monotone" dataKey="count" name={`${t("txCount")} (${t("countUnit")})`} stroke="var(--color-chart-min)" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                      <Line yAxisId="right" type="monotone" dataKey="count" name={`${t("txCount")} (${t("countUnit")})`} stroke={CHART_THEME.floor} strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
                     )}
                   </ComposedChart>
                 </ResponsiveContainer>
@@ -1718,11 +1747,11 @@ export default function ComplexTab({
               {/* 커스텀 범례 */}
               <div className="flex flex-wrap items-center gap-4 mb-4">
                 {[
-                  { key: "최대/최소", label: t("maxPrice") + "/" + t("minPrice"), color: "var(--color-semantic-line-normal-normal)", type: "line" },
-                  { key: "Q1/Q3", label: t("q1Price") + "/" + t("q3Price") + " " + t("box"), color: "var(--color-chart-primary)", type: "area" },
-                  { key: "평균", label: t("avgPrice"), color: "var(--color-chart-accent)", type: "line" },
-                  { key: "중위값", label: t("medianPrice"), color: "var(--color-chart-median)", type: "line" },
-                  { key: "거래량", label: t("txCount") + ` (${t("countUnit")})`, color: "var(--color-chart-floor)", type: "line" }
+                  { key: "최대/최소", label: t("maxPrice") + "/" + t("minPrice"), color: CHART_THEME.axisMuted, type: "line" },
+                  { key: "Q1/Q3", label: t("q1Price") + "/" + t("q3Price") + " " + t("box"), color: CHART_THEME.primary, type: "area" },
+                  { key: "평균", label: t("avgPrice"), color: CHART_THEME.accent, type: "line" },
+                  { key: "중위값", label: t("medianPrice"), color: CHART_THEME.median, type: "line" },
+                  { key: "거래량", label: t("txCount") + ` (${t("countUnit")})`, color: CHART_THEME.floor, type: "line" }
                 ].map((item) => {
                   const isHidden = floorHiddenKeys[item.key];
                   return (
@@ -1750,12 +1779,13 @@ export default function ComplexTab({
               </div>
               <div className="h-64 w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={detailData.floorDist} margin={{ top: 10, right: -5, left: -25, bottom: 0 }}>
-                    <XAxis dataKey="floor" stroke="#64748b" fontSize={11} tickLine={false} interval="preserveStartEnd" tickFormatter={(v) => `${v}${t("floorUnit")}`} />
+                  <ComposedChart data={detailData.floorDist} margin={{ top: 12, right: 5, left: -20, bottom: 0 }}>
+                    <CartesianGrid {...chartGridProps} />
+                    <XAxis dataKey="floor" {...chartXAxisProps} interval="preserveStartEnd" tickFormatter={(v) => `${v}${t("floorUnit")}`} />
                     {/* Y축 1: 가격 (억 원) */}
-                    <YAxis yAxisId="left" width={52} stroke="#64748b" fontSize={11} tickLine={false} domain={[(dataMin) => Math.max(0, Math.floor(dataMin * 0.9)), "auto"]} />
+                    <YAxis yAxisId="left" {...chartYAxisProps} domain={[(dataMin) => Math.max(0, Math.floor(dataMin * 0.9)), "auto"]} />
                     {/* Y축 2: 거래 건수 (건) */}
-                    <YAxis yAxisId="right" orientation="right" width={35} stroke="#64748b" fontSize={11} tickLine={false} allowDecimals={false} domain={[(dataMin) => Math.max(0, Math.floor(dataMin * 0.9)), "auto"]} />
+                    <YAxis yAxisId="right" {...chartSecondaryYAxisProps} allowDecimals={false} domain={[(dataMin) => Math.max(0, Math.floor(dataMin * 0.9)), "auto"]} />
                     
                     <Tooltip content={<BoxPlotTooltip unit="m2" type="floor" />} />
 
@@ -1791,11 +1821,11 @@ export default function ComplexTab({
 
                     {/* 평균가 시계열 라인 */}
                     {!floorHiddenKeys["평균"] && (
-                      <Line yAxisId="left" type="monotone" dataKey="mean" name={t("avgPrice")} stroke="var(--color-chart-accent)" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                      <Line yAxisId="left" type="monotone" dataKey="mean" name={t("avgPrice")} stroke={CHART_THEME.accent} strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
                     )}
 
                     {!floorHiddenKeys["거래량"] && (
-                      <Line yAxisId="right" type="monotone" dataKey="count" name={`${t("txCount")} (${t("countUnit")})`} stroke="var(--color-chart-floor)" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                      <Line yAxisId="right" type="monotone" dataKey="count" name={`${t("txCount")} (${t("countUnit")})`} stroke={CHART_THEME.floor} strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
                     )}
                   </ComposedChart>
                 </ResponsiveContainer>
@@ -1804,39 +1834,127 @@ export default function ComplexTab({
           </div>
 
           {/* 4. 최근 실거래 목록 */}
-          <SectionCard title={<span className="flex items-center gap-2"><Calendar size={18} className="text-primary" /><span>{t("recentTxTitle")}</span></span>}>
+          <SectionCard
+            title={
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 w-full">
+                <span className="flex items-center gap-2">
+                  <Calendar size={18} className="text-primary" />
+                  <span>{t("recentTxTitle")}</span>
+                </span>
+                {recentTxStats.totalCount > 0 && (
+                  <div className="flex items-center gap-2 text-xs font-mono flex-wrap">
+                    <span className="bg-normal border border-normal px-2.5 py-1 rounded-md text-neutral">
+                      총 <strong className="text-strong">{recentTxStats.totalCount}</strong>건
+                    </span>
+                    <span className="bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 px-2.5 py-1 rounded-md font-bold">
+                      최고 {recentTxStats.maxPrice.toFixed(2)}{t("eokUnit")}
+                    </span>
+                    <span className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-md font-bold">
+                      최저 {recentTxStats.minPrice.toFixed(2)}{t("eokUnit")}
+                    </span>
+                    <span className="bg-primary/10 text-primary border border-primary/20 px-2.5 py-1 rounded-md font-bold">
+                      평균 {recentTxStats.avgPrice.toFixed(2)}{t("eokUnit")}
+                    </span>
+                  </div>
+                )}
+              </div>
+            }
+          >
             {groupedTx.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {groupedTx.map((group) => (
-                  <div key={group.dealDate} className="bg-normal/30 border border-normal rounded-xl p-3.5 flex flex-col gap-2.5 hover:bg-normal/50 transition duration-150">
-                    {/* 날짜 헤더 */}
-                    <div className="flex items-center gap-1.5 pb-2 border-b border-normal/50 text-xs font-bold text-neutral">
-                      <Calendar size={13} className="text-primary" />
-                      <span>{group.dealDate}</span>
-                      <span className="ml-auto text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-semibold">
-                        {group.items.length} {t("countUnit")}
-                      </span>
-                    </div>
-                    {/* 날짜 내 개별 거래 목록 */}
-                    <div className="flex flex-col gap-2.5">
-                      {group.items.map((tx: any, idx: number) => (
-                        <div key={tx.dedupeKey || idx} className="flex items-center justify-between text-xs">
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-strong bg-alternative/80 px-2 py-0.5 rounded text-[10px] font-bold">
-                              {tx.floor ? `${tx.floor}${t("floorUnit")}` : "-"}
-                            </span>
-                            <span className="text-neutral font-medium">
-                              {tx.areaM2 ? formatSizeString(String(tx.areaM2), areaUnit) : "-"}
-                            </span>
+                {groupedTx.map((group) => {
+                  // 일자 표시 및 요일 계산
+                  let formattedDate = group.dealDate;
+                  try {
+                    const d = new Date(group.dealDate);
+                    if (!isNaN(d.getTime())) {
+                      const days = ["일", "월", "화", "수", "목", "금", "토"];
+                      const yyyy = d.getFullYear();
+                      const mm = String(d.getMonth() + 1).padStart(2, "0");
+                      const dd = String(d.getDate()).padStart(2, "0");
+                      formattedDate = `${yyyy}.${mm}.${dd} (${days[d.getDay()]})`;
+                    }
+                  } catch {
+                    formattedDate = group.dealDate;
+                  }
+
+                  return (
+                    <div
+                      key={group.dealDate}
+                      className="bg-elevated/70 hover:bg-elevated border border-normal/80 hover:border-primary/40 rounded-xl p-4 flex flex-col gap-3 shadow-2xs hover:shadow-sm transition-all duration-200"
+                    >
+                      {/* 날짜 헤더 */}
+                      <div className="flex items-center justify-between pb-2.5 border-b border-normal/60">
+                        <div className="flex items-center gap-2 text-xs font-bold text-strong">
+                          <div className="p-1 rounded bg-primary/10 text-primary">
+                            <Calendar size={13} />
                           </div>
-                          <span className="text-primary font-extrabold font-mono text-sm">
-                            {tx.priceEok.toFixed(1)}{t("eokUnit")}
-                          </span>
+                          <span>{formattedDate}</span>
                         </div>
-                      ))}
+                        <span className="text-[11px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-semibold tabular-nums">
+                          {group.items.length}{t("countUnit")}
+                        </span>
+                      </div>
+
+                      {/* 날짜 내 개별 거래 목록 */}
+                      <div className="flex flex-col divide-y divide-normal/40">
+                        {group.items.map((tx: any, idx: number) => {
+                          const isMax = recentTxStats.totalCount > 1 && tx.priceEok === recentTxStats.maxPrice;
+                          const isMin = recentTxStats.totalCount > 1 && tx.priceEok === recentTxStats.minPrice;
+                          
+                          // 3.3㎡당 평단가 (만원)
+                          const pyung = tx.areaM2 ? tx.areaM2 / 3.305785 : 0;
+                          const pyungPrice = pyung > 0 ? Math.round((tx.priceEok * 10000) / pyung) : null;
+
+                          return (
+                            <div
+                              key={tx.dedupeKey || idx}
+                              className="py-2.5 first:pt-0 last:pb-0 flex items-center justify-between gap-3 group/tx"
+                            >
+                              <div className="flex flex-col gap-1 min-w-0">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-mono text-strong bg-alternative border border-normal/50 px-2 py-0.5 rounded text-[11px] font-bold">
+                                    {tx.floor ? `${tx.floor}${t("floorUnit")}` : "-"}
+                                  </span>
+                                  <span className="text-strong font-medium text-xs">
+                                    {tx.areaM2 ? formatSizeString(String(tx.areaM2), areaUnit) : "-"}
+                                  </span>
+                                  {tx.areaM2 && (
+                                    <span className="text-assistive text-[11px]">
+                                      ({pyung.toFixed(0)}평)
+                                    </span>
+                                  )}
+                                  {isMax && (
+                                    <span className="text-[10px] bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 px-1.5 py-0.2 rounded font-semibold">
+                                      최고
+                                    </span>
+                                  )}
+                                  {isMin && (
+                                    <span className="text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-1.5 py-0.2 rounded font-semibold">
+                                      최저
+                                    </span>
+                                  )}
+                                </div>
+                                {pyungPrice && (
+                                  <span className="text-[11px] text-assistive tabular-nums">
+                                    평당 {pyungPrice.toLocaleString("ko-KR")}만원
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="text-right shrink-0">
+                                <span className="text-primary font-extrabold font-mono text-base tracking-tight tabular-nums block">
+                                  {tx.priceEok.toFixed(2)}
+                                  <span className="text-xs font-semibold ml-0.5 text-neutral">{t("eokUnit")}</span>
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="text-center py-8 bg-normal/20 border border-normal border-dashed rounded-xl text-neutral text-xs">
