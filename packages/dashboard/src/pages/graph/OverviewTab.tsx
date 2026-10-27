@@ -19,7 +19,16 @@ import { useBreakpoint } from "../../useBreakpoint";
 import { TrendingUp, DollarSign, Home, Activity } from "lucide-react";
 import { copy } from "../../locales/ko";
 import { calculateBoxPlot } from "../../lib/stats";
-import { tooltipContentStyle, BoxPlotShape, interpolateHeatColor } from "../../components/charts/index.js";
+import {
+  tooltipContentStyle,
+  BoxPlotShape,
+  interpolateHeatColor,
+  CHART_THEME,
+  chartGridProps,
+  chartXAxisProps,
+  chartYAxisProps,
+  chartSecondaryYAxisProps,
+} from "../../components/charts/index.js";
 
 interface OverviewTabProps {
   data: any[]; // searchTransactions 결과
@@ -892,26 +901,29 @@ export default function OverviewTab({
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart
               data={monthlyChartData}
-              margin={{ top: 12, right: 8, left: -10, bottom: 0 }}
+              margin={{ top: 12, right: 10, left: -20, bottom: 0 }}
             >
-              <XAxis dataKey="name" stroke="#64748b" fontSize={11} tickLine={false} interval="preserveStartEnd" />
+              <CartesianGrid {...chartGridProps} />
+              <XAxis dataKey="name" {...chartXAxisProps} interval="preserveStartEnd" />
               {/* 좌측 Y축: 가격(억) */}
               <YAxis
-                yAxisId="left" width={56} stroke="#64748b" fontSize={11} tickLine={false}
+                yAxisId="left"
+                {...chartYAxisProps}
                 tickFormatter={(v) => `${v}억`}
                 domain={[(dataMin: number) => Math.max(0, Math.floor(dataMin * 0.88)), (dataMax: number) => Math.ceil(dataMax * 1.05)]}
               />
               {/* 우측 Y축: 거래수(건) */}
               <YAxis
-                yAxisId="right" orientation="right" width={40} stroke="#64748b" fontSize={11} tickLine={false}
+                yAxisId="right"
+                {...chartSecondaryYAxisProps}
                 tickFormatter={(v) => `${v}건`}
                 domain={[0, (dataMax: number) => Math.ceil(dataMax * 1.3)]}
               />
               <Tooltip content={<BoxPlotTooltip t={t} />} />
               {/* 거래량 배경 Area */}
               <Area yAxisId="right" type="monotone" dataKey="volume"
-                fill="var(--color-chart-primary)" fillOpacity={0.06}
-                stroke="var(--color-chart-primary)" strokeOpacity={0.15} strokeWidth={1.5}
+                fill={CHART_THEME.volume} fillOpacity={0.08}
+                stroke={CHART_THEME.volume} strokeOpacity={0.18} strokeWidth={1.5}
                 hide={!monthlyVisible.volume} />
 
               {/* Y축 범위를 정확히 감싸기 위한 투명 가이드 Line (토글 여부에 맞춰 도메인 조절) */}
@@ -947,7 +959,7 @@ export default function OverviewTab({
 
               {/* 평균가 시계열 라인 */}
               {monthlyVisible.avg && (
-                <Line yAxisId="left" type="monotone" dataKey="avg" name={t?.avgPriceLabel || "평균가"} stroke="var(--color-chart-accent)" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                <Line yAxisId="left" type="monotone" dataKey="avg" name={t?.avgPriceLabel || "평균가"} stroke={CHART_THEME.accent} strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
               )}
             </ComposedChart>
           </ResponsiveContainer>
@@ -1332,14 +1344,12 @@ export default function OverviewTab({
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart
                     data={complexChartData}
-                    margin={{ top: 15, right: 15, left: 15, bottom: 25 }}
+                    margin={{ top: 15, right: 15, left: -10, bottom: 25 }}
                   >
-                    <CartesianGrid stroke="none" />
+                    <CartesianGrid {...chartGridProps} />
                     <XAxis
                       dataKey="name"
-                      stroke="#64748b"
-                      fontSize={10}
-                      tickLine={false}
+                      {...chartXAxisProps}
                       interval={0}
                       height={100}
                       tick={(props: any) => {
@@ -1369,33 +1379,28 @@ export default function OverviewTab({
                   {complexSeriesVisible.거래수 && (
                     <YAxis
                       yAxisId="left"
-                      stroke="var(--color-chart-accent)"
-                      fontSize={10}
-                      tickLine={false}
+                      {...chartYAxisProps}
                       width={40}
                       label={{
                         value: t.axisVolume,
                         angle: -90,
                         position: "insideLeft",
                         offset: 5,
-                        style: { fontSize: 10, fill: "var(--color-chart-accent)", fontWeight: "bold" }
+                        style: { fontSize: 10, fill: CHART_THEME.accent, fontWeight: "bold" }
                       }}
                     />
                   )}
                   {complexSeriesVisible.평균가 && (
                     <YAxis
                       yAxisId="right"
-                      orientation="right"
-                      stroke="var(--color-chart-median)"
-                      fontSize={10}
-                      tickLine={false}
+                      {...chartSecondaryYAxisProps}
                       width={40}
                       label={{
                         value: t.axisAvgPrice,
                         angle: 90,
                         position: "insideRight",
                         offset: 5,
-                        style: { fontSize: 10, fill: "var(--color-chart-median)", fontWeight: "bold" }
+                        style: { fontSize: 10, fill: CHART_THEME.median, fontWeight: "bold" }
                       }}
                     />
                   )}
@@ -1404,25 +1409,25 @@ export default function OverviewTab({
                       if (active && payload && payload.length) {
                         const d = payload[0].payload;
                         return (
-                          <div className="p-3.5 rounded-xl border border-normal bg-elevated shadow-xl text-xs space-y-2 pointer-events-none">
-                            <p className="font-extrabold text-strong border-b border-normal pb-1">{d.name}</p>
+                          <div style={tooltipContentStyle} className="space-y-2 pointer-events-none min-w-[170px]">
+                            <p className="font-extrabold text-strong border-b border-normal/60 pb-1">{d.name}</p>
                             <p className="text-[10px] text-assistive font-bold">지역: {d.지역}</p>
                             <div className="space-y-1 pt-1">
                               <p className="flex justify-between gap-4 text-neutral">
                                 <span>총 거래수:</span>
-                                <span className="font-bold">{d.거래수}건</span>
+                                <span className="font-bold text-strong tabular-nums">{d.거래수}건</span>
                               </p>
-                              <p className="flex justify-between gap-4" style={{ color: "var(--color-chart-median)" }}>
+                              <p className="flex justify-between gap-4" style={{ color: CHART_THEME.median }}>
                                 <span>평균 거래가:</span>
-                                <span className="font-bold">{d.평균가}억</span>
+                                <span className="font-bold tabular-nums">{d.평균가}억</span>
                               </p>
-                              <p className="flex justify-between gap-4" style={{ color: "var(--color-chart-max)" }}>
+                              <p className="flex justify-between gap-4" style={{ color: CHART_THEME.max }}>
                                 <span>최고 실거래가:</span>
-                                <span className="font-bold">{d.최고가}억</span>
+                                <span className="font-bold tabular-nums">{d.최고가}억</span>
                               </p>
-                              <p className="flex justify-between gap-4" style={{ color: "var(--color-chart-min)" }}>
+                              <p className="flex justify-between gap-4" style={{ color: CHART_THEME.min }}>
                                 <span>최저 실거래가:</span>
-                                <span className="font-bold">{d.최저가}억</span>
+                                <span className="font-bold tabular-nums">{d.최저가}억</span>
                               </p>
                             </div>
                           </div>
