@@ -396,8 +396,7 @@ export default function OverviewTab({
   const defaultVisible: BoxVisible = { volume: true, whisker: false, box: true, median: false, avg: true };
   const [monthlyVisible, setMonthlyVisible] = React.useState<BoxVisible>(defaultVisible);
 
-  // 거래가 활발한 아파트 단지 범례 및 시리즈 On/Off 상태
-  const [showComplexLegend, setShowComplexLegend] = React.useState<boolean>(true);
+  // 거래가 활발한 아파트 단지 시리즈 On/Off 상태
   const [complexLimit, setComplexLimit] = React.useState<number>(10);
   const [complexSeriesVisible, setComplexSeriesVisible] = React.useState<{
     거래수: boolean;
@@ -1221,19 +1220,67 @@ export default function OverviewTab({
         }
       >
         <div className="mt-2">
-          {/* 차트 컨트롤 및 팁 영역 */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4 select-none">
-            <div className="flex flex-wrap items-center gap-2">
+          {/* 차트 컨트롤 및 범례 영역 (위 차트의 renderLegendHeader 스타일 통일) */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3 select-none">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+              {/* 평균가 토글 */}
               <button
                 type="button"
-                onClick={() => setShowComplexLegend(!showComplexLegend)}
-                className="w-fit px-2.5 py-1 rounded-lg border border-normal bg-alternative hover:bg-elevated text-[10px] font-bold text-neutral transition-all"
+                onClick={() => setComplexSeriesVisible((prev) => ({ ...prev, 평균가: !prev.평균가 }))}
+                className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md transition-all text-[10px] ${
+                  complexSeriesVisible.평균가
+                    ? "bg-slate-100 dark:bg-slate-800 text-strong font-bold"
+                    : "opacity-35 text-neutral"
+                }`}
               >
-                {showComplexLegend ? t.hideLegend : t.showLegend}
+                <div className="relative flex items-center justify-center w-5 h-2.5">
+                  <span className="absolute w-full h-0.5" style={{ backgroundColor: CHART_THEME.accent }} />
+                  <span
+                    className="absolute w-1.5 h-1.5 rotate-45 shrink-0"
+                    style={{
+                      backgroundColor: CHART_THEME.accent,
+                      border: "1px solid var(--color-semantic-background-elevated-normal)",
+                    }}
+                  />
+                </div>
+                <span>{t.legendAvgPrice || "평균가"}</span>
               </button>
 
-              {/* Top 10 / Top 20 / Top 50 탭 선택 컨트롤 */}
-              <div className="flex items-center rounded-lg border border-normal bg-alternative p-0.5" role="tablist">
+              {/* 거래수 토글 */}
+              <button
+                type="button"
+                onClick={() => setComplexSeriesVisible((prev) => ({ ...prev, 거래수: !prev.거래수 }))}
+                className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md transition-all text-[10px] ${
+                  complexSeriesVisible.거래수
+                    ? "bg-slate-100 dark:bg-slate-800 text-strong font-bold"
+                    : "opacity-35 text-neutral"
+                }`}
+              >
+                <span
+                  className="inline-block w-3 h-2 rounded-xs"
+                  style={{ backgroundColor: CHART_THEME.volume }}
+                />
+                <span>{t.legendVolume || "거래수"}</span>
+              </button>
+
+              {/* 지역별 색상 범례 */}
+              {complexSeriesVisible.거래수 && uniqueRegionsInChart.map((region) => (
+                <div
+                  key={region}
+                  className="flex items-center gap-1.5 px-1 py-0.5 text-[10px] text-neutral font-semibold select-none"
+                >
+                  <span
+                    className="inline-block w-2 h-2 rounded-full"
+                    style={{ backgroundColor: regionColorMap[region] }}
+                  />
+                  <span>{region}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-2.5">
+              {/* Top 10 / Top 20 / Top 50 탭 선택 */}
+              <div className="flex items-center rounded-lg border border-normal bg-normal p-0.5" role="tablist">
                 {[10, 20, 50].map((limit) => (
                   <button
                     key={limit}
@@ -1241,7 +1288,7 @@ export default function OverviewTab({
                     role="tab"
                     aria-selected={complexLimit === limit}
                     onClick={() => setComplexLimit(limit)}
-                    className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all ${
+                    className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold transition-all ${
                       complexLimit === limit
                         ? "bg-primary text-white shadow-sm"
                         : "text-neutral hover:text-strong"
@@ -1252,71 +1299,10 @@ export default function OverviewTab({
                 ))}
               </div>
 
-              <span className="text-[10px] font-bold text-assistive">
+              <span className="text-[10px] font-bold text-assistive hidden md:inline">
                 {t.complexClickHint}
               </span>
             </div>
-
-            {/* 범례 아이템 - showComplexLegend가 true일 때만 표시 */}
-            {showComplexLegend && (
-              <div className="flex flex-wrap items-center gap-3 text-[11px] font-bold">
-                <button
-                  type="button"
-                  onClick={() => setComplexSeriesVisible(prev => ({ ...prev, 거래수: !prev.거래수 }))}
-                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition-all border ${
-                    complexSeriesVisible.거래수
-                      ? "bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400"
-                      : "border-transparent text-assistive line-through"
-                  }`}
-                >
-                  <span
-                    className="inline-block w-2.5 h-2.5 rounded-sm"
-                    style={{
-                      backgroundColor: complexSeriesVisible.거래수 ? "var(--color-chart-accent)" : "var(--color-semantic-line-normal-normal)",
-                    }}
-                  />
-                  <span>{t.legendVolume}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setComplexSeriesVisible(prev => ({ ...prev, 평균가: !prev.평균가 }))}
-                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition-all border ${
-                    complexSeriesVisible.평균가
-                      ? "bg-violet-500/10 border-violet-500/20 text-violet-600 dark:text-violet-400"
-                      : "border-transparent text-assistive line-through"
-                  }`}
-                >
-                  <div className="relative flex items-center justify-center w-4 h-2.5">
-                    <span
-                      className="absolute w-full h-0.5"
-                      style={{
-                        backgroundColor: complexSeriesVisible.평균가 ? "var(--color-chart-median)" : "var(--color-semantic-line-normal-normal)",
-                      }}
-                    />
-                    {complexSeriesVisible.평균가 && (
-                      <span className="absolute w-1.5 h-1.5 rotate-45" style={{ backgroundColor: "var(--color-chart-median)" }} />
-                    )}
-                  </div>
-                  <span>{t.legendAvgPrice}</span>
-                </button>
-
-                {/* 거래수가 활성화되어 있을 때만 지역별 컬러 뱃지 표시 */}
-                {/* 탭처럼 오해되지 않도록 배경(bg)과 테두리(border)를 제거하고 단순 라벨로 렌더링합니다. */}
-                {complexSeriesVisible.거래수 && uniqueRegionsInChart.map((region) => (
-                  <div
-                    key={region}
-                    className="flex items-center gap-1.5 px-1 py-0.5 text-[10px] text-neutral font-semibold select-none"
-                  >
-                    <span
-                      className="inline-block w-2 h-2 rounded-full"
-                      style={{ backgroundColor: regionColorMap[region] }}
-                    />
-                    <span>{region}</span>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
 
           {/* 차트 뷰 */}
@@ -1344,14 +1330,14 @@ export default function OverviewTab({
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart
                     data={complexChartData}
-                    margin={{ top: 15, right: 15, left: -10, bottom: 25 }}
+                    margin={{ top: 12, right: 10, left: -20, bottom: 10 }}
                   >
                     <CartesianGrid {...chartGridProps} />
                     <XAxis
                       dataKey="name"
                       {...chartXAxisProps}
                       interval={0}
-                      height={100}
+                      height={90}
                       tick={(props: any) => {
                         const { x, y, payload, index } = props;
                         const item = complexChartData[index];
@@ -1376,74 +1362,73 @@ export default function OverviewTab({
                         );
                       }}
                     />
-                  {complexSeriesVisible.거래수 && (
+                    {/* 좌측 Y축: 가격(억) — 위 차트와 완벽히 동일 */}
                     <YAxis
                       yAxisId="left"
                       {...chartYAxisProps}
-                      width={40}
-                      label={{
-                        value: t.axisVolume,
-                        angle: -90,
-                        position: "insideLeft",
-                        offset: 5,
-                        style: { fontSize: 10, fill: CHART_THEME.accent, fontWeight: "bold" }
-                      }}
+                      tickFormatter={(v) => `${v}억`}
+                      domain={[(dataMin: number) => Math.max(0, Math.floor(dataMin * 0.88)), (dataMax: number) => Math.ceil(dataMax * 1.05)]}
+                      hide={!complexSeriesVisible.평균가}
                     />
-                  )}
-                  {complexSeriesVisible.평균가 && (
+                    {/* 우측 Y축: 거래수(건) — 위 차트와 완벽히 동일 */}
                     <YAxis
                       yAxisId="right"
                       {...chartSecondaryYAxisProps}
-                      width={40}
-                      label={{
-                        value: t.axisAvgPrice,
-                        angle: 90,
-                        position: "insideRight",
-                        offset: 5,
-                        style: { fontSize: 10, fill: CHART_THEME.median, fontWeight: "bold" }
+                      tickFormatter={(v) => `${v}건`}
+                      domain={[0, (dataMax: number) => Math.ceil(dataMax * 1.3)]}
+                      hide={!complexSeriesVisible.거래수}
+                    />
+                    <Tooltip
+                      content={({ active, payload }: any) => {
+                        if (active && payload && payload.length) {
+                          const d = payload[0].payload;
+                          return (
+                            <div className="rounded-xl border border-normal bg-elevated p-3.5 shadow-xl text-xs space-y-2 min-w-[180px] pointer-events-none">
+                              <p className="font-black text-strong border-b border-normal pb-1.5 mb-1.5 text-[13px] truncate">
+                                {d.name}
+                              </p>
+                              {d.지역 && (
+                                <p className="text-[10px] text-assistive font-bold -mt-1">
+                                  지역: {d.지역}
+                                </p>
+                              )}
+                              <div className="space-y-1.5 pt-1">
+                                <p className="flex justify-between gap-4 text-neutral">
+                                  <span>총 거래수:</span>
+                                  <span className="font-bold text-strong tabular-nums">{d.거래수}건</span>
+                                </p>
+                                <p className="flex justify-between gap-4" style={{ color: CHART_THEME.accent }}>
+                                  <span>평균 거래가:</span>
+                                  <span className="font-bold tabular-nums">{d.평균가}억</span>
+                                </p>
+                                {d.최고가 !== undefined && (
+                                  <p className="flex justify-between gap-4" style={{ color: CHART_THEME.max }}>
+                                    <span>최고 실거래가:</span>
+                                    <span className="font-bold tabular-nums">{d.최고가}억</span>
+                                  </p>
+                                )}
+                                {d.최저가 !== undefined && (
+                                  <p className="flex justify-between gap-4" style={{ color: CHART_THEME.min }}>
+                                    <span>최저 실거래가:</span>
+                                    <span className="font-bold tabular-nums">{d.최저가}억</span>
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        }
+                        return null;
                       }}
                     />
-                  )}
-                  <Tooltip
-                    content={({ active, payload }: any) => {
-                      if (active && payload && payload.length) {
-                        const d = payload[0].payload;
-                        return (
-                          <div style={tooltipContentStyle} className="space-y-2 pointer-events-none min-w-[170px]">
-                            <p className="font-extrabold text-strong border-b border-normal/60 pb-1">{d.name}</p>
-                            <p className="text-[10px] text-assistive font-bold">지역: {d.지역}</p>
-                            <div className="space-y-1 pt-1">
-                              <p className="flex justify-between gap-4 text-neutral">
-                                <span>총 거래수:</span>
-                                <span className="font-bold text-strong tabular-nums">{d.거래수}건</span>
-                              </p>
-                              <p className="flex justify-between gap-4" style={{ color: CHART_THEME.median }}>
-                                <span>평균 거래가:</span>
-                                <span className="font-bold tabular-nums">{d.평균가}억</span>
-                              </p>
-                              <p className="flex justify-between gap-4" style={{ color: CHART_THEME.max }}>
-                                <span>최고 실거래가:</span>
-                                <span className="font-bold tabular-nums">{d.최고가}억</span>
-                              </p>
-                              <p className="flex justify-between gap-4" style={{ color: CHART_THEME.min }}>
-                                <span>최저 실거래가:</span>
-                                <span className="font-bold tabular-nums">{d.최저가}억</span>
-                              </p>
-                            </div>
-                          </div>
-                        );
-                      }
-                      return null;
-                    }}
-                  />
-                  {complexSeriesVisible.거래수 && (
+                    {/* 거래수 막대 (우측 Y축 건수에 매핑) */}
                     <Bar
-                      yAxisId="left"
+                      yAxisId="right"
                       dataKey="거래수"
                       barSize={complexLimit === 10 ? 32 : complexLimit === 20 ? 18 : 10}
                       radius={[4, 4, 0, 0]}
                       cursor="pointer"
-                      fillOpacity={0.85}
+                      fillOpacity={0.8}
+                      hide={!complexSeriesVisible.거래수}
                       onClick={(data: any) => {
                         const target = data?.payload || data;
                         if (target && target.name && onSelectComplex) {
@@ -1452,7 +1437,7 @@ export default function OverviewTab({
                       }}
                     >
                       {complexChartData.map((entry, index) => {
-                        const color = regionColorMap[entry.지역] || "var(--color-chart-accent)";
+                        const color = regionColorMap[entry.지역] || CHART_THEME.volume;
                         return (
                           <Cell
                             key={`cell-${index}`}
@@ -1461,16 +1446,16 @@ export default function OverviewTab({
                         );
                       })}
                     </Bar>
-                  )}
-                  {complexSeriesVisible.평균가 && (
+                    {/* 평균가 시계열 라인 (좌측 Y축 억에 매핑 — 위 차트 평균가 라인과 동일) */}
                     <Line
-                      yAxisId="right"
+                      yAxisId="left"
                       type="monotone"
                       dataKey="평균가"
-                      stroke="var(--color-chart-median)"
-                      strokeWidth={3}
-                      activeDot={{ r: 6, fill: "var(--color-semantic-background-elevated-normal)", stroke: "var(--color-chart-median)", strokeWidth: 3 }}
-                      dot={{ cursor: "pointer", r: 4, fill: "var(--color-semantic-background-elevated-normal)", stroke: "var(--color-chart-median)", strokeWidth: 2.5 }}
+                      stroke={CHART_THEME.accent}
+                      strokeWidth={2.5}
+                      dot={{ cursor: "pointer", r: 3, fill: "var(--color-semantic-background-elevated-normal)", stroke: CHART_THEME.accent, strokeWidth: 2 }}
+                      activeDot={{ r: 5, fill: "var(--color-semantic-background-elevated-normal)", stroke: CHART_THEME.accent, strokeWidth: 2.5 }}
+                      hide={!complexSeriesVisible.평균가}
                       onClick={(data: any) => {
                         const target = data?.payload || data;
                         const name = target?.name || data?.activeLabel;
@@ -1479,9 +1464,8 @@ export default function OverviewTab({
                         }
                       }}
                     />
-                  )}
-                </ComposedChart>
-              </ResponsiveContainer>
+                  </ComposedChart>
+                </ResponsiveContainer>
             </div>
           )}
         </div>

@@ -244,7 +244,7 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
       setSearchQuery("");
 
       try {
-        const data = await loadRegionMapComplexes(selectedLawdCode, metaFilter);
+        const data = await loadRegionMapComplexes(selectedLawdCode);
         if (isMounted) {
           setMapData(data);
           try {
@@ -286,10 +286,46 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
     return Array.from(dongs).sort();
   }, [mapData]);
 
+  // 활성화된 건축물대장 메타 필터 여부
+  const hasActiveMetaFilters = useMemo(() => {
+    return Boolean(
+      metaFilter.minHouseholds ||
+      metaFilter.minTotalParking ||
+      metaFilter.minParkingPerHousehold ||
+      metaFilter.minBuildYear ||
+      metaFilter.maxBuildYear
+    );
+  }, [metaFilter]);
+
   // 필터링 및 정렬된 단지 목록
   const filteredComplexes = useMemo(() => {
     if (!mapData || !mapData.complexes) return [];
     let list = [...mapData.complexes];
+
+    // 건축물대장 메타 필터 (세대수, 세대당 주차, 총 주차, 준공연차)
+    if (metaFilter.minHouseholds && metaFilter.minHouseholds > 0) {
+      list = list.filter((c) => c.totalHouseholds != null && c.totalHouseholds >= metaFilter.minHouseholds!);
+    }
+    if (metaFilter.minTotalParking && metaFilter.minTotalParking > 0) {
+      list = list.filter((c) => c.totalParking != null && c.totalParking >= metaFilter.minTotalParking!);
+    }
+    if (metaFilter.minParkingPerHousehold && metaFilter.minParkingPerHousehold > 0) {
+      list = list.filter((c) => c.parkingPerHousehold != null && c.parkingPerHousehold >= metaFilter.minParkingPerHousehold!);
+    }
+    if (metaFilter.minBuildYear && metaFilter.minBuildYear > 0) {
+      list = list.filter((c) => {
+        if (!c.useApprovalDate) return false;
+        const year = parseInt(c.useApprovalDate.substring(0, 4), 10);
+        return !isNaN(year) && year >= metaFilter.minBuildYear!;
+      });
+    }
+    if (metaFilter.maxBuildYear && metaFilter.maxBuildYear > 0) {
+      list = list.filter((c) => {
+        if (!c.useApprovalDate) return false;
+        const year = parseInt(c.useApprovalDate.substring(0, 4), 10);
+        return !isNaN(year) && year <= metaFilter.maxBuildYear!;
+      });
+    }
 
     // 검색어 필터
     if (searchQuery.trim()) {
@@ -329,7 +365,7 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
     });
 
     return list;
-  }, [mapData, searchQuery, selectedDong, sortBy]);
+  }, [mapData, searchQuery, selectedDong, sortBy, metaFilter]);
 
   // 조회 및 필터링된 단지들의 실거래가 기준 사분위수(Q1, Median, Q3) 계산
   const quartiles = useMemo(() => {
@@ -391,7 +427,14 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
   // 검색/필터/정렬/지역/페이지크기 변경 시 1페이지로 리셋
   useEffect(() => {
     setPage(1);
-  }, [searchQuery, selectedDong, sortBy, selectedLawdCode, pageSize]);
+  }, [searchQuery, selectedDong, sortBy, selectedLawdCode, pageSize, metaFilter]);
+
+  // 선택된 단지가 필터링 결과에 없으면 선택 해제
+  useEffect(() => {
+    if (selectedComplex && !filteredComplexes.some((c) => c.id === selectedComplex.id)) {
+      setSelectedComplex(null);
+    }
+  }, [filteredComplexes, selectedComplex]);
 
   // 선택된 단지 변경 시 해당 단지가 포함된 페이지로 이동
   useEffect(() => {
@@ -935,7 +978,11 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
                     {mapData.regionName}
                   </span>
                   <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                    총 {mapData.totalComplexes}개 단지 중 {mapData.geocodedCount}개 위치 표시
+                    {hasActiveMetaFilters || searchQuery.trim() || selectedDong !== "ALL"
+                      ? (t.filteredComplexesSummary || "필터 조건 만족 {filtered}개 단지 (전체 {total}개 중)")
+                          .replace("{filtered}", String(filteredComplexes.length))
+                          .replace("{total}", String(mapData.totalComplexes))
+                      : `총 ${mapData.totalComplexes}개 단지 중 ${mapData.geocodedCount}개 위치 표시`}
                   </span>
                 </div>
 
