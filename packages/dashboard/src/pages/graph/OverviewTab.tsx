@@ -36,6 +36,8 @@ interface OverviewTabProps {
   areaUnit?: "pyeong" | "m2";
   areaType?: "supply" | "dedicated";
   locale?: "ko" | "en";
+  startDate?: string;
+  endDate?: string;
 }
 
 // 공통 차트 컴포넌트 & 스타일은 components/charts에서 import됨
@@ -202,6 +204,8 @@ export default function OverviewTab({
   areaUnit = "pyeong",
   areaType = "supply",
   locale = "ko",
+  startDate,
+  endDate,
 }: OverviewTabProps) {
   const { isNarrow } = useBreakpoint();
 
@@ -494,6 +498,33 @@ export default function OverviewTab({
 
   // 2. 월별 시계열 데이터 가공 (최대, 최소, 평균, 중위, 거래량)
   const monthlyDataMap = new Map<string, { count: number; prices: number[] }>();
+
+  // 시작월부터 종료월까지의 연속된 모든 월 키 초기화 (3년 기간 등 설정 시 전체 타임라인이 온전히 표시되도록 보장)
+  let startMonthStr = startDate ? startDate.substring(0, 7) : undefined;
+  let endMonthStr = endDate ? endDate.substring(0, 7) : undefined;
+
+  if (!startMonthStr && monthlyFilteredData.length > 0) {
+    const dates = monthlyFilteredData.map((d) => d.dealDate.substring(0, 7)).sort();
+    startMonthStr = dates[0];
+    endMonthStr = dates[dates.length - 1];
+  }
+
+  if (startMonthStr && endMonthStr && startMonthStr <= endMonthStr) {
+    const [sY, sM] = startMonthStr.split("-").map(Number);
+    const [eY, eM] = endMonthStr.split("-").map(Number);
+    let curY = sY;
+    let curM = sM;
+    while (curY < eY || (curY === eY && curM <= eM)) {
+      const monthKey = `${curY}-${String(curM).padStart(2, "0")}`;
+      monthlyDataMap.set(monthKey, { count: 0, prices: [] });
+      curM++;
+      if (curM > 12) {
+        curM = 1;
+        curY++;
+      }
+    }
+  }
+
   monthlyFilteredData.forEach((d) => {
     const month = d.dealDate.substring(0, 7);
     const current = monthlyDataMap.get(month) || { count: 0, prices: [] };
@@ -903,7 +934,15 @@ export default function OverviewTab({
               margin={{ top: 12, right: 10, left: -20, bottom: 0 }}
             >
               <CartesianGrid {...chartGridProps} />
-              <XAxis dataKey="name" {...chartXAxisProps} interval="preserveStartEnd" />
+              <XAxis
+                dataKey="name"
+                {...chartXAxisProps}
+                interval="preserveStartEnd"
+                tickFormatter={(v: string) => {
+                  if (!v || typeof v !== "string") return v;
+                  return v.length === 7 ? v.slice(2).replace("-", ".") : v;
+                }}
+              />
               {/* 좌측 Y축: 가격(억) */}
               <YAxis
                 yAxisId="left"
@@ -958,7 +997,7 @@ export default function OverviewTab({
 
               {/* 평균가 시계열 라인 */}
               {monthlyVisible.avg && (
-                <Line yAxisId="left" type="monotone" dataKey="avg" name={t?.avgPriceLabel || "평균가"} stroke={CHART_THEME.accent} strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                <Line yAxisId="left" type="monotone" dataKey="avg" name={t?.avgPriceLabel || "평균가"} stroke={CHART_THEME.accent} strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} connectNulls={true} />
               )}
             </ComposedChart>
           </ResponsiveContainer>
@@ -1257,8 +1296,12 @@ export default function OverviewTab({
                 }`}
               >
                 <span
-                  className="inline-block w-3 h-2 rounded-xs"
-                  style={{ backgroundColor: CHART_THEME.volume }}
+                  className="inline-block w-3 h-2 rounded-xs border"
+                  style={{
+                    backgroundColor: CHART_THEME.volume,
+                    borderColor: CHART_THEME.volume,
+                    opacity: 0.5,
+                  }}
                 />
                 <span>{t.legendVolume || "거래수"}</span>
               </button>
@@ -1420,14 +1463,15 @@ export default function OverviewTab({
                         return null;
                       }}
                     />
-                    {/* 거래수 막대 (우측 Y축 건수에 매핑) */}
+                    {/* 거래수 막대 (우측 Y축 건수에 매핑 - Q1~Q3 박스와 통일된 반투명 스타일) */}
                     <Bar
                       yAxisId="right"
                       dataKey="거래수"
                       barSize={complexLimit === 10 ? 32 : complexLimit === 20 ? 18 : 10}
                       radius={[4, 4, 0, 0]}
                       cursor="pointer"
-                      fillOpacity={0.8}
+                      fillOpacity={0.3}
+                      strokeWidth={1.5}
                       hide={!complexSeriesVisible.거래수}
                       onClick={(data: any) => {
                         const target = data?.payload || data;
@@ -1442,6 +1486,7 @@ export default function OverviewTab({
                           <Cell
                             key={`cell-${index}`}
                             fill={color}
+                            stroke={color}
                           />
                         );
                       })}

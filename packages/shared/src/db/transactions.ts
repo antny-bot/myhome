@@ -190,7 +190,7 @@ export async function searchTransactions(filter: GraphFilter): Promise<any[]> {
     params.push(filter.maxBuildYear);
   }
 
-  queryStr += " ORDER BY t.deal_date DESC LIMIT 3000";
+  queryStr += " ORDER BY t.deal_date DESC LIMIT 50000";
 
   const rows = db.prepare(queryStr).all(...params);
   return rows.map((r: any) => ({

@@ -725,174 +725,161 @@ export default function ComplexTab({
 
   return (
     <div className="space-y-6">
-      {/* 단지 정보 & 크기 퀵 필터 탭 */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-l-4 border-primary pl-4 py-1">
-        <div>
-          <h2 className="text-lg font-bold text-strong">{complexName}</h2>
-          <div className="flex flex-wrap items-center gap-2 mt-0.5">
-            <p className="text-xs text-neutral">{t("detailReport")}</p>
-            {detailData?.infraRating && (
-              <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border ${
-                detailData.infraRating.grade === "S" ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" :
-                detailData.infraRating.grade === "A" ? "bg-blue-500/10 text-blue-500 border-blue-500/20" :
-                detailData.infraRating.grade === "B" ? "bg-amber-500/10 text-amber-500 border-amber-500/20" :
-                detailData.infraRating.grade === "C" ? "bg-orange-500/10 text-orange-500 border-orange-500/20" :
-                "bg-rose-500/10 text-rose-500 border-rose-500/20"
-              }`}>
-                {detailData.infraRating.grade}등급 ({detailData.infraRating.totalScore}점)
-              </span>
-            )}
-            {(() => {
-              if (!metaFilter || (!metaFilter.minHouseholds && !metaFilter.minParkingPerHousehold && !metaFilter.minBuildYear && !metaFilter.maxBuildYear)) {
-                return null;
-              }
-              if (!detailData?.complexInfo) return null;
-              const info = detailData.complexInfo;
-              const reasons: string[] = [];
-              if (metaFilter.minHouseholds && (info.totalHouseholds ?? 0) < metaFilter.minHouseholds) {
-                reasons.push(`${metaFilter.minHouseholds}세대 미만`);
-              }
-              if (metaFilter.minParkingPerHousehold && (info.parkingPerHousehold ?? 0) < metaFilter.minParkingPerHousehold) {
-                reasons.push(`주차 ${metaFilter.minParkingPerHousehold}대 미만`);
-              }
-              const buildYear = info.useApprovalDate ? parseInt(info.useApprovalDate.substring(0, 4)) : null;
-              if (metaFilter.minBuildYear && (!buildYear || buildYear < metaFilter.minBuildYear)) {
-                reasons.push(`${metaFilter.minBuildYear}년 이전 준공`);
-              }
-              if (metaFilter.maxBuildYear && (!buildYear || buildYear > metaFilter.maxBuildYear)) {
-                reasons.push(`${metaFilter.maxBuildYear}년 이후 준공`);
-              }
-              if (reasons.length === 0) {
+            {/* 단지 정보 & 종합 입지 평가 & 평수 선택 통합 카드 (중복 해소) */}
+      <div className="bg-elevated border border-normal rounded-xl p-4 md:p-5 shadow-sm space-y-3">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          {/* 좌측: 단지 기본 정보 + 통합 입지 등급 & 점수 */}
+          <div className="space-y-2 min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-xl md:text-2xl font-black text-strong tracking-tight">{complexName}</h2>
+              <span className="text-xs text-neutral font-medium">{t("detailReport")}</span>
+
+              {/* 통합 입지 등급 & 종합 점수 배지 (클릭 시 하단 인프라 상세 지표 토글) */}
+              {detailData?.infraRating && (
+                <button
+                  type="button"
+                  onClick={() => setShowDetailInfras(!showDetailInfras)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black border transition-all cursor-pointer hover:opacity-90 ${
+                    detailData.infraRating.grade === "S" ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/30" :
+                    detailData.infraRating.grade === "A" ? "bg-blue-500/10 text-blue-500 border-blue-500/30" :
+                    detailData.infraRating.grade === "B" ? "bg-amber-500/10 text-amber-500 border-amber-500/30" :
+                    detailData.infraRating.grade === "C" ? "bg-orange-500/10 text-orange-500 border-orange-500/30" :
+                    "bg-rose-500/10 text-rose-500 border-rose-500/30"
+                  }`}
+                  title="클릭하여 반경 1km 주변 인프라 상세 지표 펼치기/접기"
+                >
+                  <span className="w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-black bg-current/20">
+                    {detailData.infraRating.grade}
+                  </span>
+                  <span>{detailData.infraRating.grade}등급</span>
+                  <span className="font-mono font-bold">({detailData.infraRating.totalScore}점)</span>
+                  <span className="text-[10px] opacity-75 font-semibold">인프라</span>
+                  {showDetailInfras ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                </button>
+              )}
+
+              {/* 산출 기준 모달 도움말 버튼 */}
+              {detailData?.infraRating && (
+                <button 
+                  type="button"
+                  onClick={() => setShowInfoModal(true)}
+                  className="text-assistive hover:text-primary transition-colors p-1 rounded-full hover:bg-alternative"
+                  title="산출 기준 보기"
+                >
+                  <HelpCircle size={15} />
+                </button>
+              )}
+
+              {/* 필터 조건 일치 여부 배지 */}
+              {(() => {
+                if (!metaFilter || (!metaFilter.minHouseholds && !metaFilter.minParkingPerHousehold && !metaFilter.minBuildYear && !metaFilter.maxBuildYear)) {
+                  return null;
+                }
+                if (!detailData?.complexInfo) return null;
+                const info = detailData.complexInfo;
+                const reasons: string[] = [];
+                if (metaFilter.minHouseholds && (info.totalHouseholds ?? 0) < metaFilter.minHouseholds) {
+                  reasons.push(`${metaFilter.minHouseholds}세대 미만`);
+                }
+                if (metaFilter.minParkingPerHousehold && (info.parkingPerHousehold ?? 0) < metaFilter.minParkingPerHousehold) {
+                  reasons.push(`주차 ${metaFilter.minParkingPerHousehold}대 미만`);
+                }
+                const buildYear = info.useApprovalDate ? parseInt(info.useApprovalDate.substring(0, 4)) : null;
+                if (metaFilter.minBuildYear && (!buildYear || buildYear < metaFilter.minBuildYear)) {
+                  reasons.push(`${metaFilter.minBuildYear}년 이전 준공`);
+                }
+                if (metaFilter.maxBuildYear && (!buildYear || buildYear > metaFilter.maxBuildYear)) {
+                  reasons.push(`${metaFilter.maxBuildYear}년 이후 준공`);
+                }
+                if (reasons.length === 0) {
+                  return (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border bg-emerald-500/10 text-emerald-500 border-emerald-500/20">
+                      ✓ 필터 조건 일치
+                    </span>
+                  );
+                }
                 return (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border bg-emerald-500/10 text-emerald-500 border-emerald-500/20">
-                    ✓ 필터 조건 일치
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border bg-amber-500/10 text-amber-500 border-amber-500/20" title={reasons.join(", ")}>
+                    ⚠ 필터 조건 미부합 (${reasons.join(", ")})
                   </span>
                 );
-              }
-              return (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border bg-amber-500/10 text-amber-500 border-amber-500/20" title={reasons.join(", ")}>
-                  ⚠ 필터 조건 미부합 ({reasons.join(", ")})
-                </span>
-              );
-            })()}
-          </div>
-          {detailData?.complexInfo && (detailData.complexInfo.totalHouseholds || detailData.complexInfo.parkingPerHousehold || detailData.complexInfo.useApprovalDate) && (
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-2 text-[10px] font-bold text-neutral">
-              {detailData.complexInfo.totalHouseholds && (
-                <span className="flex items-center gap-1 bg-alternative border border-normal px-2 py-0.5 rounded-md">
-                  🏠 {detailData.complexInfo.totalHouseholds.toLocaleString()}세대
-                </span>
-              )}
-              {detailData.complexInfo.parkingPerHousehold && (
-                <span className="flex items-center gap-1 bg-alternative border border-normal px-2 py-0.5 rounded-md" title={`총 주차대수: ${detailData.complexInfo.totalParking}대`}>
-                  🚗 주차 {detailData.complexInfo.parkingPerHousehold}대
-                </span>
-              )}
-              {detailData.complexInfo.useApprovalDate && (
-                <span className="flex items-center gap-1 bg-alternative border border-normal px-2 py-0.5 rounded-md">
-                  📅 {detailData.complexInfo.useApprovalDate.substring(0, 7)} 준공 
-                  {(() => {
-                    const year = parseInt(detailData.complexInfo.useApprovalDate.substring(0, 4));
-                    const age = isNaN(year) ? null : new Date().getFullYear() - year + 1;
-                    return age !== null ? ` (${age}년차)` : "";
-                  })()}
-                </span>
-              )}
+              })()}
             </div>
-          )}
-        </div>
 
-        {/* 크기 선택 탭 바 (실제 단지 평수 목록으로 가로 스크롤 대응) */}
-        <div className="flex bg-alternative p-1 rounded-lg border border-normal self-start md:self-auto gap-0.5 overflow-x-auto max-w-full">
-          <button
-            onClick={() => setSelectedArea(undefined)}
-            className={`px-3 py-1 text-xs font-semibold rounded-md transition whitespace-nowrap ${
-              selectedArea === undefined
-                ? "bg-primary text-[var(--color-semantic-background-normal-normal)] shadow-sm"
-                : "text-neutral hover:text-strong"
-            }`}
-          >
-            {t("allArea")}
-          </button>
-          {availableSizes.map((size) => {
-            const areaNum = parseInt(size);
-            const isActive = selectedArea === areaNum;
-            return (
-              <button
-                key={size}
-                onClick={() => setSelectedArea(areaNum)}
-                className={`px-3 py-1 text-xs font-semibold rounded-md transition whitespace-nowrap ${
-                  isActive
-                    ? "bg-primary text-[var(--color-semantic-background-normal-normal)] shadow-sm"
-                    : "text-neutral hover:text-strong"
-                }`}
-              >
-                {formatSizeString(size, areaUnit)}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* 주변 입지 평가 리포트 섹션 */}
-      {detailData.infraRating && (
-        <SectionCard 
-          title={<span className="flex items-center gap-2"><BarChart3 size={18} className="text-primary" /><span>{t("infraRatingTitle")}</span></span>}
-          right={
-            <button 
-              type="button"
-              onClick={() => setShowInfoModal(true)}
-              className="text-assistive hover:text-primary transition-colors duration-150 p-1.5 rounded-full hover:bg-alternative flex items-center justify-center"
-              title="산출 기준 보기"
-            >
-              <HelpCircle size={16} />
-            </button>
-          }
-        >
-          <div className="flex flex-col gap-6">
-            {/* 상단 종합 등급 및 설명 요약 */}
-            <div 
-              onClick={() => setShowDetailInfras(!showDetailInfras)}
-              className="flex flex-col md:flex-row items-center justify-between p-5 rounded-xl bg-alternative/60 border border-normal gap-6 cursor-pointer hover:bg-alternative/90 transition select-none"
-              title="클릭하여 상세 인프라 카드 펼치기/접기"
-            >
-              <div className="space-y-1.5 text-center md:text-left min-w-0 flex-1">
-                <p className="text-xs text-neutral font-medium leading-relaxed">{t("infraRatingSubtitle")}</p>
-                <div className="flex flex-wrap items-center justify-center md:justify-start gap-2.5 mt-2">
-                  <span className="text-strong text-base font-bold">{t("infraTotalScore")}:</span>
-                  <span className="text-primary font-mono text-2xl font-extrabold">{detailData.infraRating.totalScore}점</span>
-                </div>
-                {detailData.infraRating.isMock && (
-                  <p className="text-[11px] text-warn font-semibold mt-2 flex items-center justify-center md:justify-start gap-1">
-                    {t("infraMockNotice")}
-                  </p>
+            {/* 단지 스펙: 세대수 / 주차 / 준공년차 */}
+            {detailData?.complexInfo && (detailData.complexInfo.totalHouseholds || detailData.complexInfo.parkingPerHousehold || detailData.complexInfo.useApprovalDate) && (
+              <div className="flex flex-wrap items-center gap-1.5 text-xs font-semibold text-neutral">
+                {detailData.complexInfo.totalHouseholds && (
+                  <span className="inline-flex items-center gap-1 bg-alternative border border-normal px-2.5 py-0.5 rounded-md">
+                    🏠 {detailData.complexInfo.totalHouseholds.toLocaleString()}세대
+                  </span>
+                )}
+                {detailData.complexInfo.parkingPerHousehold && (
+                  <span className="inline-flex items-center gap-1 bg-alternative border border-normal px-2.5 py-0.5 rounded-md" title={`총 주차대수: ${detailData.complexInfo.totalParking}대`}>
+                    🚗 주차 {detailData.complexInfo.parkingPerHousehold}대
+                  </span>
+                )}
+                {detailData.complexInfo.useApprovalDate && (
+                  <span className="inline-flex items-center gap-1 bg-alternative border border-normal px-2.5 py-0.5 rounded-md">
+                    📅 {detailData.complexInfo.useApprovalDate.substring(0, 7)} 준공 
+                    {(() => {
+                      const year = parseInt(detailData.complexInfo.useApprovalDate.substring(0, 4));
+                      const age = isNaN(year) ? null : new Date().getFullYear() - year + 1;
+                      return age !== null ? ` (${age}년차)` : "";
+                    })()}
+                  </span>
                 )}
               </div>
-              
-              {/* 등급 배지 및 화살표 */}
-              <div className="flex items-center gap-4 shrink-0">
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-neutral font-semibold">{t("infraGrade")}</span>
-                  <div className={`w-16 h-16 rounded-full flex items-center justify-center font-extrabold text-2xl shadow-sm border ${
-                    detailData.infraRating.grade === "S" ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" :
-                    detailData.infraRating.grade === "A" ? "bg-blue-500/10 text-blue-500 border-blue-500/20" :
-                    detailData.infraRating.grade === "B" ? "bg-amber-500/10 text-amber-500 border-amber-500/20" :
-                    detailData.infraRating.grade === "C" ? "bg-orange-500/10 text-orange-500 border-orange-500/20" :
-                    "bg-rose-500/10 text-rose-500 border-rose-500/20"
-                  }`}>
-                    {detailData.infraRating.grade}
-                  </div>
-                </div>
-                <div className="text-assistive p-1.5 rounded-lg hover:bg-alternative transition">
-                  {showDetailInfras ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-                </div>
-              </div>
-            </div>
+            )}
+          </div>
 
-            {/* 개별 인프라 그리드 (아코디언 슬라이드) */}
-            <div className={`grid transition-all duration-300 ease-in-out ${showDetailInfras ? "grid-rows-[1fr] opacity-100 mt-2" : "grid-rows-[0fr] opacity-0 overflow-hidden"}`}>
-              <div className="min-h-0">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3">
+          {/* 우측: 크기(평수) 선택 탭 바 */}
+          <div className="flex bg-alternative p-1 rounded-lg border border-normal self-start lg:self-center gap-0.5 overflow-x-auto max-w-full shrink-0">
+            <button
+              onClick={() => setSelectedArea(undefined)}
+              className={`px-3 py-1 text-xs font-semibold rounded-md transition whitespace-nowrap ${
+                selectedArea === undefined
+                  ? "bg-primary text-[var(--color-semantic-background-normal-normal)] shadow-sm"
+                  : "text-neutral hover:text-strong"
+              }`}
+            >
+              {t("allArea")}
+            </button>
+            {availableSizes.map((size) => {
+              const areaNum = parseInt(size);
+              const isActive = selectedArea === areaNum;
+              return (
+                <button
+                  key={size}
+                  onClick={() => setSelectedArea(areaNum)}
+                  className={`px-3 py-1 text-xs font-semibold rounded-md transition whitespace-nowrap ${
+                    isActive
+                      ? "bg-primary text-[var(--color-semantic-background-normal-normal)] shadow-sm"
+                      : "text-neutral hover:text-strong"
+                  }`}
+                >
+                  {formatSizeString(size, areaUnit)}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 인프라 상세 펼치기 영역 (showDetailInfras 시 부드럽게 토글) */}
+        {detailData?.infraRating && (
+          <div className={`grid transition-all duration-300 ease-in-out ${showDetailInfras ? "grid-rows-[1fr] opacity-100 pt-3 border-t border-normal" : "grid-rows-[0fr] opacity-0 overflow-hidden"}`}>
+            <div className="min-h-0 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs text-neutral">
+                <span className="font-medium leading-relaxed">{t("infraRatingSubtitle")}</span>
+                {detailData.infraRating.isMock && (
+                  <span className="text-[11px] text-warn font-semibold">
+                    {t("infraMockNotice")}
+                  </span>
+                )}
+              </div>
+
+              {/* 6대 인프라 그리드 */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3">
                   {[
                     { code: "SW8", name: t("infraCategorySubway"), weight: "1.5 (최상)", color: "emerald", icon: Train },
                     { code: "SC4", name: t("infraCategorySchool"), weight: "1.2 (상)", color: "blue", icon: School },
@@ -1203,11 +1190,10 @@ export default function ComplexTab({
                 </div>
               </div>
             </div>
-          </div>
-        </SectionCard>
-      )}
+          )}
+        </div>
 
-      {/* 지도 및 입지 분석 섹션 (단지 정보가 존재할 경우 표시) */}
+{/* 지도 및 입지 분석 섹션 (단지 정보가 존재할 경우 표시) */}
       {detailData.complexInfo && (
         isMobile ? (
           /* ── 모바일: 카드/타이틀 제거, edge-to-edge 풀사이즈 지도 ── */
