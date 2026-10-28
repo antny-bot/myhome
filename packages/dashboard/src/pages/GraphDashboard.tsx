@@ -249,6 +249,8 @@ export default function GraphDashboard({
                 areaUnit={areaUnit}
                 areaType={areaType}
                 locale={locale}
+                startDate={filter.startDate}
+                endDate={filter.endDate}
               />
             )}
           </>
