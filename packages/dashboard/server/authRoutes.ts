@@ -127,7 +127,7 @@ export function verifyPassword(password: string, storedHash: string): boolean {
  */
 export function buildSessionCookie(
   sessionId: string,
-  maxAgeSeconds: number,
+  maxAgeSeconds: number = 30 * 24 * 60 * 60,
   req?: express.Request
 ): string {
   const isSecure =
@@ -135,6 +135,32 @@ export function buildSessionCookie(
     req?.headers["x-forwarded-proto"] === "https";
   const secureFlag = isSecure ? "; Secure" : "";
   return `session_id=${sessionId}; Path=/; HttpOnly; Max-Age=${maxAgeSeconds}; SameSite=Lax${secureFlag}`;
+}
+
+/**
+ * OAuth CSRF 방어용 단기 State 쿠키 문자열 생성 (기본 10분)
+ */
+export function buildOAuthStateCookie(
+  state: string,
+  maxAgeSeconds: number = 600,
+  req?: express.Request
+): string {
+  const isSecure =
+    process.env.NODE_ENV === "production" ||
+    req?.headers["x-forwarded-proto"] === "https";
+  const secureFlag = isSecure ? "; Secure" : "";
+  return `oauth_state=${state}; Path=/; HttpOnly; Max-Age=${maxAgeSeconds}; SameSite=Lax${secureFlag}`;
+}
+
+/**
+ * 쿠키 삭제 문자열 생성 (Max-Age=0)
+ */
+export function buildClearCookie(name: string, req?: express.Request): string {
+  const isSecure =
+    process.env.NODE_ENV === "production" ||
+    req?.headers["x-forwarded-proto"] === "https";
+  const secureFlag = isSecure ? "; Secure" : "";
+  return `${name}=; Path=/; HttpOnly; Max-Age=0; SameSite=Lax${secureFlag}`;
 }
 
 /**
@@ -221,7 +247,7 @@ declare global {
   }
 }
 
-export function getSessionIdFromCookies(cookieHeader: string | undefined): string | null {
+export function getCookieValue(cookieHeader: string | undefined, name: string): string | null {
   if (!cookieHeader) return null;
   const cookies = cookieHeader.split(";").reduce((acc, current) => {
     const parts = current.trim().split("=");
@@ -232,7 +258,11 @@ export function getSessionIdFromCookies(cookieHeader: string | undefined): strin
     }
     return acc;
   }, {} as Record<string, string>);
-  return cookies["session_id"] || null;
+  return cookies[name] || null;
+}
+
+export function getSessionIdFromCookies(cookieHeader: string | undefined): string | null {
+  return getCookieValue(cookieHeader, "session_id");
 }
 
 export function decodeJwtPayload(token: string) {
@@ -244,6 +274,43 @@ export function decodeJwtPayload(token: string) {
   } catch {
     return null;
   }
+}
+
+/**
+ * Google ID 토큰 페이로드 클레임 검증 (email_verified, aud, iss, exp 등)
+ */
+export function validateGoogleIdTokenPayload(
+  payload: any,
+  clientId: string
+): { valid: boolean; error?: string } {
+  if (!payload || typeof payload !== "object") {
+    return { valid: false, error: "유효하지 않은 토큰 페이로드 구조입니다." };
+  }
+
+  if (!payload.email || typeof payload.email !== "string") {
+    return { valid: false, error: "이메일 정보가 누락되었거나 올바르지 않습니다." };
+  }
+
+  const isEmailVerified = payload.email_verified === true || payload.email_verified === "true";
+  if (!isEmailVerified) {
+    return { valid: false, error: "인증되지 않은 구글 이메일입니다." };
+  }
+
+  if (payload.aud !== clientId) {
+    return { valid: false, error: `Audience가 일치하지 않습니다. (aud: ${payload.aud})` };
+  }
+
+  const validIssuers = ["https://accounts.google.com", "accounts.google.com"];
+  if (!validIssuers.includes(payload.iss)) {
+    return { valid: false, error: `발급자가 올바르지 않습니다. (iss: ${payload.iss})` };
+  }
+
+  const nowSec = Math.floor(Date.now() / 1000);
+  if (typeof payload.exp !== "number" || payload.exp <= nowSec) {
+    return { valid: false, error: "토큰 유효기간이 만료되었습니다." };
+  }
+
+  return { valid: true };
 }
 
 export function isUserAdmin(email: string, allowedEmailsStr: string, adminEmailsStr: string): boolean {
@@ -289,16 +356,33 @@ export function createAuthRouter() {
       return;
     }
 
+    // CSRF 방어용 OAuth state 생성 및 쿠키 저장 (10분)
+    const state = crypto.randomBytes(16).toString("hex");
+    res.setHeader("Set-Cookie", buildOAuthStateCookie(state, 600, req));
+
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${googleClientId}&redirect_uri=${encodeURIComponent(
       googleRedirectUri
-    )}&response_type=code&scope=openid%20email%20profile`;
+    )}&response_type=code&scope=openid%20email%20profile&state=${encodeURIComponent(state)}`;
 
     res.redirect(authUrl);
   });
 
   router.get("/google/callback", authRateLimiter, async (req, res) => {
+    const clearStateCookie = buildClearCookie("oauth_state", req);
     const code = req.query.code;
+    const queryState = req.query.state;
+    const cookieState = getCookieValue(req.headers.cookie, "oauth_state");
+
+    // CSRF state 파라미터 및 쿠키 일치 여부 검증
+    if (!queryState || !cookieState || typeof queryState !== "string" || queryState !== cookieState) {
+      console.warn("⚠️ Google OAuth state mismatch or missing (CSRF attempt suspected)");
+      res.setHeader("Set-Cookie", clearStateCookie);
+      res.redirect("/login?error=oauth_failed");
+      return;
+    }
+
     if (!code || typeof code !== "string") {
+      res.setHeader("Set-Cookie", clearStateCookie);
       res.redirect("/login?error=oauth_failed");
       return;
     }
@@ -308,6 +392,7 @@ export function createAuthRouter() {
     const googleRedirectUri = Config.GOOGLE_REDIRECT_URI;
 
     if (!googleClientId || !googleClientSecret || !googleRedirectUri) {
+      res.setHeader("Set-Cookie", clearStateCookie);
       res.status(500).json({ error: "Google OAuth credentials are not fully configured." });
       return;
     }
@@ -331,6 +416,7 @@ export function createAuthRouter() {
       if (!tokenResp.ok) {
         const errText = await tokenResp.text();
         console.error("❌ Google Token API Error:", errText);
+        res.setHeader("Set-Cookie", clearStateCookie);
         res.redirect("/login?error=oauth_failed");
         return;
       }
@@ -338,14 +424,17 @@ export function createAuthRouter() {
       const tokenData = (await tokenResp.json()) as { id_token?: string };
       if (!tokenData.id_token) {
         console.error("❌ id_token missing in Google Token API response");
+        res.setHeader("Set-Cookie", clearStateCookie);
         res.redirect("/login?error=oauth_failed");
         return;
       }
 
-      // 2. ID 토큰 디코딩하여 이메일 추출
+      // 2. ID 토큰 디코딩 및 클레임 검증
       const payload = decodeJwtPayload(tokenData.id_token);
-      if (!payload || !payload.email) {
-        console.error("❌ Failed to parse Google email from ID token");
+      const validation = validateGoogleIdTokenPayload(payload, googleClientId);
+      if (!validation.valid) {
+        console.error("❌ Google ID token claim validation failed:", validation.error);
+        res.setHeader("Set-Cookie", clearStateCookie);
         res.redirect("/login?error=oauth_failed");
         return;
       }
@@ -361,6 +450,7 @@ export function createAuthRouter() {
 
       if (allowedList.length === 0 || !allowedList.includes(email)) {
         console.warn(`⚠️ Access Blocked: ${email} is not in ALLOWED_EMAILS list or list is empty.`);
+        res.setHeader("Set-Cookie", clearStateCookie);
         res.redirect("/login?error=no_access");
         return;
       }
@@ -372,11 +462,15 @@ export function createAuthRouter() {
 
       saveSession(sessionId, email, expiresAt, "google");
 
-      // 5. Secure 쿠키 굽고 대시보드로 이동
-      res.setHeader("Set-Cookie", buildSessionCookie(sessionId, maxAgeSeconds, req));
+      // 5. Secure 세션 쿠키 굽고 oauth_state 삭제 후 대시보드로 이동
+      res.setHeader("Set-Cookie", [
+        buildSessionCookie(sessionId, maxAgeSeconds, req),
+        clearStateCookie,
+      ]);
       res.redirect("/");
     } catch (err) {
       console.error("❌ Google OAuth Callback Error:", err);
+      res.setHeader("Set-Cookie", clearStateCookie);
       res.redirect("/login?error=oauth_failed");
     }
   });

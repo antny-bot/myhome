@@ -6,6 +6,10 @@ import {
   hashPasswordAsync,
   verifyPasswordAsync,
   buildSessionCookie,
+  buildOAuthStateCookie,
+  buildClearCookie,
+  getCookieValue,
+  validateGoogleIdTokenPayload,
   authRateLimiter,
 } from "./authRoutes.js";
 import { passwordPolicySchema } from "./validation.js";
@@ -141,4 +145,69 @@ test("authRateLimiter: 11번째 연속 호출 시 429 차단", async () => {
     setTimeout(resolve, 30);
   });
   assert.equal(statusCode, 429, "11번째 요청은 429 상태코드로 차단되어야 합니다.");
+});
+
+test("OAuth state 쿠키 헬퍼 및 getCookieValue 파싱 테스트", () => {
+  const state = "a1b2c3d4e5f6";
+  const cookieStr = buildOAuthStateCookie(state, 600);
+  assert.ok(cookieStr.includes(`oauth_state=${state}`));
+  assert.ok(cookieStr.includes("HttpOnly"));
+  assert.ok(cookieStr.includes("Max-Age=600"));
+
+  const parsed = getCookieValue(`other=1; oauth_state=${state}; session_id=abc`, "oauth_state");
+  assert.equal(parsed, state);
+
+  const missing = getCookieValue(`other=1; session_id=abc`, "oauth_state");
+  assert.equal(missing, null);
+
+  const clearCookie = buildClearCookie("oauth_state");
+  assert.ok(clearCookie.includes("oauth_state="));
+  assert.ok(clearCookie.includes("Max-Age=0"));
+});
+
+test("validateGoogleIdTokenPayload: 토큰 페이로드 클레임 검증", () => {
+  const targetClientId = "my-client-id.apps.googleusercontent.com";
+  const validPayload = {
+    email: "user@example.com",
+    email_verified: true,
+    aud: targetClientId,
+    iss: "https://accounts.google.com",
+    exp: Math.floor(Date.now() / 1000) + 3600,
+  };
+
+  // 1. 유효한 토큰
+  const validRes = validateGoogleIdTokenPayload(validPayload, targetClientId);
+  assert.equal(validRes.valid, true);
+
+  // 2. 이메일 미인증
+  const unverifiedRes = validateGoogleIdTokenPayload(
+    { ...validPayload, email_verified: false },
+    targetClientId
+  );
+  assert.equal(unverifiedRes.valid, false);
+  assert.ok(unverifiedRes.error?.includes("인증되지 않은"));
+
+  // 3. aud 불일치
+  const wrongAudRes = validateGoogleIdTokenPayload(
+    { ...validPayload, aud: "wrong-client-id" },
+    targetClientId
+  );
+  assert.equal(wrongAudRes.valid, false);
+  assert.ok(wrongAudRes.error?.includes("Audience"));
+
+  // 4. iss 불일치
+  const wrongIssRes = validateGoogleIdTokenPayload(
+    { ...validPayload, iss: "https://evil.com" },
+    targetClientId
+  );
+  assert.equal(wrongIssRes.valid, false);
+  assert.ok(wrongIssRes.error?.includes("발급자"));
+
+  // 5. exp 만료
+  const expiredRes = validateGoogleIdTokenPayload(
+    { ...validPayload, exp: Math.floor(Date.now() / 1000) - 60 },
+    targetClientId
+  );
+  assert.equal(expiredRes.valid, false);
+  assert.ok(expiredRes.error?.includes("만료"));
 });

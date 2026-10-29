@@ -127,7 +127,7 @@ flowchart LR
 - 신규 `server/authRoutes.test.ts`: 해시 검증(구/신), 쿠키 헬퍼, 비밀번호 정책, rate-limit 단위 테스트 추가.
 
 ### A-2. OAuth state/검증 보강 (S-2)
-- [ ] 완료
+- [x] 완료
 
 **관련 파일**: `server/authRoutes.ts`
 
