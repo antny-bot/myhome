@@ -330,7 +330,7 @@ flowchart LR
 **수용 기준**: `LOG_LEVEL=warn`에서 info 로그 미출력 테스트.
 
 ### C-4. 지오코딩 모듈 분할 (구조)
-- [ ] 완료
+- [x] 완료
 
 **관련 파일**: `server/geocoding-infra.ts`(779줄), `geocoding-station.ts`, `geocoding-kakao.ts`, `geocoding-utils.ts`, `geocoding.ts`
 
