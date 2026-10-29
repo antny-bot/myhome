@@ -225,7 +225,7 @@ flowchart LR
 **수용 기준**: 100만 행 더미 데이터 기준 지역+기간 필터 검색 응답 시간 측정치를 PR에 첨부(개선 전/후). 쿼리플랜에서 `SCAN transactions` 제거.
 
 ### B-3. 서버 기동 순서·종료 안정성 (R-4, R-5, R-6, A-2 일부)
-- [ ] 완료
+- [x] 완료
 
 **관련 파일**: `server/index.ts`, `shared/src/db/connection.ts`
 
