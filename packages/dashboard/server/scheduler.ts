@@ -1,41 +1,103 @@
 import { runRuleCheck } from "./ruleEngine.js";
 import { sendNotifications } from "./notifications.js";
 import { runCollector } from "@myhome/collector";
-import { getAllRules, mapLimit } from "@myhome/shared";
+import { getAllRules, mapLimit, getSystemConfigDb, saveSystemConfigDb } from "@myhome/shared";
 import { batchGeocodeComplexes } from "./geocoding.js";
 import { Config } from "./config.js";
 import { graphCache } from "./cache.js";
+import { getKstTimeParts, getKstDateString, getKstHour } from "./utils/kstTime.js";
 
+/**
+ * 수집 작업 동시 실행 방지용 메모리 락
+ */
+export class CollectorLock {
+  private static _isLocked = false;
+  private static _startedAt: number | null = null;
 
+  static acquire(): boolean {
+    if (this._isLocked) return false;
+    this._isLocked = true;
+    this._startedAt = Date.now();
+    return true;
+  }
 
-function isAlertDue(lastCheckedAt: string | undefined, alertTime: string | undefined): boolean {
-  // alertTime이 명시적으로 지정되지 않은 레거시 데이터는 기본적으로 오전 9시 알림으로 대치
+  static release(): void {
+    this._isLocked = false;
+    this._startedAt = null;
+  }
+
+  static isLocked(): boolean {
+    return this._isLocked;
+  }
+
+  static getStartedAt(): number | null {
+    return this._startedAt;
+  }
+}
+
+/**
+ * 룰 알림 실행 주기 도달 여부 판정 (KST 단일 타임존 기준 순수 함수)
+ */
+export function isAlertDue(
+  lastCheckedAt: string | undefined,
+  alertTime: string | undefined,
+  now: Date = new Date()
+): boolean {
   const targetAlertTime = alertTime || "09:00";
-  
-  const now = new Date();
   const [targetHour, targetMin] = targetAlertTime.split(":").map(Number);
-  
-  // 오늘 기준 타겟 알림 설정 시각 Date 객체 생성
-  const targetTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), targetHour, targetMin, 0, 0);
+  const nowParts = getKstTimeParts(now);
 
-  // 현재 시간이 오늘 타겟 시각보다 전이면 아직 실행 주기 미도달
-  if (now.getTime() < targetTime.getTime()) {
+  const nowMinutes = nowParts.hour * 60 + nowParts.minute;
+  const targetMinutes = targetHour * 60 + targetMin;
+
+  // 현재 시각이 오늘 타겟 알림 시각보다 전이면 아직 실행 주기에 미도달
+  if (nowMinutes < targetMinutes) {
     return false;
   }
 
-  // 마지막 체크 기록이 없으면 최초 실행
+  // 이전에 체크한 기록이 없으면 즉시 실행 대상
   if (!lastCheckedAt) {
     return true;
   }
 
-  // 마지막으로 체크한 시간이 오늘 설정된 타겟 시각 이전이면 오늘 체크를 미수행했으므로 실행
-  const lastChecked = new Date(lastCheckedAt);
-  return lastChecked.getTime() < targetTime.getTime();
+  const lastCheckedDate = new Date(lastCheckedAt);
+  if (isNaN(lastCheckedDate.getTime())) {
+    return true;
+  }
+
+  const todayKst = getKstDateString(now);
+  const lastCheckKst = getKstDateString(lastCheckedDate);
+
+  // 마지막 체크 날짜가 오늘보다 이전 날짜라면 오늘 미수행 상태
+  if (lastCheckKst < todayKst) {
+    return true;
+  }
+
+  // 오늘 이미 체크한 경우, 마지막 체크 시점이 오늘 타겟 시각 이전이었는지 검사
+  const lastParts = getKstTimeParts(lastCheckedDate);
+  const lastMinutes = lastParts.hour * 60 + lastParts.minute;
+  return lastMinutes < targetMinutes;
+}
+
+export function getLastSuccessCollectedDate(): string {
+  try {
+    const config = getSystemConfigDb();
+    return config["collector.lastSuccessDate"] || "";
+  } catch {
+    return "";
+  }
+}
+
+export function setLastSuccessCollectedDate(dateStr: string): void {
+  try {
+    saveSystemConfigDb({ "collector.lastSuccessDate": dateStr });
+  } catch (err) {
+    console.warn("⚠️ system_config 저장 실패:", err);
+  }
 }
 
 let running = false;
 let timerId: NodeJS.Timeout | undefined;
-let lastCollectedDate = "";
 
 /**
  * 현재 실행 중인 스케줄러 주기가 완료될 때까지 기다린 뒤 인터벌을 해제합니다.
@@ -54,37 +116,54 @@ export async function stopScheduler(): Promise<void> {
   console.log("[Scheduler] Stopped gracefully.");
 }
 
-export async function runDueCollector() {
+export async function runDueCollector(): Promise<{ executed: boolean; reason?: string }> {
   const now = new Date();
-  const todayStr = now.toISOString().substring(0, 10); // YYYY-MM-DD
-  const hour = now.getHours();
+  const todayStr = getKstDateString(now);
+  const hour = getKstHour(now);
 
-  // 매일 오전 6시 이후에 데이터 수집 (오늘 돌린 적이 없는 경우에만)
-  if (hour >= 6 && lastCollectedDate !== todayStr) {
-    console.log(`[Scheduler] Daily collection triggered for date: ${todayStr}`);
-    try {
-      const result = await runCollector();
-      console.log(`[Scheduler] Daily collection finished: collected ${result.totalCollected} items, upserted ${result.totalUpserted}`);
+  // 매일 오전 6시(KST) 이후에 데이터 수집 (오늘 성공적으로 돌린 적이 없는 경우에만)
+  if (hour < 6) {
+    return { executed: false, reason: "BEFORE_COLLECT_HOUR" };
+  }
 
-      if (result.failures && result.failures.length > 0) {
-        console.warn(`[Scheduler] 수집 중 일부 실패 발생 (${result.failures.length}건):`, result.failures.map((f) => `${f.target}(${f.month}): ${f.error}`).join("; "));
-        // 수집 실패가 발생한 경우 당일 완료 처리하지 않고 재시도 허용
-        lastCollectedDate = "";
-      } else {
-        lastCollectedDate = todayStr;
-      }
+  const lastCollected = getLastSuccessCollectedDate();
+  if (lastCollected === todayStr) {
+    return { executed: false, reason: "ALREADY_COLLECTED_TODAY" };
+  }
 
-      // 신규 수집된 아파트 단지에 대한 일괄 Geocoding 수행
-      console.log("[Scheduler] Starting batch geocoding for new complexes...");
-      const geoResult = await batchGeocodeComplexes();
-      console.log(`[Scheduler] Batch geocoding finished: total ${geoResult.total}, success ${geoResult.success}, failed ${geoResult.failed}`);
-      
-      console.log("[Scheduler] Daily collection & geocoding completed. Invalidating graph cache.");
-      graphCache.clear();
-    } catch (err: any) {
-      console.error("[Scheduler] Daily collection or geocoding failed:", err.message);
-      lastCollectedDate = ""; // 실패 시 다음 스케줄 검사 주기에서 재시도하도록 재설정
+  if (!CollectorLock.acquire()) {
+    console.warn("[Scheduler] Collector is already running. Skipping this cycle.");
+    return { executed: false, reason: "LOCKED" };
+  }
+
+  try {
+    console.log(`[Scheduler] Daily collection triggered for date: ${todayStr} (KST hour: ${hour})`);
+    const result = await runCollector();
+    console.log(`[Scheduler] Daily collection finished: collected ${result.totalCollected} items, upserted ${result.totalUpserted}`);
+
+    if (result.failures && result.failures.length > 0) {
+      console.warn(
+        `[Scheduler] 수집 중 일부 실패 발생 (${result.failures.length}건):`,
+        result.failures.map((f) => `${f.target}(${f.month}): ${f.error}`).join("; ")
+      );
+      // 수집 실패가 발생한 경우 당일 완료 처리(lastSuccessDate)를 유보하여 다음 주기에 재시도 허용
+    } else {
+      setLastSuccessCollectedDate(todayStr);
     }
+
+    // 신규 수집된 아파트 단지에 대한 일괄 Geocoding 수행
+    console.log("[Scheduler] Starting batch geocoding for new complexes...");
+    const geoResult = await batchGeocodeComplexes();
+    console.log(`[Scheduler] Batch geocoding finished: total ${geoResult.total}, success ${geoResult.success}, failed ${geoResult.failed}`);
+
+    console.log("[Scheduler] Daily collection & geocoding completed. Invalidating graph cache.");
+    graphCache.clear();
+    return { executed: true };
+  } catch (err: any) {
+    console.error("[Scheduler] Daily collection or geocoding failed:", err.message);
+    return { executed: false, reason: err.message };
+  } finally {
+    CollectorLock.release();
   }
 }
 
@@ -132,6 +211,4 @@ export function startScheduler() {
     void runDueRules();
     void runDueCollector();
   }, intervalMs);
-
-  // SIGTERM/SIGINT 처리는 index.ts의 shutdown 함수에서 stopScheduler()를 통해 통합 관리합니다.
 }

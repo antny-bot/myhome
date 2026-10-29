@@ -197,7 +197,7 @@ flowchart LR
 ## Phase B — 안정성 · 성능 (P1)
 
 ### B-1. 스케줄러 시간대·락·영속화 (R-2, R-3)
-- [ ] 완료
+- [x] 완료
 
 **관련 파일**: `server/scheduler.ts`, `shared/src/db/activityLogs.ts`(system_config), `server/routes/transactionRoutes.ts`, `docs/03_BACKEND_SCHEDULER.md`
 
