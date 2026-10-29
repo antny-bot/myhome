@@ -852,11 +852,11 @@ export function DashboardPage({
           {/* 바텀시트 및 백드롭 Portal (document.body 하위에 직속 렌더링) */}
           {createPortal(
             <>
-              {/* 바텀시트 열림 시 백드롭 (하단 메뉴바 위까지만 어둡게 처리하여 모바일 메뉴 침범 방지) */}
+              {/* 바텀시트 열림 시 백드롭 (하단 메뉴바(z-40) 및 전체 메뉴 바텀시트(z-50) 하위인 z-20으로 설정) */}
               {isBottomSheetOpen && (
                 <div
                   style={{ bottom: "calc(56px + env(safe-area-inset-bottom, 0px))" }}
-                  className="fixed inset-x-0 top-0 z-50 bg-black/25 backdrop-blur-[1px] transition-opacity"
+                  className="fixed inset-x-0 top-0 z-20 bg-black/25 backdrop-blur-[1px] transition-opacity"
                   onClick={() => setIsBottomSheetOpen(false)}
                 />
               )}
@@ -865,7 +865,7 @@ export function DashboardPage({
               <div
                 style={{ bottom: "calc(56px + env(safe-area-inset-bottom, 0px))" }}
                 className={classNames(
-                  "fixed inset-x-0 z-[60] flex flex-col bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 shadow-2xl rounded-t-2xl transition-all duration-300 ease-in-out overflow-hidden w-full max-w-full box-border",
+                  "fixed inset-x-0 z-30 flex flex-col bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 shadow-2xl rounded-t-2xl transition-all duration-300 ease-in-out overflow-hidden w-full max-w-full box-border",
                   isBottomSheetOpen ? "max-h-[75vh] h-[75vh]" : "max-h-[52px] h-[52px]"
                 )}
               >
