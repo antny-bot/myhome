@@ -23,21 +23,14 @@ import {
   findSubwayStationsNearCoords,
   getComplexInfraRating
 } from "../../geocoding.js";
-import { graphCache, TTL } from "../../cache.js";
+import { withCache, stableStringify, TTL } from "../../cache.js";
 import { asyncHandler } from "../../middlewares/asyncHandler.js";
 
 const router = Router();
 
 /** GET /api/graph/stats — 전체 노드 수 통계 */
 router.get("/stats", asyncHandler(async (_req, res) => {
-  const cacheKey = "stats";
-  const cached = graphCache.get(cacheKey);
-  if (cached) {
-    res.json(cached);
-    return;
-  }
-  const stats = await getGraphStats();
-  graphCache.set(cacheKey, stats, TTL.STATIC);
+  const stats = await withCache("stats", TTL.STATIC, () => getGraphStats());
   res.json(stats);
 }));
 
@@ -46,14 +39,10 @@ router.get("/complex/:name/trend", asyncHandler(async (req, res) => {
   const complexName = decodeURIComponent(req.params.name as string);
   const lawdCode = req.query.lawdCode as string | undefined;
   const cacheKey = `trend:complex:${complexName}:${lawdCode ?? ""}`;
-  const cached = graphCache.get(cacheKey);
-  if (cached) {
-    res.json(cached);
-    return;
-  }
-  const trend = await getComplexTrend(complexName, lawdCode);
-  const result = { complexName, lawdCode, trend };
-  graphCache.set(cacheKey, result, TTL.TREND);
+  const result = await withCache(cacheKey, TTL.TREND, async () => {
+    const trend = await getComplexTrend(complexName, lawdCode);
+    return { complexName, lawdCode, trend };
+  });
   res.json(result);
 }));
 
@@ -61,14 +50,10 @@ router.get("/complex/:name/trend", asyncHandler(async (req, res) => {
 router.get("/region/:lawdCode/trend", asyncHandler(async (req, res) => {
   const { lawdCode } = req.params;
   const cacheKey = `trend:region:${lawdCode}`;
-  const cached = graphCache.get(cacheKey);
-  if (cached) {
-    res.json(cached);
-    return;
-  }
-  const trend = await getRegionTrend(lawdCode as string);
-  const result = { lawdCode, trend };
-  graphCache.set(cacheKey, result, TTL.TREND);
+  const result = await withCache(cacheKey, TTL.TREND, async () => {
+    const trend = await getRegionTrend(lawdCode as string);
+    return { lawdCode, trend };
+  });
   res.json(result);
 }));
 
@@ -98,15 +83,8 @@ router.get("/search", asyncHandler(async (req, res) => {
     maxBuildYear: req.query.maxBuildYear ? Number(req.query.maxBuildYear) : undefined,
   };
 
-  const cacheKey = `search:${JSON.stringify(filter)}`;
-  const cached = graphCache.get(cacheKey);
-  if (cached) {
-    res.json(cached);
-    return;
-  }
-
-  const results = await searchTransactions(filter);
-  graphCache.set(cacheKey, results, TTL.SEARCH);
+  const cacheKey = `search:${stableStringify(filter)}`;
+  const results = await withCache(cacheKey, TTL.SEARCH, () => searchTransactions(filter));
   res.json(results);
 }));
 
@@ -114,13 +92,7 @@ router.get("/search", asyncHandler(async (req, res) => {
 router.get("/drilldown/regions", asyncHandler(async (req, res) => {
   const complexName = req.query.complexName as string | undefined;
   const cacheKey = `drilldown:regions:${complexName ?? ""}`;
-  const cached = graphCache.get(cacheKey);
-  if (cached) {
-    res.json(cached);
-    return;
-  }
-  const data = await getDrilldownRegions(complexName);
-  graphCache.set(cacheKey, data, TTL.SEARCH);
+  const data = await withCache(cacheKey, TTL.SEARCH, () => getDrilldownRegions(complexName));
   res.json(data);
 }));
 
@@ -133,13 +105,7 @@ router.get("/drilldown/complexes", asyncHandler(async (req, res) => {
     return;
   }
   const cacheKey = `drilldown:complexes:${lawdCode}:${complexName ?? ""}`;
-  const cached = graphCache.get(cacheKey);
-  if (cached) {
-    res.json(cached);
-    return;
-  }
-  const data = await getDrilldownComplexes(lawdCode, complexName);
-  graphCache.set(cacheKey, data, TTL.SEARCH);
+  const data = await withCache(cacheKey, TTL.SEARCH, () => getDrilldownComplexes(lawdCode, complexName));
   res.json(data);
 }));
 
@@ -152,13 +118,7 @@ router.get("/drilldown/areas", asyncHandler(async (req, res) => {
     return;
   }
   const cacheKey = `drilldown:areas:${complexName}:${lawdCode ?? ""}`;
-  const cached = graphCache.get(cacheKey);
-  if (cached) {
-    res.json(cached);
-    return;
-  }
-  const data = await getDrilldownAreas(complexName, lawdCode);
-  graphCache.set(cacheKey, data, TTL.SEARCH);
+  const data = await withCache(cacheKey, TTL.SEARCH, () => getDrilldownAreas(complexName, lawdCode));
   res.json(data);
 }));
 
@@ -183,76 +143,73 @@ router.get("/complex/:name/detail", asyncHandler(async (req, res) => {
   const endDate = req.query.endDate as string | undefined;
 
   const cacheKey = `detail:${complexName}:${lawdCode ?? ""}:${area ?? ""}:${startDate ?? ""}:${endDate ?? ""}`;
-  const cached = graphCache.get(cacheKey);
-  if (cached) {
-    res.json(cached);
-    return;
-  }
 
-  const data = await getComplexDetail(complexName, lawdCode, area, startDate, endDate);
+  const resultPayload = await withCache(cacheKey, TTL.SEARCH, async () => {
+    const data = await getComplexDetail(complexName, lawdCode, area, startDate, endDate);
 
-  // 단지 지리정보 조회 및 지하철역 연동
-  let complexInfo = getComplexGeo(complexName, lawdCode);
-  let subways: any[] = [];
-  let infraRating: any = null;
+    // 단지 지리정보 조회 및 지하철역 연동
+    let complexInfo = getComplexGeo(complexName, lawdCode);
+    let subways: any[] = [];
+    let infraRating: any = null;
 
-  if (complexInfo) {
-    // 위경도 좌표가 없으면 Lazy Geocoding 수행
-    if (complexInfo.lat === null || complexInfo.lng === null) {
-      let query = "";
-      if (complexInfo.dongName && complexInfo.jibun) {
-        query = `${complexInfo.regionName} ${complexInfo.dongName} ${complexInfo.jibun}`;
-      } else if (complexInfo.dongName) {
-        query = `${complexInfo.regionName} ${complexInfo.dongName}`;
-      } else {
-        const cleanName = complexInfo.name.replace(/\(.*?\)/g, "").trim();
-        query = `${complexInfo.regionName} ${cleanName}`;
-      }
-
-      const result = await geocodeAddress(query);
-      if (result) {
-        updateComplexCoords(complexInfo.id, result.lat, result.lng);
-        complexInfo.lat = result.lat;
-        complexInfo.lng = result.lng;
-        console.log(`[Lazy Geocoding] 단지 좌표 확보: ${complexInfo.name} -> (${result.lat}, ${result.lng})`);
-      }
-    }
-
-    // 건축물대장 메타데이터(세대수 등)가 없으면 Lazy 건축HUB 동기화 수행
-    if (complexInfo.totalHouseholds == null) {
-      try {
-        const { syncComplexBuildingMeta } = await import("@myhome/shared");
-        const synced = await syncComplexBuildingMeta(complexInfo.id);
-        if (synced) {
-          const reloaded = getComplexGeo(complexName, lawdCode);
-          if (reloaded) complexInfo = reloaded;
+    if (complexInfo) {
+      // 위경도 좌표가 없으면 Lazy Geocoding 수행
+      if (complexInfo.lat === null || complexInfo.lng === null) {
+        let query = "";
+        if (complexInfo.dongName && complexInfo.jibun) {
+          query = `${complexInfo.regionName} ${complexInfo.dongName} ${complexInfo.jibun}`;
+        } else if (complexInfo.dongName) {
+          query = `${complexInfo.regionName} ${complexInfo.dongName}`;
+        } else {
+          const cleanName = complexInfo.name.replace(/\(.*?\)/g, "").trim();
+          query = `${complexInfo.regionName} ${cleanName}`;
         }
-      } catch (err: any) {
-        console.warn(`[Lazy BuildingSync] 실패: ${complexInfo.name}:`, err.message);
+
+        const result = await geocodeAddress(query);
+        if (result) {
+          updateComplexCoords(complexInfo.id, result.lat, result.lng);
+          complexInfo.lat = result.lat;
+          complexInfo.lng = result.lng;
+          console.log(`[Lazy Geocoding] 단지 좌표 확보: ${complexInfo.name} -> (${result.lat}, ${result.lng})`);
+        }
+      }
+
+      // 건축물대장 메타데이터(세대수 등)가 없으면 Lazy 건축HUB 동기화 수행
+      if (complexInfo.totalHouseholds == null) {
+        try {
+          const { syncComplexBuildingMeta } = await import("@myhome/shared");
+          const synced = await syncComplexBuildingMeta(complexInfo.id);
+          if (synced) {
+            const reloaded = getComplexGeo(complexName, lawdCode);
+            if (reloaded) complexInfo = reloaded;
+          }
+        } catch (err: any) {
+          console.warn(`[Lazy BuildingSync] 실패: ${complexInfo.name}:`, err.message);
+        }
+      }
+
+      // 좌표가 있는 경우 주변 지하철역 검색 (반경 1km)
+      if (complexInfo.lat !== null && complexInfo.lng !== null) {
+        subways = await findSubwayStationsNearCoords(complexInfo.lat, complexInfo.lng, 1000);
       }
     }
 
-    // 좌표가 있는 경우 주변 지하철역 검색 (반경 1km)
-    if (complexInfo.lat !== null && complexInfo.lng !== null) {
-      subways = await findSubwayStationsNearCoords(complexInfo.lat, complexInfo.lng, 1000);
-    }
-  }
+    // 주변 입지 가중 평점 및 등급 산출
+    infraRating = await getComplexInfraRating(
+      complexInfo?.lat ?? null,
+      complexInfo?.lng ?? null,
+      complexName,
+      complexInfo?.parkingPerHousehold ?? null
+    );
 
-  // 주변 입지 가중 평점 및 등급 산출
-  infraRating = await getComplexInfraRating(
-    complexInfo?.lat ?? null,
-    complexInfo?.lng ?? null,
-    complexName,
-    complexInfo?.parkingPerHousehold ?? null
-  );
+    return {
+      ...data,
+      complexInfo,
+      subways,
+      infraRating
+    };
+  });
 
-  const resultPayload = {
-    ...data,
-    complexInfo,
-    subways,
-    infraRating
-  };
-  graphCache.set(cacheKey, resultPayload, TTL.SEARCH);
   res.json(resultPayload);
 }));
 

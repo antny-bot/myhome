@@ -252,7 +252,7 @@ flowchart LR
 **수용 기준**: 수집 종료 시점에 백그라운드 작업이 남지 않음(로그/테스트로 확인). 중복 매핑 API 호출이 0회.
 
 ### B-5. 캐시/응답 최적화 (P-3, P-4)
-- [ ] 완료
+- [x] 완료
 
 **관련 파일**: `server/cache.ts`, `server/index.ts`, `server/routes/graph/*.ts`
 
