@@ -180,7 +180,7 @@ flowchart LR
 - 마이그레이션이 멱등적(2회 실행해도 오류 없음).
 
 ### A-5. 관리자 SQL 콘솔 방어 (S-6)
-- [ ] 완료
+- [x] 완료
 
 **관련 파일**: `server/routes-admin.ts`, `src/pages/DatabaseAdmin.tsx`, `shared/src/db/activityLogs.ts`
 

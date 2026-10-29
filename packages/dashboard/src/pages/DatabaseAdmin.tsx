@@ -439,11 +439,19 @@ export function DatabaseAdminPage() {
 
   async function handleExecute() {
     if (!sql.trim()) return;
+    const isWrite = /\b(INSERT|UPDATE|DELETE|REPLACE|ALTER|CREATE)\b/i.test(sql);
+    let confirmWrite = false;
+    if (isWrite) {
+      if (!window.confirm("데이터를 변경하는 쓰기 쿼리입니다. 정말 실행하시겠습니까?")) {
+        return;
+      }
+      confirmWrite = true;
+    }
     setExecuting(true);
     setQueryError("");
     setQueryResult(null);
     try {
-      const res = await executeAdminDbQuery(sql);
+      const res = await executeAdminDbQuery(sql, confirmWrite);
       setQueryResult(res);
       // 쓰기 작업이 일어났을 가능성이 있으므로 스키마 데이터를 가볍게 새로고침합니다.
       void loadSchemaData();

@@ -317,10 +317,10 @@ export function loadAdminDbTables() {
   return request<{ tables: string[]; schemas: Record<string, any[]> }>("/api/admin/db/tables");
 }
 
-export function executeAdminDbQuery(sql: string) {
+export function executeAdminDbQuery(sql: string, confirmWrite = false) {
   return request<{ type: "select" | "write"; rows?: any[]; changes?: number; lastInsertRowid?: number | string }>("/api/admin/db/query", {
     method: "POST",
-    body: JSON.stringify({ sql })
+    body: JSON.stringify({ sql, confirmWrite })
   });
 }
 

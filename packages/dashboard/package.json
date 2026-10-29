@@ -10,7 +10,7 @@
     "build": "tsc -p tsconfig.json && vite build && tsc -p tsconfig.node.json",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.node.json",
     "start:server": "tsx server/index.ts",
-    "test": "node --import tsx/esm --test server/mcpThrottle.test.ts && node --import tsx/esm --test server/validation.test.ts && node --import tsx/esm --test server/storage.test.ts && node --import tsx/esm --test server/ruleEngine.test.ts && node --import tsx/esm --test server/authRoutes.test.ts",
+    "test": "node --import tsx/esm --test server/mcpThrottle.test.ts && node --import tsx/esm --test server/validation.test.ts && node --import tsx/esm --test server/storage.test.ts && node --import tsx/esm --test server/ruleEngine.test.ts && node --import tsx/esm --test server/authRoutes.test.ts && node --import tsx/esm --test server/routes-admin.test.ts",
     "test:watch": "node --import tsx/esm --test --watch server/*.test.ts"
   },
   "dependencies": {
