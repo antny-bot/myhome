@@ -359,7 +359,7 @@ flowchart LR
 > 공통: **동작·UI 변경 없이** 파일 분할/훅 추출만 수행(회귀 방지). 분할 전후 390px/태블릿/데스크톱 스크린샷을 비교하고, 사용자 노출 문자열은 전부 `ko.ts`/en 사전 사용. `docs/05_DESIGN.md`·`docs/plans/12_FRONTEND_REDESIGN_MASTER_PLAN.md`와 충돌하지 않게 한다.
 
 ### D-1. 그래프 탭 컴포넌트 분할 (P-5, F-1)
-- [ ] 완료
+- [x] 완료
 
 **대상**: `ComplexTab.tsx`(1,940), `OverviewTab.tsx`(1,409), `NearbyStationTab.tsx`(1,244), `FilterPanel.tsx`(1,262)
 
