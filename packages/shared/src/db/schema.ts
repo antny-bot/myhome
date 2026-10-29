@@ -1,3 +1,12 @@
+interface PragmaColumn {
+  cid: number;
+  name: string;
+  type: string;
+  notnull: number;
+  dflt_value: unknown;
+  pk: number;
+}
+
 import { getDb } from "./connection.js";
 
 /**
@@ -203,7 +212,7 @@ export function initDb(): void {
 
   // -- complexes 테이블 주소·좌표 컬럼 마이그레이션 (기존 DB 호환)
   const complexCols = db.prepare("PRAGMA table_info(complexes)").all() as { name: string }[];
-  const colNames = new Set(complexCols.map((c: any) => c.name));
+  const colNames = new Set((complexCols as unknown as PragmaColumn[]).map(c => c.name));
   if (!colNames.has('dong_name')) db.exec('ALTER TABLE complexes ADD COLUMN dong_name TEXT');
   if (!colNames.has('jibun')) db.exec('ALTER TABLE complexes ADD COLUMN jibun TEXT');
   if (!colNames.has('road_name')) db.exec('ALTER TABLE complexes ADD COLUMN road_name TEXT');
@@ -222,7 +231,7 @@ export function initDb(): void {
 
   // -- transactions 테이블 컬럼 마이그레이션 (기존 DB 호환)
   const txCols = db.prepare("PRAGMA table_info(transactions)").all() as { name: string }[];
-  const txColNames = new Set(txCols.map((c: any) => c.name));
+  const txColNames = new Set((txCols as unknown as PragmaColumn[]).map(c => c.name));
   if (!txColNames.has('lawd_code')) {
     db.exec('ALTER TABLE transactions ADD COLUMN lawd_code TEXT');
     db.exec(`UPDATE transactions SET lawd_code = substr(complex_id, 1, instr(complex_id, '|') - 1) WHERE lawd_code IS NULL`);
@@ -251,7 +260,7 @@ export function initDb(): void {
 
   // -- complex_area_mappings 테이블 area_key 컬럼 마이그레이션
   const camCols = db.prepare("PRAGMA table_info(complex_area_mappings)").all() as { name: string }[];
-  const camColNames = new Set(camCols.map((c: any) => c.name));
+  const camColNames = new Set((camCols as unknown as PragmaColumn[]).map(c => c.name));
   if (!camColNames.has('area_key')) {
     db.exec('ALTER TABLE complex_area_mappings ADD COLUMN area_key INTEGER');
     db.exec('UPDATE complex_area_mappings SET area_key = CAST(ROUND(area_m2 * 100) AS INTEGER) WHERE area_key IS NULL');
@@ -260,7 +269,7 @@ export function initDb(): void {
 
   // -- user_settings 테이블 password_hash 컬럼 마이그레이션 (기존 DB 호환)
   const userSettingsCols = db.prepare("PRAGMA table_info(user_settings)").all() as { name: string }[];
-  const userSettingsColNames = new Set(userSettingsCols.map((c: any) => c.name));
+  const userSettingsColNames = new Set((userSettingsCols as unknown as PragmaColumn[]).map(c => c.name));
   if (!userSettingsColNames.has('password_hash')) {
     db.exec('ALTER TABLE user_settings ADD COLUMN password_hash TEXT');
   }
@@ -273,21 +282,21 @@ export function initDb(): void {
 
   // -- sessions 테이블 login_method 컬럼 마이그레이션 (기존 DB 호환)
   const sessionsCols = db.prepare("PRAGMA table_info(sessions)").all() as { name: string }[];
-  const sessionsColNames = new Set(sessionsCols.map((c: any) => c.name));
+  const sessionsColNames = new Set((sessionsCols as unknown as PragmaColumn[]).map(c => c.name));
   if (!sessionsColNames.has('login_method')) {
     db.exec('ALTER TABLE sessions ADD COLUMN login_method TEXT');
   }
 
   // -- rules 테이블 alert_time 컬럼 마이그레이션 (기존 DB 호환)
   const rulesCols = db.prepare("PRAGMA table_info(rules)").all() as { name: string }[];
-  const rulesColNames = new Set(rulesCols.map((c: any) => c.name));
+  const rulesColNames = new Set((rulesCols as unknown as PragmaColumn[]).map(c => c.name));
   if (!rulesColNames.has('alert_time')) {
     db.exec("ALTER TABLE rules ADD COLUMN alert_time TEXT DEFAULT '09:00'");
   }
 
   // -- graph_presets_analysis 테이블 area_max_m2 컬럼 마이그레이션 (기존 DB 호환)
   const gpaCols = db.prepare("PRAGMA table_info(graph_presets_analysis)").all() as { name: string }[];
-  const gpaColNames = new Set(gpaCols.map((c: any) => c.name));
+  const gpaColNames = new Set((gpaCols as unknown as PragmaColumn[]).map(c => c.name));
   if (!gpaColNames.has('area_max_m2')) {
     db.exec("ALTER TABLE graph_presets_analysis ADD COLUMN area_max_m2 REAL");
   }

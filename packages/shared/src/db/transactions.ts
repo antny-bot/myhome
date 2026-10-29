@@ -1,5 +1,5 @@
 import { getDb, getPreparedStatement } from "./connection.js";
-import { RegionInfo, TransactionNode, GraphFilter } from "../types.js";
+import type { RegionInfo, TransactionNode, GraphFilter, SearchTransactionsResult, SearchResultTransaction } from "../types.js";
 
 /**
  * 실거래 식별 키 생성
@@ -41,23 +41,23 @@ export type BatchUpsertItem = {
 /**
  * 실거래 데이터 단건 Upsert (하위 호환 유지)
  */
-export async function upsertTransaction(
+export function upsertTransaction(
   region: RegionInfo,
   complexName: string,
   tx: TransactionNode,
   addressInfo?: { dongName?: string; jibun?: string; roadName?: string }
-): Promise<void> {
-  return upsertTransactionBatch(region, [{ complexName, tx, addressInfo }]);
+): void {
+  upsertTransactionBatch(region, [{ complexName, tx, addressInfo }]);
 }
 
 /**
  * 실거래 데이터 배치 Upsert
  * 전체 records를 단일 트랜잭션으로 묶어 fsync 횟수를 N→1회로 감소.
  */
-export async function upsertTransactionBatch(
+export function upsertTransactionBatch(
   region: RegionInfo,
   items: BatchUpsertItem[]
-): Promise<void> {
+): void {
   if (items.length === 0) return;
 
   const db = getDb();
@@ -155,7 +155,22 @@ export async function upsertTransactionBatch(
  * - 해제 거래(cancel_date IS NOT NULL) 제외
  * - LIMIT 안전 가드 적용
  */
-export async function searchTransactions(filter: GraphFilter): Promise<any[]> {
+interface RawSearchTxRow {
+  regionName: string;
+  lawdCode: string;
+  apartmentName: string;
+  dealDate: string;
+  priceEok: number;
+  areaM2?: number;
+  supplyAreaM2?: number | null;
+  floor?: number;
+  dedupeKey: string;
+  cancelDate?: string | null;
+  dealingType?: string | null;
+  aptDong?: string | null;
+}
+
+export function searchTransactions(filter: GraphFilter): SearchTransactionsResult {
   const db = getDb();
   
   let queryStr = `
@@ -169,7 +184,7 @@ export async function searchTransactions(filter: GraphFilter): Promise<any[]> {
     LEFT JOIN complex_area_mappings m ON t.complex_id = m.complex_id AND t.area_key = m.area_key
     WHERE t.cancel_date IS NULL
   `;
-  const params: any[] = [];
+  const params: (string | number)[] = [];
 
   if (filter.lawdCodes && filter.lawdCodes.length > 0) {
     const placeholders = filter.lawdCodes.map(() => "?").join(",");
@@ -258,7 +273,8 @@ export async function searchTransactions(filter: GraphFilter): Promise<any[]> {
   const sliced = hasMore ? rows.slice(0, limit) : rows;
   const lastItem = sliced.length > 0 ? sliced[sliced.length - 1] : null;
 
-  const result = sliced.map((r: any) => ({
+  const typedRows = sliced as unknown as RawSearchTxRow[];
+  const result: SearchTransactionsResult = typedRows.map((r) => ({
     regionName: r.regionName,
     lawdCode: r.lawdCode,
     apartmentName: r.apartmentName,
@@ -273,11 +289,12 @@ export async function searchTransactions(filter: GraphFilter): Promise<any[]> {
     aptDong: r.aptDong,
   }));
 
+  const typedLast = lastItem as unknown as RawSearchTxRow | null;
   // 페이지네이션 메타데이터 부착 (하위 호환성 유지)
-  (result as any).truncated = hasMore;
-  (result as any).nextCursor = hasMore && lastItem ? {
-    dealDate: (lastItem as any).dealDate,
-    dedupeKey: (lastItem as any).dedupeKey,
+  result.truncated = hasMore;
+  result.nextCursor = hasMore && typedLast ? {
+    dealDate: typedLast.dealDate,
+    dedupeKey: typedLast.dedupeKey,
   } : null;
 
   return result;
@@ -330,7 +347,18 @@ export function getLocalApartmentPrices(
     JOIN complexes c ON t.complex_id = c.id
     WHERE t.lawd_code = ? AND t.deal_date >= ? AND t.deal_date <= ? AND t.cancel_date IS NULL
     ORDER BY t.deal_date ASC
-  `).all(lawdCode, `${dealMonthHyphen}-01`, `${dealMonthHyphen}-31`) as any[];
+  `).all(lawdCode, `${dealMonthHyphen}-01`, `${dealMonthHyphen}-31`) as unknown as {
+    apartmentName: string;
+    dealDate: string;
+    priceEok: number;
+    areaM2: number;
+    floor: number;
+    dongName?: string | null;
+    jibun?: string | null;
+    roadName?: string | null;
+    lat?: number | null;
+    lng?: number | null;
+  }[];
   return rows;
 }
 

@@ -13,13 +13,13 @@ export function getComplexesWithoutCoords(lawdCode?: string): { id: string; name
     JOIN regions r ON c.lawd_code = r.lawd_code
     WHERE c.lat IS NULL AND c.geocode_failed = 0
   `;
-  const params: any[] = [];
+  const params: (string | number)[] = [];
   if (lawdCode) {
     query += ' AND c.lawd_code = ?';
     params.push(lawdCode);
   }
   query += ' ORDER BY c.name ASC';
-  return db.prepare(query).all(...params) as any[];
+  return db.prepare(query).all(...params) as unknown as { id: string; name: string; lawdCode: string; regionName: string; dongName: string | null; jibun: string | null; roadName: string | null }[];
 }
 
 /**
@@ -47,7 +47,19 @@ export function getComplexesMissingCoords(): {
     WHERE c.lat IS NULL OR c.lng IS NULL
     ORDER BY c.name ASC
   `;
-  return getPreparedStatement(query).all() as any[];
+  return getPreparedStatement(query).all() as unknown as {
+  id: string;
+  name: string;
+  lawdCode: string;
+  regionName: string;
+  dongName: string | null;
+  jibun: string | null;
+  roadName: string | null;
+  lat: number | null;
+  lng: number | null;
+  geocodeFailed: number;
+  geocodeError: string | null;
+}[];
 }
 
 /**
@@ -62,13 +74,13 @@ export function getComplexesWithCoords(lawdCode?: string): { id: string; name: s
     JOIN regions r ON c.lawd_code = r.lawd_code
     WHERE c.lat IS NOT NULL AND c.lng IS NOT NULL
   `;
-  const params: any[] = [];
+  const params: (string | number)[] = [];
   if (lawdCode) {
     query += ' AND c.lawd_code = ?';
     params.push(lawdCode);
   }
   query += ' ORDER BY c.name ASC';
-  return db.prepare(query).all(...params) as any[];
+  return db.prepare(query).all(...params) as unknown as { id: string; name: string; lawdCode: string; regionName: string; lat: number; lng: number; dongName: string | null; jibun: string | null }[];
 }
 
 /**
@@ -115,8 +127,8 @@ export function resetComplexCoords(complexId: string): void {
  * Geocoding 현황 통계 조회
  */
 export function getGeocodeStats(): { total: number; geocoded: number; pending: number } {
-  const total = (getPreparedStatement('SELECT COUNT(*) AS c FROM complexes').get() as any).c;
-  const geocoded = (getPreparedStatement('SELECT COUNT(*) AS c FROM complexes WHERE lat IS NOT NULL').get() as any).c;
+  const total = (getPreparedStatement('SELECT COUNT(*) AS c FROM complexes').get() as { c: number }).c;
+  const geocoded = (getPreparedStatement('SELECT COUNT(*) AS c FROM complexes WHERE lat IS NOT NULL').get() as { c: number }).c;
   return { total, geocoded, pending: total - geocoded };
 }
 
@@ -150,7 +162,7 @@ export function getComplexGeo(
     JOIN regions r ON c.lawd_code = r.lawd_code
     WHERE c.name = ?
   `;
-  const params: any[] = [resolvedName];
+  const params: (string | number)[] = [resolvedName];
   if (lawdCode) {
     query += ' AND c.lawd_code = ?';
     params.push(lawdCode);
@@ -159,7 +171,21 @@ export function getComplexGeo(
 
   const row = db.prepare(query).get(...params);
   if (!row) return null;
-  return row as any;
+  return row as unknown as {
+    id: string;
+    name: string;
+    lawdCode: string;
+    regionName: string;
+    lat: number | null;
+    lng: number | null;
+    dongName: string | null;
+    jibun: string | null;
+    roadName: string | null;
+    totalHouseholds?: number | null;
+    totalParking?: number | null;
+    parkingPerHousehold?: number | null;
+    useApprovalDate?: string | null;
+  };
 }
 
 /**

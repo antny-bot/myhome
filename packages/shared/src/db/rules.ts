@@ -1,7 +1,29 @@
 import { getDb, getPreparedStatement } from "./connection.js";
 import { getUserSettings, saveUserSettings } from "./auth.js";
+import type { DbWatchRule, DbCheckRun, DbNotification, ComparisonCriteria, AlertChannel, NotificationStatus } from "../types.js";
 
-function parseRuleRow(row: any) {
+interface RuleRow {
+  id: string;
+  user_email: string;
+  name: string;
+  region_name: string;
+  region_code: string | null;
+  apartment_keywords: string | null;
+  min_price_eok: number | null;
+  max_price_eok: number | null;
+  min_area: number | null;
+  max_area: number | null;
+  comparison_criteria: string;
+  interval_minutes: number;
+  alert_time: string | null;
+  channels: string | null;
+  enabled: number;
+  last_checked_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+function parseRuleRow(row: RuleRow): DbWatchRule {
   let keywords: string[] = [];
   try {
     keywords = JSON.parse(row.apartment_keywords || "[]");
@@ -9,9 +31,9 @@ function parseRuleRow(row: any) {
     keywords = [];
   }
 
-  let channels: string[] = [];
+  let channels: AlertChannel[] = [];
   try {
-    channels = row.channels ? row.channels.split(",") : [];
+    channels = row.channels ? (row.channels.split(",") as AlertChannel[]) : [];
   } catch {
     channels = [];
   }
@@ -27,10 +49,10 @@ function parseRuleRow(row: any) {
     maxPriceEok: row.max_price_eok !== null ? row.max_price_eok : undefined,
     minArea: row.min_area !== null ? row.min_area : undefined,
     maxArea: row.max_area !== null ? row.max_area : undefined,
-    comparisonCriteria: row.comparison_criteria,
+    comparisonCriteria: (row.comparison_criteria || "none") as ComparisonCriteria,
     intervalMinutes: row.interval_minutes,
     alertTime: row.alert_time || "09:00",
-    channels: channels,
+    channels,
     enabled: Boolean(row.enabled),
     lastCheckedAt: row.last_checked_at || undefined,
     createdAt: row.created_at,
@@ -38,26 +60,45 @@ function parseRuleRow(row: any) {
   };
 }
 
-export function getRulesByEmail(email: string): any[] {
+export function getRulesByEmail(email: string): DbWatchRule[] {
   const rows = getPreparedStatement(`
     SELECT * FROM rules WHERE user_email = ? ORDER BY created_at DESC
-  `).all(email) as any[];
+  `).all(email) as unknown as RuleRow[];
 
   return rows.map(parseRuleRow);
 }
 
-export function getAllRules(): any[] {
+export function getAllRules(): DbWatchRule[] {
   const rows = getPreparedStatement(`
     SELECT * FROM rules ORDER BY created_at DESC
-  `).all() as any[];
+  `).all() as unknown as RuleRow[];
 
   return rows.map(parseRuleRow);
 }
 
-export function upsertRuleDb(email: string, rule: any): void {
+export interface UpsertRuleInput {
+  id: string;
+  name: string;
+  regionName: string;
+  regionCode?: string;
+  apartmentKeywords?: string[];
+  minPriceEok?: number;
+  maxPriceEok?: number;
+  minArea?: number;
+  maxArea?: number;
+  comparisonCriteria: ComparisonCriteria | string;
+  intervalMinutes?: number;
+  alertTime?: string;
+  channels?: AlertChannel[] | string[];
+  enabled?: boolean;
+  lastCheckedAt?: string;
+  createdAt?: string;
+}
+
+export function upsertRuleDb(email: string, rule: UpsertRuleInput): void {
   const db = getDb();
   const now = new Date().toISOString();
-  
+
   // 외래키 무결성을 위해 우선 user_settings 레코드 확보
   const user = getUserSettings(email);
   if (!user) {
@@ -102,7 +143,7 @@ export function upsertRuleDb(email: string, rule: any): void {
     rule.minArea !== undefined ? rule.minArea : null,
     rule.maxArea !== undefined ? rule.maxArea : null,
     rule.comparisonCriteria,
-    rule.intervalMinutes,
+    rule.intervalMinutes !== undefined ? rule.intervalMinutes : 1440,
     rule.alertTime || "09:00",
     channelsStr,
     rule.enabled ? 1 : 0,
@@ -117,7 +158,19 @@ export function deleteRuleDb(email: string, id: string): boolean {
   return info.changes > 0;
 }
 
-export function getCheckRunsByEmail(email: string): any[] {
+interface CheckRunRow {
+  id: string;
+  ruleId: string;
+  ruleName: string;
+  matched: number;
+  summary: string;
+  matches: string | null;
+  sourceLimitNotice: string | null;
+  error: string | null;
+  createdAt: string;
+}
+
+export function getCheckRunsByEmail(email: string): DbCheckRun[] {
   const rows = getPreparedStatement(`
     SELECT id, rule_id AS ruleId, rule_name AS ruleName, matched, summary,
            matches_data AS matches, source_limit_notice AS sourceLimitNotice,
@@ -126,10 +179,10 @@ export function getCheckRunsByEmail(email: string): any[] {
     WHERE user_email = ?
     ORDER BY created_at DESC
     LIMIT 100
-  `).all(email) as any[];
+  `).all(email) as unknown as CheckRunRow[];
 
-  return rows.map(r => {
-    let matches = [];
+  return rows.map((r) => {
+    let matches: unknown[] = [];
     try {
       matches = JSON.parse(r.matches || "[]");
     } catch {
@@ -142,7 +195,7 @@ export function getCheckRunsByEmail(email: string): any[] {
       matched: Boolean(r.matched),
       summary: r.summary,
       matches,
-      sourceLimitNotice: r.sourceLimitNotice,
+      sourceLimitNotice: r.sourceLimitNotice || "",
       error: r.error || undefined,
       createdAt: r.createdAt,
     };
@@ -155,10 +208,22 @@ export function getAlertedDedupeKeys(email: string, ruleId: string): string[] {
     FROM alerted_transactions
     WHERE user_email = ? AND rule_id = ?
   `).all(email, ruleId) as { dedupeKey: string }[];
-  return rows.map(r => r.dedupeKey);
+  return rows.map((r) => r.dedupeKey);
 }
 
-export function appendCheckRunDb(email: string, run: any, alertedDedupeKeys: string[]): void {
+export interface AppendCheckRunInput {
+  id: string;
+  ruleId: string;
+  ruleName: string;
+  matched: boolean;
+  summary: string;
+  matches?: unknown[];
+  sourceLimitNotice?: string;
+  error?: string;
+  createdAt: string;
+}
+
+export function appendCheckRunDb(email: string, run: AppendCheckRunInput, alertedDedupeKeys: string[]): void {
   const db = getDb();
   const user = getUserSettings(email);
   if (!user) {
@@ -167,7 +232,7 @@ export function appendCheckRunDb(email: string, run: any, alertedDedupeKeys: str
 
   const existingKeys = user?.alertedDedupeKeys ?? [];
   const mergedKeys = Array.from(new Set([...existingKeys, ...alertedDedupeKeys])).slice(-1000);
-  
+
   db.exec("BEGIN TRANSACTION");
   try {
     const matchesStr = JSON.stringify(run.matches || []);
@@ -182,7 +247,7 @@ export function appendCheckRunDb(email: string, run: any, alertedDedupeKeys: str
       run.matched ? 1 : 0,
       run.summary,
       matchesStr,
-      run.sourceLimitNotice,
+      run.sourceLimitNotice ?? "",
       run.error || null,
       run.createdAt
     );
@@ -227,7 +292,17 @@ export function deleteCheckRunDb(email: string, id: string): boolean {
   return info.changes > 0;
 }
 
-export function getNotificationsByEmail(email: string): any[] {
+interface NotificationRow {
+  id: string;
+  ruleId: string;
+  channel: string;
+  status: string;
+  message: string;
+  dedupeKeys: string | null;
+  createdAt: string;
+}
+
+export function getNotificationsByEmail(email: string): DbNotification[] {
   const rows = getPreparedStatement(`
     SELECT id, rule_id AS ruleId, channel, status, message,
            dedupe_keys AS dedupeKeys, created_at AS createdAt
@@ -235,10 +310,10 @@ export function getNotificationsByEmail(email: string): any[] {
     WHERE user_email = ?
     ORDER BY created_at DESC
     LIMIT 100
-  `).all(email) as any[];
+  `).all(email) as unknown as NotificationRow[];
 
-  return rows.map(r => {
-    let dedupeKeys = [];
+  return rows.map((r) => {
+    let dedupeKeys: string[] = [];
     try {
       dedupeKeys = JSON.parse(r.dedupeKeys || "[]");
     } catch {
@@ -247,8 +322,8 @@ export function getNotificationsByEmail(email: string): any[] {
     return {
       id: r.id,
       ruleId: r.ruleId,
-      channel: r.channel,
-      status: r.status,
+      channel: (r.channel || "telegram") as AlertChannel,
+      status: (r.status || "sent") as NotificationStatus,
       message: r.message,
       dedupeKeys,
       createdAt: r.createdAt,
@@ -256,7 +331,17 @@ export function getNotificationsByEmail(email: string): any[] {
   });
 }
 
-export function appendNotificationDb(email: string, record: any): void {
+export interface AppendNotificationInput {
+  id: string;
+  ruleId: string;
+  channel: string;
+  status: string;
+  message: string;
+  dedupeKeys?: string[];
+  createdAt: string;
+}
+
+export function appendNotificationDb(email: string, record: AppendNotificationInput): void {
   const db = getDb();
   const user = getUserSettings(email);
   if (!user) {

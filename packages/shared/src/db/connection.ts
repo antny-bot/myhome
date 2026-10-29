@@ -59,8 +59,10 @@ export function closeDb(): void {
   if (_db) {
     try {
       _db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
-      if (typeof (_db as any).close === "function") {
-        (_db as any).close();
+      // 사유: node:sqlite DatabaseSync 런타임 호환용 안전한 close 호출
+      const dbInstance = _db as unknown as { close?: () => void };
+      if (typeof dbInstance.close === "function") {
+        dbInstance.close();
       }
     } catch (err) {
       console.warn("⚠️ closeDb 체크포인트 또는 종료 중 경고:", err);

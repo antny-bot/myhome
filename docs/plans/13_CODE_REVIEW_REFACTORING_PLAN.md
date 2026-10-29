@@ -308,7 +308,7 @@ flowchart LR
 **수용 기준**: `app.ts`를 import하여 supertest 없이도 `fetch`로 테스트 가능(통합 테스트 1건). 동작 변경 없음(기존 API 응답 동일).
 
 ### C-2. DB 계층 정리 (A-3, A-4)
-- [ ] 완료
+- [x] 완료
 
 **작업**
 1. 실제 비동기가 없는 `async` DB 함수의 `async` 제거(반환 타입 `Promise<T>` → `T`). 호출부 `await`는 그대로 호환되므로 점진 변경 가능하되, 라우트에서는 `await` 제거.

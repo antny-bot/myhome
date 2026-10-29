@@ -80,7 +80,7 @@ test("dedupe 키 및 복수 거래 보존: 같은 단지, 일자, 면적, 층이
   });
 
   assert.equal(results.length, 2);
-  const prices = results.map((r) => r.priceEok).sort();
+  const prices = (results as any[]).map((r: { priceEok: number }) => r.priceEok).sort();
   assert.deepEqual(prices, [25.0, 26.0]);
 });
 

@@ -1,5 +1,5 @@
 import { getDb, getPreparedStatement } from "./connection.js";
-import { TrendPoint, GraphStats, GraphFilter, GraphTopologyData, DailyCollectStat, RegionCollectStat } from "../types.js";
+import type { TrendPoint, GraphStats, GraphFilter, GraphTopologyData, DailyCollectStat, RegionCollectStat, DrilldownRegionItem, DrilldownComplexItem, DrilldownAreaItem } from "../types.js";
 import { calculateBoxPlot } from "../stats.js";
 import { resolveComplexName } from "./regions.js";
 import { searchTransactions } from "./transactions.js";
@@ -66,7 +66,7 @@ export async function getComplexTrend(
     LEFT JOIN complex_area_mappings m ON t.complex_id = m.complex_id AND t.area_key = m.area_key
     WHERE c.name = ? AND t.cancel_date IS NULL
   `;
-  const params: any[] = [resolvedName];
+  const params: (string | number)[] = [resolvedName];
   if (lawdCode) {
     sql += " AND c.lawd_code = ?";
     params.push(lawdCode);
@@ -127,7 +127,7 @@ export async function getComplexTrend(
     return (sorted[mid - 1] + sorted[mid]) / 2;
   }
 
-  const trend: any[] = [];
+  const trend: Record<string, any>[] = [];
   for (const [month, data] of monthlyGroups.entries()) {
     const prices = data.prices;
     const count = prices.length;
@@ -174,9 +174,9 @@ export async function getRegionTrend(
     WHERE t.lawd_code = ? AND t.cancel_date IS NULL
     GROUP BY month
     ORDER BY month
-  `).all(lawdCode) as any[];
+  `).all(lawdCode) as { month: string; avgPriceEok: number; cnt: number }[];
 
-  return rows.map((r: any) => ({
+  return rows.map((r) => ({
     month: r.month,
     avgPriceEok: r.avgPriceEok,
     count: r.cnt,
@@ -186,10 +186,10 @@ export async function getRegionTrend(
 /**
  * 전체 데이터베이스 통계
  */
-export async function getGraphStats(): Promise<GraphStats> {
-  const regions = (getPreparedStatement("SELECT COUNT(*) AS count FROM regions").get() as any).count;
-  const complexes = (getPreparedStatement("SELECT COUNT(*) AS count FROM complexes").get() as any).count;
-  const transactions = (getPreparedStatement("SELECT COUNT(*) AS count FROM transactions WHERE cancel_date IS NULL").get() as any).count;
+export function getGraphStats(): GraphStats {
+  const regions = (getPreparedStatement("SELECT COUNT(*) AS count FROM regions").get() as { count: number }).count;
+  const complexes = (getPreparedStatement("SELECT COUNT(*) AS count FROM complexes").get() as { count: number }).count;
+  const transactions = (getPreparedStatement("SELECT COUNT(*) AS count FROM transactions WHERE cancel_date IS NULL").get() as { count: number }).count;
 
   return {
     regions,
@@ -201,7 +201,7 @@ export async function getGraphStats(): Promise<GraphStats> {
 /**
  * 드릴다운: 시/도 레벨 집계
  */
-export async function getDrilldownRegions(complexName?: string): Promise<any[]> {
+export function getDrilldownRegions(complexName?: string): DrilldownRegionItem[] {
   const db = getDb();
   let query = `
     SELECT r.lawd_code AS code, r.display_name AS name,
@@ -211,7 +211,7 @@ export async function getDrilldownRegions(complexName?: string): Promise<any[]> 
     JOIN regions r ON c.lawd_code = r.lawd_code
     WHERE t.cancel_date IS NULL
   `;
-  const params: any[] = [];
+  const params: (string | number)[] = [];
   if (complexName) {
     query += ` AND c.name LIKE ?`;
     params.push(`%${complexName}%`);
@@ -221,9 +221,9 @@ export async function getDrilldownRegions(complexName?: string): Promise<any[]> 
     ORDER BY r.display_name
   `;
 
-  const rows = db.prepare(query).all(...params);
+  const rows = db.prepare(query).all(...params) as { code: string; name: string; count: number; avgPriceEok: number }[];
 
-  return rows.map((r: any) => ({
+  return rows.map((r) => ({
     code: r.code,
     name: r.name,
     count: r.count,
@@ -234,7 +234,7 @@ export async function getDrilldownRegions(complexName?: string): Promise<any[]> 
 /**
  * 드릴다운: 특정 지역의 아파트 단지별 집계
  */
-export async function getDrilldownComplexes(lawdCode: string, complexName?: string): Promise<any[]> {
+export function getDrilldownComplexes(lawdCode: string, complexName?: string): DrilldownComplexItem[] {
   const db = getDb();
   let query = `
     SELECT c.name AS name, COUNT(t.dedupe_key) AS count, AVG(t.price_eok) AS avgPriceEok
@@ -242,7 +242,7 @@ export async function getDrilldownComplexes(lawdCode: string, complexName?: stri
     JOIN complexes c ON t.complex_id = c.id
     WHERE c.lawd_code = ? AND t.cancel_date IS NULL
   `;
-  const params: any[] = [lawdCode];
+  const params: (string | number)[] = [lawdCode];
   if (complexName) {
     query += ` AND c.name LIKE ?`;
     params.push(`%${complexName}%`);
@@ -252,9 +252,9 @@ export async function getDrilldownComplexes(lawdCode: string, complexName?: stri
     ORDER BY count DESC
   `;
 
-  const rows = db.prepare(query).all(...params);
+  const rows = db.prepare(query).all(...params) as { name: string; count: number; avgPriceEok: number }[];
 
-  return rows.map((r: any) => ({
+  return rows.map((r) => ({
     name: r.name,
     count: r.count,
     avgPriceEok: Number(r.avgPriceEok.toFixed(2)),
@@ -264,7 +264,7 @@ export async function getDrilldownComplexes(lawdCode: string, complexName?: stri
 /**
  * 드릴다운: 특정 단지의 평수별 집계
  */
-export async function getDrilldownAreas(complexName: string, lawdCode?: string): Promise<any[]> {
+export function getDrilldownAreas(complexName: string, lawdCode?: string): DrilldownAreaItem[] {
   const db = getDb();
   const resolvedName = resolveComplexName(db, complexName, lawdCode);
 
@@ -279,8 +279,8 @@ export async function getDrilldownAreas(complexName: string, lawdCode?: string):
     ORDER BY avgPriceEok DESC
   `);
 
-  const rows = lawdCode ? query.all(resolvedName, lawdCode) : query.all(resolvedName);
-  return rows.map((r: any) => ({
+  const rows = (lawdCode ? query.all(resolvedName, lawdCode) : query.all(resolvedName)) as { name: string; count: number; avgPriceEok: number }[];
+  return rows.map((r) => ({
     name: r.name,
     count: r.count,
     avgPriceEok: Number(r.avgPriceEok.toFixed(2)),
@@ -290,7 +290,7 @@ export async function getDrilldownAreas(complexName: string, lawdCode?: string):
 /**
  * 노드-링크 시각화 데이터 (네트워크 뷰 폐기로 더미 데이터 리턴)
  */
-export async function getGraphTopology(_filter: GraphFilter): Promise<GraphTopologyData> {
+export function getGraphTopology(_filter: GraphFilter): GraphTopologyData {
   return {
     nodes: [],
     links: [],
@@ -317,7 +317,7 @@ export async function getComplexDetail(
     JOIN complexes c ON t.complex_id = c.id
     WHERE c.name = ? AND t.cancel_date IS NULL
   `;
-  const params: any[] = [resolvedName];
+  const params: (string | number)[] = [resolvedName];
   if (lawdCode) {
     sql += " AND c.lawd_code = ?";
     params.push(lawdCode);
@@ -422,16 +422,16 @@ export async function getComplexDetail(
 /**
  * LLM 프롬프트 생성을 위한 데이터 요약 텍스트
  */
-export async function getDataContext(filter: GraphFilter): Promise<string> {
-  const txs = await searchTransactions(filter);
+export function getDataContext(filter: GraphFilter): string {
+  const txs = searchTransactions(filter);
 
   if (txs.length === 0) {
     return "조건에 일치하는 실거래 데이터가 없습니다.";
   }
 
   const count = txs.length;
-  const prices = txs.map((t) => t.priceEok);
-  const avgPrice = prices.reduce((a, b) => a + b, 0) / count;
+  const prices = (txs as any[]).map((t: { priceEok: number }) => t.priceEok);
+  const avgPrice = prices.reduce((a: number, b: number) => a + b, 0) / count;
   const maxPrice = Math.max(...prices);
   const minPrice = Math.min(...prices);
 

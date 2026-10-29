@@ -10,7 +10,7 @@ import {
   getUserPasswordHash,
   updateUserCredentials,
   isTemporaryPassword,
-  getDb,
+  createOrResetTempUser,
 } from "@myhome/shared";
 import { getSystemConfig, saveSystemConfig } from "./storage.js";
 import {
@@ -643,22 +643,7 @@ export function createAuthRouter() {
         const passwordHash = await hashPasswordAsync(tempPassword);
 
         // 2. user_settings DB 레코드 생성 또는 업데이트
-        const db = getDb();
-        const now = new Date().toISOString();
-        const existing = db.prepare("SELECT email FROM user_settings WHERE email = ?").get(lowerEmail);
-
-        if (!existing) {
-          db.prepare(`
-            INSERT INTO user_settings (email, telegram_bot_token, telegram_chat_id, kakao_rest_api_key, alerted_dedupe_keys, password_hash, is_temporary_password, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          `).run(lowerEmail, null, null, null, "[]", passwordHash, 1, now);
-        } else {
-          db.prepare(`
-            UPDATE user_settings
-            SET password_hash = ?, is_temporary_password = 1, updated_at = ?
-            WHERE email = ?
-          `).run(passwordHash, now, lowerEmail);
-        }
+        createOrResetTempUser(lowerEmail, passwordHash);
 
         // 3. ALLOWED_EMAILS 에 추가
         const config = await getSystemConfig();

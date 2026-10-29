@@ -85,7 +85,7 @@ export const graphCache = new GraphCache(500);
 export async function withCache<T>(
   key: string,
   ttlMs: number,
-  loader: () => Promise<T>
+  loader: () => Promise<T> | T
 ): Promise<T> {
   const cached = graphCache.get<T>(key);
   if (cached !== null) {

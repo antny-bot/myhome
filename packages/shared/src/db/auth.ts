@@ -47,7 +47,14 @@ export function getUserSettings(email: string): UserSettings | null {
            kakao_rest_api_key AS kakaoRestApiKey, gemini_api_key AS geminiApiKey, alerted_dedupe_keys AS alertedDedupeKeys
     FROM user_settings
     WHERE email = ?
-  `).get(email) as any | undefined;
+  `).get(email) as {
+    email: string;
+    telegramBotToken: string | null;
+    telegramChatId: string | null;
+    kakaoRestApiKey: string | null;
+    geminiApiKey: string | null;
+    alertedDedupeKeys: string | null;
+  } | undefined;
 
   if (!row) return null;
 
@@ -105,7 +112,7 @@ export function getUserPasswordHash(email: string): string | null {
     SELECT password_hash AS passwordHash
     FROM user_settings
     WHERE email = ?
-  `).get(email.toLowerCase()) as any | undefined;
+  `).get(email.toLowerCase()) as { passwordHash: string | null } | undefined;
   return row?.passwordHash ?? null;
 }
 
@@ -126,7 +133,12 @@ export function updateUserCredentials(
       SELECT telegram_bot_token, telegram_chat_id, kakao_rest_api_key, alerted_dedupe_keys
       FROM user_settings
       WHERE email = ?
-    `).get(current) as any | undefined;
+    `).get(current) as {
+      telegram_bot_token: string | null;
+      telegram_chat_id: string | null;
+      kakao_rest_api_key: string | null;
+      alerted_dedupe_keys: string | null;
+    } | undefined;
 
     const botToken = currentSettings?.telegram_bot_token ?? null;
     const chatId = currentSettings?.telegram_chat_id ?? null;
@@ -167,4 +179,24 @@ export function isTemporaryPassword(email: string): boolean {
     WHERE email = ?
   `).get(email.toLowerCase()) as { isTemp: number } | undefined;
   return row?.isTemp === 1;
+}
+
+export function createOrResetTempUser(email: string, passwordHash: string): void {
+  const db = getDb();
+  const lowerEmail = email.toLowerCase().trim();
+  const now = new Date().toISOString();
+  const existing = db.prepare("SELECT email FROM user_settings WHERE email = ?").get(lowerEmail);
+
+  if (!existing) {
+    db.prepare(`
+      INSERT INTO user_settings (email, telegram_bot_token, telegram_chat_id, kakao_rest_api_key, alerted_dedupe_keys, password_hash, is_temporary_password, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(lowerEmail, null, null, null, "[]", passwordHash, 1, now);
+  } else {
+    db.prepare(`
+      UPDATE user_settings
+      SET password_hash = ?, is_temporary_password = 1, updated_at = ?
+      WHERE email = ?
+    `).run(passwordHash, now, lowerEmail);
+  }
 }
