@@ -342,7 +342,7 @@ flowchart LR
 **수용 기준**: 파일당 400줄 이하, 외부 동작 동일, 서킷브레이커 테스트 통과.
 
 ### C-5. 배포/운영 (O-1, O-2)
-- [ ] 완료 (B-3의 health 엔드포인트 선행)
+- [x] 완료 (B-3의 health 엔드포인트 선행)
 
 **작업**
 1. Node 버전을 **하나로 확정**(`node:sqlite` 안정 지원 버전, 문서와 일치)하여 `Dockerfile`·CI·`package.json#engines`·`docs/01_OVERVIEW.md` 동기화.
