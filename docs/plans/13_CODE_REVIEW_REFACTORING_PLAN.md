@@ -279,7 +279,7 @@ flowchart LR
 **수용 기준**: 승인된 설계 문서 존재. (구현은 별도 Task로 분리)
 
 ### B-7. 테스트 인프라 정비 (T-1)
-- [ ] 완료
+- [x] 완료
 
 **관련 파일**: `packages/dashboard/package.json`, 루트 `package.json`, 각 패키지 `*.test.ts`, `.github/workflows/*`
 
