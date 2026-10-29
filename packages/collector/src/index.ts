@@ -199,11 +199,14 @@ export async function runCollector(): Promise<{
           const batchItems: BatchUpsertItem[] = transactions.map((tx) => ({
             complexName: tx.apartmentName,
             tx: {
-              dedupeKey: makeGraphDedupeKey(target.lawdCode, tx.apartmentName, tx.dealDate, tx.areaM2, tx.floor),
+              dedupeKey: makeGraphDedupeKey(target.lawdCode, tx.apartmentName, tx.dealDate, tx.areaM2, tx.floor, { aptDong: tx.aptDong, dealingType: tx.dealingType, registeredDate: tx.registeredDate, priceEok: tx.priceEok }),
               dealDate: tx.dealDate,
               priceEok: tx.priceEok,
               areaM2: tx.areaM2,
               floor: tx.floor,
+              cancelDate: tx.cancelDate,
+              dealingType: tx.dealingType,
+              aptDong: tx.aptDong,
             },
             addressInfo: {
               dongName: tx.dongName,

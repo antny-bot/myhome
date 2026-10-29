@@ -215,6 +215,7 @@ export function getDbRegionsSummary(): {
              MIN(deal_date) AS minDealDate,
              MAX(deal_date) AS maxDealDate
       FROM transactions
+      WHERE cancel_date IS NULL
       GROUP BY lawd_code
     ) t ON r.lawd_code = t.lawd_code
     ORDER BY r.display_name ASC
@@ -351,7 +352,7 @@ export function getRegionComplexesMapData(
         MAX(price_eok) AS maxPriceEok,
         FIRST_VALUE(price_eok) OVER (PARTITION BY complex_id ORDER BY deal_date DESC, rowid DESC) AS latestPriceEok
       FROM transactions
-      WHERE lawd_code = ?
+      WHERE lawd_code = ? AND cancel_date IS NULL
       GROUP BY complex_id
     )
     SELECT 

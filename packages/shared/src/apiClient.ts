@@ -6,9 +6,15 @@ export type RawTransaction = {
   priceEok: number;
   areaM2?: number;
   floor?: number;
-  dongName?: string;   // 법정동명 (umdNm)
-  jibun?: string;      // 지번
-  roadName?: string;   // 도로명 (roadNm)
+  dongName?: string;       // 법정동명 (umdNm)
+  jibun?: string;          // 지번
+  roadName?: string;       // 도로명 (roadNm)
+  aptDong?: string;        // 동 (aptDong)
+  kaptNo?: string;         // 단지코드 (kaptNo)
+  cancelDate?: string;     // 해제사유발생일 (cdealDay, YYYY-MM-DD 정규화)
+  cancelType?: string;     // 해제여부 (cdealType: 'O' 등)
+  dealingType?: string;    // 거래유형 (dealingGbn: '중개거래' / '직거래')
+  registeredDate?: string; // 등기일자 (rgstDate)
 };
 
 export class ApiFetchError extends Error {
@@ -44,6 +50,32 @@ function readNumber(record: Record<string, any>, keys: string[]): number | undef
     }
   }
   return undefined;
+}
+
+function normalizeCancelDate(raw?: string): string | undefined {
+  if (!raw) return undefined;
+  const s = raw.trim();
+  if (!s || s === "-" || s === "0") return undefined;
+  // 24.05.02 형태 (2자리 연도)
+  const dotMatch = s.match(/^(\d{2})\.(\d{2})\.(\d{2})$/);
+  if (dotMatch) {
+    const fullYear = `20${dotMatch[1]}`;
+    return `${fullYear}-${dotMatch[2]}-${dotMatch[3]}`;
+  }
+  // 2024.05.02 형태
+  const fullDotMatch = s.match(/^(\d{4})\.(\d{2})\.(\d{2})$/);
+  if (fullDotMatch) {
+    return `${fullDotMatch[1]}-${fullDotMatch[2]}-${fullDotMatch[3]}`;
+  }
+  // 20240502 형태
+  if (/^\d{8}$/.test(s)) {
+    return `${s.substring(0, 4)}-${s.substring(4, 6)}-${s.substring(6, 8)}`;
+  }
+  // 2024-05-02 형태
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    return s;
+  }
+  return s;
 }
 
 // 실거래 내역 정규화
@@ -104,7 +136,31 @@ export function normalizeTransaction(item: unknown, fallbackMonth: string): RawT
   const jibun = readString(r, ["jibun", "지번"]);
   const roadName = readString(r, ["roadNm", "도로명"]);
 
-  return { apartmentName, dealDate, priceEok, areaM2, floor, dongName, jibun, roadName };
+  // Task A-4: 신규 확장 필드 (동, 단지코드, 해제일, 해제구분, 거래유형, 등기일)
+  const aptDong = readString(r, ["aptDong", "동", "dong"]);
+  const kaptNo = readString(r, ["kaptNo", "단지코드"]);
+  const rawCancelDate = readString(r, ["cdealDay", "해제사유발생일", "cancelDate", "cdeal_day"]);
+  const cancelDate = normalizeCancelDate(rawCancelDate);
+  const cancelType = readString(r, ["cdealType", "해제여부", "cancelType", "cdeal_type"]);
+  const dealingType = readString(r, ["dealingGbn", "거래유형", "dealingType", "dealing_gbn"]);
+  const registeredDate = readString(r, ["rgstDate", "등기일자", "registeredDate", "rgst_date"]);
+
+  return {
+    apartmentName,
+    dealDate,
+    priceEok,
+    areaM2,
+    floor,
+    dongName,
+    jibun,
+    roadName,
+    aptDong,
+    kaptNo,
+    cancelDate,
+    cancelType,
+    dealingType,
+    registeredDate,
+  };
 }
 
 /**

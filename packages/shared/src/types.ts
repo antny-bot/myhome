@@ -4,6 +4,9 @@ export type TransactionNode = {
   priceEok: number;
   areaM2?: number;
   floor?: number;
+  cancelDate?: string;
+  dealingType?: string;
+  aptDong?: string;
 };
 
 export type RegionInfo = {

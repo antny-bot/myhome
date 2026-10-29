@@ -61,7 +61,7 @@ export async function getComplexTrend(
     FROM transactions t
     JOIN complexes c ON t.complex_id = c.id
     LEFT JOIN complex_area_mappings m ON t.complex_id = m.complex_id AND ROUND(t.area_m2, 2) = ROUND(m.area_m2, 2)
-    WHERE c.name = ?
+    WHERE c.name = ? AND t.cancel_date IS NULL
   `;
   const params: any[] = [resolvedName];
   if (lawdCode) {
@@ -168,7 +168,7 @@ export async function getRegionTrend(
            AVG(t.price_eok)          AS avgPriceEok,
            COUNT(*)                  AS cnt
     FROM transactions t
-    WHERE t.lawd_code = ?
+    WHERE t.lawd_code = ? AND t.cancel_date IS NULL
     GROUP BY month
     ORDER BY month
   `).all(lawdCode) as any[];
@@ -186,7 +186,7 @@ export async function getRegionTrend(
 export async function getGraphStats(): Promise<GraphStats> {
   const regions = (getPreparedStatement("SELECT COUNT(*) AS count FROM regions").get() as any).count;
   const complexes = (getPreparedStatement("SELECT COUNT(*) AS count FROM complexes").get() as any).count;
-  const transactions = (getPreparedStatement("SELECT COUNT(*) AS count FROM transactions").get() as any).count;
+  const transactions = (getPreparedStatement("SELECT COUNT(*) AS count FROM transactions WHERE cancel_date IS NULL").get() as any).count;
 
   return {
     regions,
@@ -206,10 +206,11 @@ export async function getDrilldownRegions(complexName?: string): Promise<any[]> 
     FROM transactions t
     JOIN complexes c ON t.complex_id = c.id
     JOIN regions r ON c.lawd_code = r.lawd_code
+    WHERE t.cancel_date IS NULL
   `;
   const params: any[] = [];
   if (complexName) {
-    query += ` WHERE c.name LIKE ?`;
+    query += ` AND c.name LIKE ?`;
     params.push(`%${complexName}%`);
   }
   query += `
@@ -236,7 +237,7 @@ export async function getDrilldownComplexes(lawdCode: string, complexName?: stri
     SELECT c.name AS name, COUNT(t.dedupe_key) AS count, AVG(t.price_eok) AS avgPriceEok
     FROM transactions t
     JOIN complexes c ON t.complex_id = c.id
-    WHERE c.lawd_code = ?
+    WHERE c.lawd_code = ? AND t.cancel_date IS NULL
   `;
   const params: any[] = [lawdCode];
   if (complexName) {
@@ -270,7 +271,7 @@ export async function getDrilldownAreas(complexName: string, lawdCode?: string):
            AVG(t.price_eok) AS avgPriceEok
     FROM transactions t
     JOIN complexes c ON t.complex_id = c.id
-    WHERE c.name = ? ${lawdCode ? "AND c.lawd_code = ?" : ""}
+    WHERE c.name = ? AND t.cancel_date IS NULL ${lawdCode ? "AND c.lawd_code = ?" : ""}
     GROUP BY name
     ORDER BY avgPriceEok DESC
   `);
@@ -311,7 +312,7 @@ export async function getComplexDetail(
            t.dedupe_key AS dedupeKey
     FROM transactions t
     JOIN complexes c ON t.complex_id = c.id
-    WHERE c.name = ?
+    WHERE c.name = ? AND t.cancel_date IS NULL
   `;
   const params: any[] = [resolvedName];
   if (lawdCode) {
@@ -471,7 +472,7 @@ export function getDailyCollectionStats(days?: number): DailyCollectStat[] {
              ROUND(AVG(price_eok), 2) AS avgPriceEok,
              COUNT(DISTINCT complex_id) AS complexCount
       FROM transactions
-      WHERE collected_at >= date('now', '-' || ? || ' days', 'localtime')
+      WHERE collected_at >= date('now', '-' || ? || ' days', 'localtime') AND cancel_date IS NULL
       GROUP BY collectDate
       ORDER BY collectDate ASC
     `).all(days) as { collectDate: string; count: number; avgPriceEok: number; complexCount: number }[];
@@ -483,6 +484,7 @@ export function getDailyCollectionStats(days?: number): DailyCollectStat[] {
            ROUND(AVG(price_eok), 2) AS avgPriceEok,
            COUNT(DISTINCT complex_id) AS complexCount
     FROM transactions
+    WHERE cancel_date IS NULL
     GROUP BY collectDate
     ORDER BY collectDate ASC
   `).all() as { collectDate: string; count: number; avgPriceEok: number; complexCount: number }[];
@@ -497,7 +499,7 @@ export function getRegionCollectionStatsByDate(date: string): RegionCollectStat[
     FROM transactions t
     JOIN complexes c ON t.complex_id = c.id
     JOIN regions r ON c.lawd_code = r.lawd_code
-    WHERE substr(t.collected_at, 1, 10) = ?
+    WHERE substr(t.collected_at, 1, 10) = ? AND t.cancel_date IS NULL
     GROUP BY r.lawd_code, r.display_name
     ORDER BY count DESC
   `).all(date) as { lawdCode: string; regionName: string; count: number }[];
@@ -513,7 +515,7 @@ export function getMonthlyCollectionStats(days?: number): DailyCollectStat[] {
              ROUND(AVG(price_eok), 2) AS avgPriceEok,
              COUNT(DISTINCT complex_id) AS complexCount
       FROM transactions
-      WHERE collected_at >= date('now', '-' || ? || ' days', 'localtime')
+      WHERE collected_at >= date('now', '-' || ? || ' days', 'localtime') AND cancel_date IS NULL
       GROUP BY collectDate
       ORDER BY collectDate ASC
     `).all(days) as { collectDate: string; count: number; avgPriceEok: number; complexCount: number }[];
@@ -525,6 +527,7 @@ export function getMonthlyCollectionStats(days?: number): DailyCollectStat[] {
            ROUND(AVG(price_eok), 2) AS avgPriceEok,
            COUNT(DISTINCT complex_id) AS complexCount
     FROM transactions
+    WHERE cancel_date IS NULL
     GROUP BY collectDate
     ORDER BY collectDate ASC
   `).all() as { collectDate: string; count: number; avgPriceEok: number; complexCount: number }[];
@@ -539,7 +542,7 @@ export function getRegionCollectionStatsByMonth(month: string): RegionCollectSta
     FROM transactions t
     JOIN complexes c ON t.complex_id = c.id
     JOIN regions r ON c.lawd_code = r.lawd_code
-    WHERE substr(t.deal_date, 1, 7) = ?
+    WHERE substr(t.deal_date, 1, 7) = ? AND t.cancel_date IS NULL
     GROUP BY r.lawd_code, r.display_name
     ORDER BY count DESC
   `).all(month) as { lawdCode: string; regionName: string; count: number }[];

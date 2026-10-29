@@ -158,7 +158,7 @@ flowchart LR
 - 실패 케이스가 성공 0건으로 집계되지 않음.
 
 ### A-4. 실거래 dedupe 키 및 해제 거래 처리 (D-1)
-- [ ] 완료 — **사용자 확인 필요 항목 포함**
+- [x] 완료 — **사용자 확인 필요 항목 포함**
 
 **관련 파일**: `shared/src/db/transactions.ts`, `schema.ts`, `apiClient.ts`, `xmlParser.ts`, `docs/04_DATABASE.md`, `docs/02_CACHE_POLICY.md`
 

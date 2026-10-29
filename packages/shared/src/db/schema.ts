@@ -33,6 +33,10 @@ export function initDb(): void {
       floor INTEGER,
       collected_at TEXT NOT NULL,
       updated_at TEXT,
+      cancel_date TEXT,
+      dealing_type TEXT,
+      apt_dong TEXT,
+      legacy_key TEXT,
       FOREIGN KEY (complex_id) REFERENCES complexes(id)
     );
 
@@ -55,6 +59,7 @@ export function initDb(): void {
     CREATE INDEX IF NOT EXISTS idx_transactions_lawd_code ON transactions(lawd_code);
     CREATE INDEX IF NOT EXISTS idx_transactions_lawd_complex ON transactions(lawd_code, complex_id, deal_date DESC, price_eok);
     CREATE INDEX IF NOT EXISTS idx_region_apartment_cache_lawd_code ON region_apartment_cache(lawd_code);
+    CREATE INDEX IF NOT EXISTS idx_transactions_cancel_date ON transactions(cancel_date);
 
     CREATE TABLE IF NOT EXISTS sessions (
       id TEXT PRIMARY KEY,
@@ -212,14 +217,29 @@ export function initDb(): void {
   // 좌표 보유 단지 조회 성능 인덱스
   db.exec('CREATE INDEX IF NOT EXISTS idx_complexes_geocoded ON complexes(lat, lng) WHERE lat IS NOT NULL');
 
-  // -- transactions 테이블 lawd_code 컬럼 마이그레이션 (기존 DB 호환)
+  // -- transactions 테이블 컬럼 마이그레이션 (기존 DB 호환)
   const txCols = db.prepare("PRAGMA table_info(transactions)").all() as { name: string }[];
   const txColNames = new Set(txCols.map((c: any) => c.name));
   if (!txColNames.has('lawd_code')) {
     db.exec('ALTER TABLE transactions ADD COLUMN lawd_code TEXT');
     db.exec(`UPDATE transactions SET lawd_code = substr(complex_id, 1, instr(complex_id, '|') - 1) WHERE lawd_code IS NULL`);
   }
+  if (!txColNames.has('cancel_date')) {
+    db.exec('ALTER TABLE transactions ADD COLUMN cancel_date TEXT');
+  }
+  if (!txColNames.has('dealing_type')) {
+    db.exec('ALTER TABLE transactions ADD COLUMN dealing_type TEXT');
+  }
+  if (!txColNames.has('apt_dong')) {
+    db.exec('ALTER TABLE transactions ADD COLUMN apt_dong TEXT');
+  }
+  if (!txColNames.has('legacy_key')) {
+    db.exec('ALTER TABLE transactions ADD COLUMN legacy_key TEXT');
+    db.exec('UPDATE transactions SET legacy_key = dedupe_key WHERE legacy_key IS NULL');
+    db.exec(`INSERT OR IGNORE INTO system_config (key, value) VALUES ('collector.need_resync_dedupe_v2', 'true')`);
+  }
   db.exec('CREATE INDEX IF NOT EXISTS idx_transactions_lawd_code_deal_date ON transactions(lawd_code, deal_date)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_transactions_cancel_date ON transactions(cancel_date)');
 
   // -- user_settings 테이블 password_hash 컬럼 마이그레이션 (기존 DB 호환)
   const userSettingsCols = db.prepare("PRAGMA table_info(user_settings)").all() as { name: string }[];
