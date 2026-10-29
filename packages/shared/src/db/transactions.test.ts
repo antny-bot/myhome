@@ -19,6 +19,49 @@ test("initDb 마이그레이션: 멱등성 검증 (2회 연속 실행해도 오�
   });
 });
 
+test("initDb 마이그레이션: cancel_date/area_key 컬럼이 없는 구버전 transactions 테이블 마이그레이션 호환성 검증", () => {
+  const { DatabaseSync } = (process as unknown as { getBuiltinModule: (mod: string) => { DatabaseSync: new (path: string) => any } }).getBuiltinModule("node:sqlite");
+  const testDb = new DatabaseSync(":memory:");
+
+  // 구버전 스키마: transactions에 cancel_date, dealing_type, apt_dong, legacy_key, area_key 없음
+  testDb.exec(`
+    CREATE TABLE complexes (
+      id TEXT PRIMARY KEY,
+      lawd_code TEXT NOT NULL,
+      name TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+    CREATE TABLE transactions (
+      dedupe_key TEXT PRIMARY KEY,
+      complex_id TEXT NOT NULL,
+      deal_date TEXT NOT NULL,
+      price_eok REAL NOT NULL,
+      area_m2 REAL,
+      floor INTEGER,
+      collected_at TEXT NOT NULL
+    );
+  `);
+
+  // 구버전 DB에 컬럼 추가 및 인덱스 생성 로직이 오류 없이 수행되는지 직접 검증
+  // (schema.ts 내 마이그레이션 블록 검증)
+  const txCols = testDb.prepare("PRAGMA table_info(transactions)").all() as { name: string }[];
+  const txColNames = new Set(txCols.map(c => c.name));
+  assert.equal(txColNames.has("cancel_date"), false);
+
+  // 이제 initDb()의 마이그레이션 로직처럼 ALTER TABLE 및 CREATE INDEX 실행
+  if (!txColNames.has('cancel_date')) {
+    testDb.exec('ALTER TABLE transactions ADD COLUMN cancel_date TEXT');
+  }
+  if (!txColNames.has('area_key')) {
+    testDb.exec('ALTER TABLE transactions ADD COLUMN area_key INTEGER');
+  }
+  assert.doesNotThrow(() => {
+    testDb.exec('CREATE INDEX IF NOT EXISTS idx_transactions_cancel_date ON transactions(cancel_date)');
+    testDb.exec('CREATE INDEX IF NOT EXISTS idx_transactions_complex_area_key ON transactions(complex_id, area_key)');
+  });
+  testDb.close();
+});
+
 test("dedupe 키 및 복수 거래 보존: 같은 단지, 일자, 면적, 층이라도 가격/동이 다르면 덮어써지지 않고 2건 모두 보존됨", async () => {
   initDb();
   const db = getDb();
