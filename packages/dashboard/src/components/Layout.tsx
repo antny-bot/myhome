@@ -15,6 +15,7 @@ import {
   LucideIcon
 } from "lucide-react";
 import { useEffect, useRef, useState, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { classNames } from "../lib/format";
 import { useBreakpoint } from "../useBreakpoint";
 import { useTheme } from "../useTheme";
@@ -110,10 +111,10 @@ function AllMenuDrawer({ isAdmin, items, defaultPage, onDefaultChange, onNavigat
   return (
     <>
       <div
-        className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity"
+        className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm transition-opacity"
         onClick={onClose}
       />
-      <div className="fixed inset-x-0 bottom-0 z-50 rounded-t-2xl bg-white dark:bg-slate-900 shadow-2xl max-h-[80vh] flex flex-col transition-transform transform translate-y-0 duration-200">
+      <div className="fixed inset-x-0 bottom-0 z-[60] rounded-t-2xl bg-white dark:bg-slate-900 shadow-2xl max-h-[80vh] flex flex-col transition-transform transform translate-y-0 duration-200">
         <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 px-4 py-3 shrink-0">
           <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">{t.allMenuDrawerTitle || "전체 메뉴"}</h2>
           <p className="text-xs text-slate-400 dark:text-slate-500 flex-1 text-center">{t.defaultPageHint || "★ 터치 시 기본 시작 페이지 설정"}</p>
@@ -528,7 +529,7 @@ export function Layout({
       )}
 
       {/* Mobile Drawer (md hidden) */}
-      {isMobile && showDrawer && (
+      {isMobile && showDrawer && createPortal(
         <AllMenuDrawer
           isAdmin={isAdmin}
           items={navItems}
@@ -536,7 +537,7 @@ export function Layout({
           onDefaultChange={handleDefaultChange}
           onNavigate={onNavigate}
           onClose={() => setShowDrawer(false)}
-        />
+        />, document.body
       )}
     </div>
   );
