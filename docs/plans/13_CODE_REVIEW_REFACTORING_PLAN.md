@@ -239,7 +239,7 @@ flowchart LR
 **수용 기준**: DB 경로가 잘못된 경우 서버가 기동하지 않고 비정상 종료 코드. SIGTERM 시 WAL 파일이 정리됨.
 
 ### B-4. 수집기 분양면적 동기화 정상화 (R-1)
-- [ ] 완료
+- [x] 완료
 
 **관련 파일**: `collector/src/index.ts`, `shared/src/areaMapper.ts`
 

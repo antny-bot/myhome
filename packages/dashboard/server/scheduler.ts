@@ -140,6 +140,9 @@ export async function runDueCollector(): Promise<{ executed: boolean; reason?: s
     console.log(`[Scheduler] Daily collection triggered for date: ${todayStr} (KST hour: ${hour})`);
     const result = await runCollector();
     console.log(`[Scheduler] Daily collection finished: collected ${result.totalCollected} items, upserted ${result.totalUpserted}`);
+    if (result.supplyAreaStats) {
+      console.log(`[Scheduler] 분양면적 매핑 완료: 성공 ${result.supplyAreaStats.success}건, 스킵 ${result.supplyAreaStats.skipped}건, 실패 ${result.supplyAreaStats.failed}건`);
+    }
 
     if (result.failures && result.failures.length > 0) {
       console.warn(

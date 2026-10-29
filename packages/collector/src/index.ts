@@ -1,10 +1,17 @@
 import { promises as fs, existsSync } from "node:fs";
-import { join } from "node:path";
-import { upsertTransactionBatch, makeGraphDedupeKey, getAllRules, initDb, getAllDbRegions, maskUrl } from "@myhome/shared";
-import type { BatchUpsertItem } from "@myhome/shared";
+import { join, dirname } from "node:path";
+import {
+  upsertTransactionBatch,
+  makeGraphDedupeKey,
+  getAllRules,
+  initDb,
+  getAllDbRegions,
+  maskUrl,
+  syncSupplyArea,
+  getAreaMapping,
+  type BatchUpsertItem,
+} from "@myhome/shared";
 import { fetchApartmentPricesDirect } from "./fetcher.js";
-
-import { dirname } from "node:path";
 
 function findAndLoadEnv() {
   let currentDir = process.cwd();
@@ -40,6 +47,23 @@ export type CollectorFailure = {
   error: string;
   code?: string;
 };
+
+export type SupplyAreaStats = {
+  total: number;
+  success: number;
+  skipped: number;
+  failed: number;
+};
+
+interface SupplyAreaTask {
+  complexId: string;
+  complexName: string;
+  lawdCode: string;
+  dongName?: string;
+  jibun?: string;
+  areaM2: number;
+  regionDisplayName: string;
+}
 
 type ConfigData = {
   targets: CollectTarget[];
@@ -122,11 +146,13 @@ async function fetchRulesFromDashboard(dashboardUrl: string): Promise<CollectTar
   }
 }
 
-export async function runCollector(): Promise<{
+export async function runCollector(options?: { signal?: AbortSignal }): Promise<{
   totalCollected: number;
   totalUpserted: number;
   failures: CollectorFailure[];
+  supplyAreaStats: SupplyAreaStats;
 }> {
+  const signal = options?.signal;
   console.log(`[Collector] 데이터 수집 및 SQLite 적재 작업 시작 (${new Date().toLocaleString()})`);
   
   if (process.env.GRAPH_DB_ENABLED !== "true") {
@@ -167,9 +193,16 @@ export async function runCollector(): Promise<{
 
   const failures: CollectorFailure[] = [];
 
+  const emptyResult = {
+    totalCollected: 0,
+    totalUpserted: 0,
+    failures: [],
+    supplyAreaStats: { total: 0, success: 0, skipped: 0, failed: 0 },
+  };
+
   if (finalTargets.length === 0) {
     console.log("[Collector] 수집할 대상 지역이 존재하지 않습니다. 종료.");
-    return { totalCollected: 0, totalUpserted: 0, failures: [] };
+    return emptyResult;
   }
 
   // 최근 2달
@@ -181,11 +214,14 @@ export async function runCollector(): Promise<{
   let totalUpserted = 0;
   let limitExceeded = false;
 
+  // 분양면적 동기화 대상 큐 (중복 제거용 Map)
+  const pendingAreaTasks = new Map<string, SupplyAreaTask>();
+
   for (const target of finalTargets) {
-    if (limitExceeded) break;
+    if (limitExceeded || signal?.aborted) break;
 
     for (const month of months) {
-      if (limitExceeded) break;
+      if (limitExceeded || signal?.aborted) break;
 
       console.log(`[Collector] 국토부 API에 직접 요청 중... (${target.displayName} / ${month})`);
       try {
@@ -203,6 +239,7 @@ export async function runCollector(): Promise<{
               dealDate: tx.dealDate,
               priceEok: tx.priceEok,
               areaM2: tx.areaM2,
+              areaKey: tx.areaM2 ? Math.round(tx.areaM2 * 100) : undefined,
               floor: tx.floor,
               cancelDate: tx.cancelDate,
               dealingType: tx.dealingType,
@@ -219,44 +256,24 @@ export async function runCollector(): Promise<{
             await upsertTransactionBatch(regionInfo, batchItems);
             totalUpserted += batchItems.length;
 
-            // 백그라운드 분양면적 매핑 비동기 수집 실행 (API 한계 대처 및 병렬 처리)
-            const uniqueMappings = new Map<string, { complexId: string; complexName: string; areaM2: number; dongName?: string; jibun?: string }>();
+            // 분양면적 매핑 작업을 큐에 모음
             for (const item of batchItems) {
               if (item.tx.areaM2) {
                 const complexId = `${target.lawdCode}|${item.complexName}`;
-                const key = `${complexId}|${item.tx.areaM2.toFixed(2)}`;
-                if (!uniqueMappings.has(key)) {
-                  uniqueMappings.set(key, {
+                const taskKey = `${complexId}|${Math.round(item.tx.areaM2 * 100)}`;
+                if (!pendingAreaTasks.has(taskKey)) {
+                  pendingAreaTasks.set(taskKey, {
                     complexId,
                     complexName: item.complexName,
-                    areaM2: item.tx.areaM2,
+                    lawdCode: target.lawdCode,
                     dongName: item.addressInfo?.dongName,
                     jibun: item.addressInfo?.jibun,
+                    areaM2: item.tx.areaM2,
+                    regionDisplayName: target.displayName,
                   });
                 }
               }
             }
-
-            (async () => {
-              const { syncSupplyArea } = await import("@myhome/shared");
-              for (const mapping of uniqueMappings.values()) {
-                try {
-                  await syncSupplyArea({
-                    complexId: mapping.complexId,
-                    complexName: mapping.complexName,
-                    lawdCode: target.lawdCode,
-                    dongName: mapping.dongName,
-                    jibun: mapping.jibun,
-                    areaM2: mapping.areaM2,
-                    regionDisplayName: target.displayName,
-                  });
-                  // API 서버 과부하 방지를 위한 200ms 지연
-                  await new Promise((resolve) => setTimeout(resolve, 200));
-                } catch (err: any) {
-                  console.warn(`[Collector] 분양면적 매핑 수집 실패 (${mapping.complexName}):`, err.message);
-                }
-              }
-            })();
           } catch (err: any) {
             console.error(`[Collector] SQLite 배치 적재 오류 (${target.displayName} / ${month}): ${err.message}`);
             failures.push({
@@ -285,15 +302,66 @@ export async function runCollector(): Promise<{
     }
   }
 
+  // --- 분양면적(공급면적) 동기화 순차/동시성 제어 실행 ---
+  const supplyAreaStats: SupplyAreaStats = {
+    total: pendingAreaTasks.size,
+    success: 0,
+    skipped: 0,
+    failed: 0,
+  };
+
+  if (pendingAreaTasks.size > 0 && process.env.GRAPH_DB_ENABLED === "true") {
+    console.log(`[Collector] 총 ${pendingAreaTasks.size}개의 분양면적 매핑 동기화 작업을 시작합니다...`);
+    const delayMs = Number(process.env.SUPPLY_AREA_DELAY_MS || "200");
+
+    for (const task of pendingAreaTasks.values()) {
+      if (signal?.aborted) {
+        console.log("[Collector] 중단 신호(AbortSignal) 감지로 분양면적 동기화를 중지합니다.");
+        break;
+      }
+
+      // 이미 실측(api) 매핑이 존재하는지 DB 선조회하여 불필요한 API 호출 방지
+      try {
+        const existing = getAreaMapping(task.complexId, task.areaM2);
+        if (existing && existing.source !== "fallback") {
+          supplyAreaStats.skipped++;
+          continue;
+        }
+
+        await syncSupplyArea({
+          complexId: task.complexId,
+          complexName: task.complexName,
+          lawdCode: task.lawdCode,
+          dongName: task.dongName,
+          jibun: task.jibun,
+          areaM2: task.areaM2,
+          regionDisplayName: task.regionDisplayName,
+        });
+        supplyAreaStats.success++;
+
+        if (delayMs > 0) {
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+        }
+      } catch (areaErr: any) {
+        supplyAreaStats.failed++;
+        console.warn(`[Collector] 분양면적 매핑 수집 실패 (${task.complexName} / ${task.areaM2}㎡):`, areaErr.message);
+      }
+    }
+    console.log(
+      `[Collector] 분양면적 동기화 완료: 성공 ${supplyAreaStats.success}건, 스킵 ${supplyAreaStats.skipped}건, 실패 ${supplyAreaStats.failed}건 (전체 ${supplyAreaStats.total}건)`
+    );
+  }
+
   console.log(`[Collector] 수집 완료 요약:`);
   console.log(`- 수집한 전체 실거래 내역: ${totalCollected}건`);
   console.log(`- SQLite 적재(INSERT/UPDATE) 성공 건수: ${totalUpserted}건`);
+  console.log(`- 분양면적 매핑: 성공 ${supplyAreaStats.success}건, 스킵 ${supplyAreaStats.skipped}건, 실패 ${supplyAreaStats.failed}건`);
   if (failures.length > 0) {
     console.warn(`- 실패 건수: ${failures.length}건`);
   }
   console.log(`[Collector] 작업 종료.`);
   
-  return { totalCollected, totalUpserted, failures };
+  return { totalCollected, totalUpserted, failures, supplyAreaStats };
 }
 
 // 직접 실행 여부 판별
