@@ -134,3 +134,17 @@ Synology Container Manager 배포 지원용 모노레포 Docker 이미지화, Gi
 ### 목표
 로컬 SQLite DB 실거래 데이터 MCP(Model Context Protocol) 도구 노출, 에이전트(Gemini, Cursor 등) DB 직접 읽기 및 답변 생태계 구축.
 * **노출 툴 예정**: `get_local_stats`, `query_local_db`, `get_complex_trend_direct`
+---
+
+## Phase 10 — 아키텍처 고도화 및 품질 리팩토링 (진행 중)
+
+### 목표
+프로덕션 안정성 및 엔터프라이즈 코드 품질 기준 달성. 보안 하드닝, 데이터 정합성 강화, 백엔드/프론트엔드 모듈러 아키텍처 완성, i18n 동기화 CI 도입.
+
+* **Phase A: 보안 및 데이터 정합성 (완료)**: scrypt 재해싱 및 비밀번호 변경 의무화, OAuth CSRF state 및 ID 토큰 클레임 검증, OpenAPI XML 클라이언트 안전화, 해제 거래 보존 및 집계 제외 플래그 분리, SQL 웹 콘솔 화이트리스트 및 감사 로그 연동.
+* **Phase B: 성능 및 운영 안정성 (완료)**: 스케줄러 KST 타임존 통일 및 CollectorLock 영속화, area_key 인덱스 조인 및 FTS 커서 페이지네이션, Graceful Shutdown 타임아웃 및 /api/v1/health 프로브, 분양면적 큐 동기화, GraphCache LRU(500) 상한, 단지 식별자 설계서(13a) 작성, CI 파이프라인 및 테스트 인프라(70개 통과).
+* **Phase C: 모듈러 아키텍처 & 배포 (완료)**: app.ts 분리 및 mountApi 단일화, DB 계층 any 타입 완전 제거(47건 전수 정규화), 표준 Logger 구현, 지오코딩 856줄 -> 400줄 이하 도메인 분할, Node 24 통일 및 Dockerfile non-root/healthcheck 강화.
+* **Phase D: 프론트엔드 정비 및 품질 (진행 중)**:
+  - API 클라이언트 5개 도메인 분할 및 ApiError 표준화 완료.
+  - i18n ko/en 사전 6개 도메인 분할, 누락 키 보완, check:i18n CI 검증 스크립트 구축 및 docs/11_ERROR_CODES.md 제정 완료.
+  - 대형 컴포넌트(그래프 탭, 지도/관리자/룰 페이지) 모듈 분할 및 400줄 이하 경량화 진행.

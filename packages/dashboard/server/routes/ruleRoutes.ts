@@ -7,7 +7,7 @@ import { deleteCheckRun, deleteRule, readStateForUser, updateRulePatch, upsertRu
 import type { ComparisonCriteria, RuleInput } from "../types.js";
 import { getAuthenticatedEmail } from "../utils/authUtils.js";
 
-const comparisonValues: ComparisonCriteria[] = ["none", "parking", "large_complex", "transit", "newer", "livability"];
+const comparisonValues = ["none", "parking", "large_complex", "transit", "newer", "livability"] as const;
 
 export const ruleSchema = z.object({
   name: z.string().min(1),

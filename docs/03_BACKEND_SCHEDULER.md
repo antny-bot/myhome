@@ -27,9 +27,14 @@ Express 백엔드 서버, 매물 감시 룰 엔진 및 자동 수집 스케줄�
 ## 3. 통합 스케줄러 (Scheduler)
 - **위치**: `packages/dashboard/server/scheduler.ts`
 - **역할**: 시스템 백그라운드 스케줄러 구동.
+- **시간대 관리**:
+  - `server/utils/kstTime.ts`를 통해 서버 환경(UTC 등)과 무관하게 **단일 타임존(Asia/Seoul, UTC+9)** 기준으로 날짜 및 시간 판정.
 - **동작 주기**:
-  1. **감시 스케줄러 (300초 간격)**: 등록 알림 조건(`rules`) 대상 `runRuleCheck` 실행, Telegram 알림 주기적 스캔.
-  2. **자동 수집 스케줄러 (매일 1회)**: 매일 새벽 6시 이후 최초 구동 시 주요 지역 대상 `@myhome/collector` `runCollector` 수집기 백그라운드 작동, 로컬 SQLite DB 실거래 데이터 대량 적재.
+  1. **감시 스케줄러 (300초 간격)**: 등록 알림 조건(`rules`) 대상 `isAlertDue` 검사 및 `runRuleCheck` 실행, Telegram 알림 주기적 스캔.
+  2. **자동 수집 스케줄러 (매일 1회, KST 06:00 이후)**:
+     - `CollectorLock` 인메모리 락을 통해 수동 수집 및 스케줄러 간 동시 실행 방지.
+     - `system_config` 테이블의 `collector.lastSuccessDate` 키를 영속화하여 서버 재기동 시에도 당일 중복 수집 방지.
+     - 주요 지역 대상 `@myhome/collector` `runCollector` 수집기 백그라운드 작동, 로컬 SQLite DB 실거래 데이터 대량 적재.
 
 ---
 
@@ -45,4 +50,3 @@ Express 백엔드 서버, 매물 감시 룰 엔진 및 자동 수집 스케줄�
 | `ENABLE_BOOTSTRAP_ADMIN` | — | `true`로 설정 시 Google OAuth 미설정 환경에서 관리자 세션을 부여. **개발/테스트 전용.** |
 | `TELEGRAM_BOT_TOKEN` | — | Telegram 알림 발송용 봇 토큰. |
 | `TELEGRAM_CHAT_ID` | — | 알림 수신 Telegram 채팅 ID. |
-

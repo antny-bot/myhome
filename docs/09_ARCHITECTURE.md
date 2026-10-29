@@ -147,3 +147,20 @@ React SPA 프로젝트는 성능 향상과 모바일 퍼스트 레이아웃 대�
 1. **국토교통부 아파트 실거래가 조회 API**: `http://openapi.molit.go.kr` 연동. 트래픽 제한을 준수하기 위해 `mcpThrottle` 게이트웨이를 설계하여 요청을 지연/예외 복구합니다.
 2. **카카오 로컬 API**: 키워드 및 주소 상세 검색을 통해 지하철역 및 단지의 위치 좌표를 추적합니다.
 3. **Telegram Bot API**: `https://api.telegram.org/bot<Token>/sendMessage` 엔드포인트를 호출하여 알림을 전달합니다. 중복 방지를 위해 DB 단의 `dedupeKey`가 메시지의 중복 전송을 원천 차단합니다.
+
+---
+
+## 8. 배포 및 운영 아키텍처
+
+### 8.1. Docker 멀티스테이지 컨테이너
+- **Node.js 버전**: `node:24-alpine`을 표준 베이스 이미지로 사용하여 `node:sqlite` 네이티브 모듈을 안정적으로 구동합니다.
+- **보안 격리 (Non-root)**: 실행 스테이지에서는 루트 권한 대신 `USER node`로 프로세스를 격리 기동하며, 영구 저장소(`/app/data`) 디렉토리 권한을 `chown -R node:node /app`으로 안전하게 할당합니다.
+- **헬스체크 연동**: 컨테이너 런타임에 `HEALTHCHECK` 지시자를 구성하여 30초 간격으로 `GET /api/v1/health` 엔드포인트를 검증합니다. 비정상 상태 감지 시 자동 재시작이 트리거됩니다.
+
+### 8.2. Docker Compose 운영 정책
+- **영속 볼륨**: `./data:/app/data` 경로를 호스트 볼륨으로 매핑하여 SQLite DB(`myhome.db`) 파일의 영구 보존을 보장합니다.
+- **리소스 제약**:
+  - `limits`: CPU 1.0 코어, Memory 1024MB
+  - `reservations`: CPU 0.2 코어, Memory 256MB
+- **재시작 정책**: `restart: unless-stopped`가 적용되어 서버 재부팅 시에도 자동으로 복구됩니다.
+

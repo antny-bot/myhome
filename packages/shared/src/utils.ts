@@ -1,3 +1,6 @@
+import { existsSync } from "node:fs";
+import { join, dirname } from "node:path";
+
 export function generateDedupeKey(
   lawdCode: string,
   apartmentName: string,
@@ -29,4 +32,30 @@ export async function mapLimit<T, R>(
 
   await Promise.all(workers);
   return results;
+}
+
+/**
+ * 상위 디렉터리를 탐색하며 .env 파일을 자동으로 탐색하고 로드합니다.
+ */
+export function findAndLoadEnv(): string | null {
+  const currentDir = process.cwd();
+  const fileDir = dirname(new URL(import.meta.url).pathname).replace(/^\/([a-zA-Z]:)/, "$1");
+  const dirsToSearch = [currentDir, fileDir];
+
+  for (const startDir of dirsToSearch) {
+    let dir = startDir;
+    while (true) {
+      const envPath = join(dir, ".env");
+      if (existsSync(envPath)) {
+        if (typeof (process as any).loadEnvFile === "function") {
+          (process as any).loadEnvFile(envPath);
+        }
+        return envPath;
+      }
+      const parent = dirname(dir);
+      if (parent === dir) break;
+      dir = parent;
+    }
+  }
+  return null;
 }

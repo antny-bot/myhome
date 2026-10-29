@@ -261,7 +261,7 @@ export async function fetchLiveComplexList(
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const month = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}`;
     try {
-      const transactions = await fetchApartmentPricesDirect(lawdCode, month);
+      const { items: transactions } = await fetchApartmentPricesDirect(lawdCode, month);
       for (const t of transactions) {
         if (t.apartmentName && !names.has(t.apartmentName.trim())) {
           names.set(t.apartmentName.trim(), {

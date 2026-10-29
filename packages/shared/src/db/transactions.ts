@@ -1,17 +1,35 @@
 import { getDb, getPreparedStatement } from "./connection.js";
-import { RegionInfo, TransactionNode, GraphFilter } from "../types.js";
+import type { RegionInfo, TransactionNode, GraphFilter, SearchTransactionsResult, SearchResultTransaction } from "../types.js";
 
 /**
  * 실거래 식별 키 생성
+ * 동일 조건 복수 거래 분별을 위해 aptDong, dealingType, registeredDate, priceEok 확장 지원
  */
 export function makeGraphDedupeKey(
   lawdCode: string,
   apartmentName: string,
   dealDate: string,
   areaM2: number | undefined,
-  floor: number | undefined
+  floor: number | undefined,
+  extra?: {
+    aptDong?: string;
+    dealingType?: string;
+    registeredDate?: string;
+    priceEok?: number;
+  }
 ): string {
-  return [lawdCode, apartmentName, dealDate, areaM2 ?? "", floor ?? ""].join("|");
+  const parts = [
+    lawdCode,
+    apartmentName,
+    dealDate,
+    areaM2 ?? "",
+    floor ?? "",
+    extra?.aptDong ?? "",
+    extra?.dealingType ?? "",
+    extra?.registeredDate ?? "",
+    extra?.priceEok !== undefined ? String(extra.priceEok) : "",
+  ];
+  return parts.join("|");
 }
 
 export type BatchUpsertItem = {
@@ -23,24 +41,23 @@ export type BatchUpsertItem = {
 /**
  * 실거래 데이터 단건 Upsert (하위 호환 유지)
  */
-export async function upsertTransaction(
+export function upsertTransaction(
   region: RegionInfo,
   complexName: string,
   tx: TransactionNode,
   addressInfo?: { dongName?: string; jibun?: string; roadName?: string }
-): Promise<void> {
-  return upsertTransactionBatch(region, [{ complexName, tx, addressInfo }]);
+): void {
+  upsertTransactionBatch(region, [{ complexName, tx, addressInfo }]);
 }
 
 /**
  * 실거래 데이터 배치 Upsert
- * 전체 records를 단일 트랜잭션으로 묶어 HDD 환경에서 fsync 횟수를 N→1회로 감소.
- * Synology 등 IOPS가 제한된 환경에서 수 분 → 수 초로 대폭 단축됨.
+ * 전체 records를 단일 트랜잭션으로 묶어 fsync 횟수를 N→1회로 감소.
  */
-export async function upsertTransactionBatch(
+export function upsertTransactionBatch(
   region: RegionInfo,
   items: BatchUpsertItem[]
-): Promise<void> {
+): void {
   if (items.length === 0) return;
 
   const db = getDb();
@@ -61,10 +78,17 @@ export async function upsertTransactionBatch(
       road_name = COALESCE(excluded.road_name, complexes.road_name)
   `);
   const txStmt = getPreparedStatement(`
-    INSERT INTO transactions (dedupe_key, complex_id, lawd_code, deal_date, price_eok, area_m2, floor, collected_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO transactions (
+      dedupe_key, complex_id, lawd_code, deal_date, price_eok, area_m2, area_key, floor,
+      collected_at, cancel_date, dealing_type, apt_dong
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(dedupe_key) DO UPDATE SET
       price_eok = excluded.price_eok,
+      cancel_date = excluded.cancel_date,
+      area_key = COALESCE(excluded.area_key, transactions.area_key),
+      dealing_type = COALESCE(excluded.dealing_type, transactions.dealing_type),
+      apt_dong = COALESCE(excluded.apt_dong, transactions.apt_dong),
       updated_at = ?
   `);
 
@@ -98,6 +122,8 @@ export async function upsertTransactionBatch(
         addressInfo?.roadName ?? null
       );
 
+      const areaKey = tx.areaKey ?? (tx.areaM2 ? Math.round(tx.areaM2 * 100) : null);
+
       txStmt.run(
         tx.dedupeKey,
         complexId,
@@ -105,8 +131,12 @@ export async function upsertTransactionBatch(
         tx.dealDate,
         tx.priceEok,
         tx.areaM2 ?? null,
+        areaKey,
         tx.floor ?? null,
         now,
+        tx.cancelDate ?? null,
+        tx.dealingType ?? null,
+        tx.aptDong ?? null,
         now  // updated_at
       );
     }
@@ -122,22 +152,39 @@ export async function upsertTransactionBatch(
  * 다중 필터 조합 검색
  * - SARGable 직접 범위 비교 적용 (인덱스 레인지 스캔 활성화)
  * - t.lawd_code 직접 필터링
+ * - 해제 거래(cancel_date IS NOT NULL) 제외
  * - LIMIT 안전 가드 적용
  */
-export async function searchTransactions(filter: GraphFilter): Promise<any[]> {
+interface RawSearchTxRow {
+  regionName: string;
+  lawdCode: string;
+  apartmentName: string;
+  dealDate: string;
+  priceEok: number;
+  areaM2?: number;
+  supplyAreaM2?: number | null;
+  floor?: number;
+  dedupeKey: string;
+  cancelDate?: string | null;
+  dealingType?: string | null;
+  aptDong?: string | null;
+}
+
+export function searchTransactions(filter: GraphFilter): SearchTransactionsResult {
   const db = getDb();
   
   let queryStr = `
     SELECT r.display_name AS regionName, r.lawd_code AS lawdCode, c.name AS apartmentName,
            t.deal_date AS dealDate, t.price_eok AS priceEok, t.area_m2 AS areaM2,
-           m.supply_area_m2 AS supplyAreaM2, t.floor AS floor, t.dedupe_key AS dedupeKey
+           m.supply_area_m2 AS supplyAreaM2, t.floor AS floor, t.dedupe_key AS dedupeKey,
+           t.cancel_date AS cancelDate, t.dealing_type AS dealingType, t.apt_dong AS aptDong
     FROM transactions t
     JOIN complexes c ON t.complex_id = c.id
     JOIN regions r ON c.lawd_code = r.lawd_code
-    LEFT JOIN complex_area_mappings m ON t.complex_id = m.complex_id AND ROUND(t.area_m2, 2) = ROUND(m.area_m2, 2)
-    WHERE 1=1
+    LEFT JOIN complex_area_mappings m ON t.complex_id = m.complex_id AND t.area_key = m.area_key
+    WHERE t.cancel_date IS NULL
   `;
-  const params: any[] = [];
+  const params: (string | number)[] = [];
 
   if (filter.lawdCodes && filter.lawdCodes.length > 0) {
     const placeholders = filter.lawdCodes.map(() => "?").join(",");
@@ -147,10 +194,32 @@ export async function searchTransactions(filter: GraphFilter): Promise<any[]> {
     queryStr += " AND t.lawd_code LIKE ? || '%'";
     params.push(filter.lawdCode);
   }
+
   if (filter.complexName) {
-    queryStr += " AND c.name LIKE '%' || ? || '%'";
-    params.push(filter.complexName);
+    const term = filter.complexName.trim();
+    // 2글자 이상이면 FTS5 접두사 매칭 우선 시도, 실패 시 인덱스 prefix 및 fallback 포함 검색
+    try {
+      const sanitized = term.replace(/["*]/g, "");
+      if (sanitized.length >= 2) {
+        const ftsRows = db.prepare("SELECT complex_id FROM complexes_fts WHERE name MATCH ? LIMIT 100").all(`"${sanitized}"*`) as { complex_id: string }[];
+        if (ftsRows.length > 0) {
+          const placeholders = ftsRows.map(() => "?").join(",");
+          queryStr += ` AND t.complex_id IN (${placeholders})`;
+          params.push(...ftsRows.map((r) => r.complex_id));
+        } else {
+          queryStr += " AND (c.name LIKE ? || '%' OR c.name LIKE '%' || ? || '%')";
+          params.push(sanitized, sanitized);
+        }
+      } else {
+        queryStr += " AND (c.name LIKE ? || '%' OR c.name LIKE '%' || ? || '%')";
+        params.push(term, term);
+      }
+    } catch {
+      queryStr += " AND c.name LIKE '%' || ? || '%'";
+      params.push(term);
+    }
   }
+
   if (filter.startDate) {
     const startVal = filter.startDate.length === 7 ? `${filter.startDate}-01` : filter.startDate;
     queryStr += " AND t.deal_date >= ?";
@@ -190,10 +259,22 @@ export async function searchTransactions(filter: GraphFilter): Promise<any[]> {
     params.push(filter.maxBuildYear);
   }
 
-  queryStr += " ORDER BY t.deal_date DESC LIMIT 50000";
+  // 커서 페이징 지원 (dealDate DESC, dedupeKey DESC)
+  if (filter.cursorDate && filter.cursorDedupeKey) {
+    queryStr += " AND (t.deal_date < ? OR (t.deal_date = ? AND t.dedupe_key < ?))";
+    params.push(filter.cursorDate, filter.cursorDate, filter.cursorDedupeKey);
+  }
+
+  const limit = Math.min(Math.max(filter.limit || 10000, 1), 10000);
+  queryStr += ` ORDER BY t.deal_date DESC, t.dedupe_key DESC LIMIT ${limit + 1}`;
 
   const rows = db.prepare(queryStr).all(...params);
-  return rows.map((r: any) => ({
+  const hasMore = rows.length > limit;
+  const sliced = hasMore ? rows.slice(0, limit) : rows;
+  const lastItem = sliced.length > 0 ? sliced[sliced.length - 1] : null;
+
+  const typedRows = sliced as unknown as RawSearchTxRow[];
+  const result: SearchTransactionsResult = typedRows.map((r) => ({
     regionName: r.regionName,
     lawdCode: r.lawdCode,
     apartmentName: r.apartmentName,
@@ -203,24 +284,37 @@ export async function searchTransactions(filter: GraphFilter): Promise<any[]> {
     supplyAreaM2: r.supplyAreaM2,
     floor: r.floor,
     dedupeKey: r.dedupeKey,
+    cancelDate: r.cancelDate,
+    dealingType: r.dealingType,
+    aptDong: r.aptDong,
   }));
+
+  const typedLast = lastItem as unknown as RawSearchTxRow | null;
+  // 페이지네이션 메타데이터 부착 (하위 호환성 유지)
+  result.truncated = hasMore;
+  result.nextCursor = hasMore && typedLast ? {
+    dealDate: typedLast.dealDate,
+    dedupeKey: typedLast.dedupeKey,
+  } : null;
+
+  return result;
 }
 
 /**
- * 특정 지역코드(lawdCode) 및 거래월(dealMonth: YYYYMM)에 적재된 로컬 실거래 건수 조회
+ * 특정 지역코드(lawdCode) 및 거래월(dealMonth: YYYYMM)에 적재된 로컬 실거래 건수 조회 (해제 거래 제외)
  */
 export function getLocalTransactionsCount(lawdCode: string, dealMonth: string): number {
   const dealMonthHyphen = `${dealMonth.slice(0, 4)}-${dealMonth.slice(4, 6)}`;
   const row = getPreparedStatement(`
     SELECT COUNT(*) AS count
     FROM transactions
-    WHERE lawd_code = ? AND deal_date >= ? AND deal_date <= ?
+    WHERE lawd_code = ? AND deal_date >= ? AND deal_date <= ? AND cancel_date IS NULL
   `).get(lawdCode, `${dealMonthHyphen}-01`, `${dealMonthHyphen}-31`) as { count: number } | undefined;
   return row?.count ?? 0;
 }
 
 /**
- * 특정 지역코드(lawdCode) 및 거래월(dealMonth: YYYYMM)의 실거래 목록을 로컬 DB로부터 직접 조회
+ * 특정 지역코드(lawdCode) 및 거래월(dealMonth: YYYYMM)의 실거래 목록을 로컬 DB로부터 직접 조회 (해제 거래 제외)
  */
 export function getLocalApartmentPrices(
   lawdCode: string,
@@ -251,8 +345,24 @@ export function getLocalApartmentPrices(
            c.lng AS lng
     FROM transactions t
     JOIN complexes c ON t.complex_id = c.id
-    WHERE t.lawd_code = ? AND t.deal_date >= ? AND t.deal_date <= ?
+    WHERE t.lawd_code = ? AND t.deal_date >= ? AND t.deal_date <= ? AND t.cancel_date IS NULL
     ORDER BY t.deal_date ASC
-  `).all(lawdCode, `${dealMonthHyphen}-01`, `${dealMonthHyphen}-31`) as any[];
+  `).all(lawdCode, `${dealMonthHyphen}-01`, `${dealMonthHyphen}-31`) as unknown as {
+    apartmentName: string;
+    dealDate: string;
+    priceEok: number;
+    areaM2: number;
+    floor: number;
+    dongName?: string | null;
+    jibun?: string | null;
+    roadName?: string | null;
+    lat?: number | null;
+    lng?: number | null;
+  }[];
   return rows;
 }
+
+
+/**
+ * 전용면적 대비 분양면적 매핑 정보 Upsert
+ */

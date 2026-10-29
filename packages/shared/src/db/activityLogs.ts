@@ -63,7 +63,7 @@ export function getActivityLogs(
   
   let countSql = "SELECT COUNT(*) AS count FROM user_activity_logs WHERE 1=1";
   let selectSql = "SELECT id, user_email AS userEmail, activity_type AS activityType, description, payload, ip_address AS ipAddress, user_agent AS userAgent, created_at AS createdAt FROM user_activity_logs WHERE 1=1";
-  const params: any[] = [];
+  const params: (string | number)[] = [];
   
   if (userEmail) {
     countSql += " AND user_email = ?";

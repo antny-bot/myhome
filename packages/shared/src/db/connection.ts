@@ -2,6 +2,7 @@ import { DatabaseSync, type StatementSync } from "node:sqlite";
 import { join } from "node:path";
 
 let _db: DatabaseSync | null = null;
+const MAX_STMT_CACHE = 200;
 const stmtCache = new Map<string, StatementSync>();
 
 /**
@@ -19,13 +20,27 @@ export function getDb(): DatabaseSync {
 
 /**
  * 컴파일 비용을 최소화하기 위해 SQL Prepared Statement를 모듈 단위로 캐싱 및 재사용합니다.
+ * 캐시 폭주를 방지하기 위해 최대 200개의 LRU 캐시 상한을 적용합니다.
  */
 export function getPreparedStatement(sql: string): StatementSync {
   let stmt = stmtCache.get(sql);
-  if (!stmt) {
-    stmt = getDb().prepare(sql);
+  if (stmt) {
+    // LRU 갱신: 기존 키 삭제 후 재등록
+    stmtCache.delete(sql);
     stmtCache.set(sql, stmt);
+    return stmt;
   }
+
+  // 캐시 크기 상한 도달 시 가장 오래된 항목 제거
+  if (stmtCache.size >= MAX_STMT_CACHE) {
+    const oldestKey = stmtCache.keys().next().value;
+    if (oldestKey) {
+      stmtCache.delete(oldestKey);
+    }
+  }
+
+  stmt = getDb().prepare(sql);
+  stmtCache.set(sql, stmt);
   return stmt;
 }
 
@@ -37,11 +52,22 @@ export function clearStatementCache(): void {
 }
 
 /**
- * SQLite DatabaseSync 커넥션을 닫습니다. (안전 종료용)
+ * SQLite DatabaseSync 커넥션을 안전하게 닫습니다. (WAL 체크포인트 TRUNCATE 적용)
  */
 export function closeDb(): void {
   clearStatementCache();
   if (_db) {
-    _db = null;
+    try {
+      _db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+      // 사유: node:sqlite DatabaseSync 런타임 호환용 안전한 close 호출
+      const dbInstance = _db as unknown as { close?: () => void };
+      if (typeof dbInstance.close === "function") {
+        dbInstance.close();
+      }
+    } catch (err) {
+      console.warn("⚠️ closeDb 체크포인트 또는 종료 중 경고:", err);
+    } finally {
+      _db = null;
+    }
   }
 }

@@ -12,9 +12,15 @@
     }
   },
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "test": "node --import tsx/esm --test \"src/**/*.test.ts\""
   },
   "dependencies": {
     "fast-xml-parser": "^5.9.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.5",
+    "tsx": "^4.21.0",
+    "typescript": "^5.7.3"
   }
 }

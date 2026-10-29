@@ -239,14 +239,13 @@ export function createTransactionRouter() {
             },
           };
         });
-        upsertTransactionBatch(regionInfo, batchItems)
-          .then(() => {
-            console.log(`[graphDb] 탐색 배치 upsert 완료 (${records.length}건) -> 캐시 초기화`);
-            graphCache.clear();
-          })
-          .catch((err: any) =>
-            console.error(`[graphDb] 탐색 배치 upsert 실패 (${records.length}건):`, err)
-          );
+        try {
+          upsertTransactionBatch(regionInfo, batchItems);
+          console.log(`[graphDb] 탐색 배치 upsert 완료 (${records.length}건) -> 캐시 초기화`);
+          graphCache.clear();
+        } catch (err) {
+          console.error(`[graphDb] 탐색 배치 upsert 실패 (${records.length}건):`, err);
+        }
       }
     } catch (error) {
       next(error);

@@ -24,7 +24,7 @@ const mcpLimiter = createMcporterLimiter({
 export async function getApartmentPrices(lawdCode: string, dealMonth: string): Promise<McpPriceResult> {
   // limiter key = "lawdCode:dealMonth"
   const result = await mcpLimiter.run(`${lawdCode}:${dealMonth}`, async () => {
-    const transactions = await fetchApartmentPricesDirect(lawdCode, dealMonth);
+    const transactions = (await fetchApartmentPricesDirect(lawdCode, dealMonth)).items;
     return { transactions, raw: { result: { transactions } } };
   });
   return result;
@@ -47,7 +47,7 @@ export async function getApartmentList(lawdCode: string): Promise<string[]> {
     try {
       // limiter key = "lawdCode:list:month"
       const res = await mcpLimiter.run(`${lawdCode}:list:${month}`, async () => {
-        return await fetchApartmentPricesDirect(lawdCode, month);
+        return (await fetchApartmentPricesDirect(lawdCode, month)).items;
       });
       for (const t of res) {
         if (t.apartmentName) names.add(t.apartmentName.trim());

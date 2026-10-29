@@ -14,6 +14,7 @@ export const Config = {
   get ALLOWED_EMAILS() { return process.env.ALLOWED_EMAILS; },
   get ADMIN_EMAILS() { return process.env.ADMIN_EMAILS; },
   get ENABLE_BOOTSTRAP_ADMIN() { return process.env.ENABLE_BOOTSTRAP_ADMIN; },
+  get ALLOWED_ORIGINS() { return process.env.ALLOWED_ORIGINS; },
   // 서버 설정
   get PORT() { return process.env.PORT; },
   get HOST() { return process.env.HOST; },
@@ -49,31 +50,32 @@ export function validateRequiredConfig() {
     );
   }
 
-  // ── 국토부 API 키 검사 ────────────────────────────────────────
+  // ── 텔레그램 설정 검사 ──────────────────────────────────────────
+  if (!Config.TELEGRAM_BOT_TOKEN) {
+    warnings.push("TELEGRAM_BOT_TOKEN 미설정: 텔레그램 알림 기능이 비활성화됩니다.");
+  }
+
+  // ── 카카오 API 설정 검사 ────────────────────────────────────────
+  if (!Config.KAKAO_REST_API_KEY) {
+    warnings.push("KAKAO_REST_API_KEY 미설정: 카카오 메시지 전송 및 좌표 조회 기능이 제한됩니다.");
+  }
+
+  // ── 국토부 API 설정 검사 ────────────────────────────────────────
   if (!Config.DATA_GO_KR_API_KEY) {
-    warnings.push(
-      "⚠️  DATA_GO_KR_API_KEY 가 설정되지 않았습니다. 국토부 실거래 API 호출이 작동하지 않습니다."
-    );
+    warnings.push("DATA_GO_KR_API_KEY 미설정: 공공데이터포털 실거래 데이터 직접 조회가 불가합니다.");
   }
 
-  // ── 알림 설정 검사 ────────────────────────────────────────────
-  if (!Config.TELEGRAM_BOT_TOKEN || !Config.TELEGRAM_CHAT_ID) {
-    warnings.push(
-      "⚠️  TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID 가 설정되지 않았습니다. Telegram 알림이 비활성화됩니다."
-    );
-  }
-
-  // ── 출력 ──────────────────────────────────────────────────────
-  for (const warn of warnings) {
-    console.warn(warn);
-  }
-  for (const err of errors) {
-    console.error(`❌ ${err}`);
+  // ── 결과 출력 및 조치 ──────────────────────────────────────────
+  if (warnings.length > 0) {
+    console.warn("\n환경변수 확인 필요 (선택 기능 비활성화):");
+    warnings.forEach((w) => console.warn(`  ${w}`));
+    console.warn("");
   }
 
   if (errors.length > 0) {
-    console.error("❌ 필수 환경변수 누락으로 서버를 시작할 수 없습니다. 종료합니다.");
+    console.error("\n❌ 치명적 환경변수 누락 (서버 기동 불가):");
+    errors.forEach((e) => console.error(`  - ${e}`));
+    console.error("\n.env 파일을 올바르게 설정한 후 다시 실행해주세요.\n");
     process.exit(1);
   }
 }
-

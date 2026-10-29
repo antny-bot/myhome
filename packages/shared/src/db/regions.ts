@@ -1,6 +1,6 @@
 import { DatabaseSync } from "node:sqlite";
 import { getDb, getPreparedStatement } from "./connection.js";
-import { ComplexSearchResult, ComplexMetaFilter } from "../types.js";
+import type { ComplexSearchResult, ComplexMetaFilter, RegionInfo, RegionMapComplexItem, RegionMapData } from "../types.js";
 
 /**
  * 검색 단지명 유연 해석 (정확 일치 우선, 없으면 FTS5 가상 테이블 및 거래량 기준 매칭)
@@ -16,7 +16,7 @@ export function resolveComplexName(db: DatabaseSync, complexName: string, lawdCo
     `);
     const exactRow = lawdCode ? exactQuery.get(complexName, lawdCode) : exactQuery.get(complexName);
     if (exactRow) {
-      return (exactRow as any).name;
+      return (exactRow as { name: string }).name;
     }
 
     // 2. FTS5 가상 테이블을 활용해 1차 후보군을 MATCH로 선정하고, 거래량 최다 단지 매칭
@@ -35,7 +35,7 @@ export function resolveComplexName(db: DatabaseSync, complexName: string, lawdCo
     `);
     const fuzzyRow = lawdCode ? fuzzyQuery.get(matchQuery, lawdCode) : fuzzyQuery.get(matchQuery);
     if (fuzzyRow) {
-      return (fuzzyRow as any).name;
+      return (fuzzyRow as { name: string }).name;
     }
   } catch (err) {
     console.error("[SQLiteDB] resolveComplexName error", err);
@@ -47,11 +47,11 @@ export function resolveComplexName(db: DatabaseSync, complexName: string, lawdCo
  * 단지명 글로벌 검색 (지역 무관 또는 특정 지역 필터)
  * SQLite FTS5 MATCH 구문을 사용하여 Full-Table Scan 없이 초고속 부분 검색을 지원합니다.
  */
-export async function searchComplexNames(
+export function searchComplexNames(
   query: string,
   lawdCode?: string,
   filter?: ComplexMetaFilter
-): Promise<ComplexSearchResult[]> {
+): ComplexSearchResult[] {
   const db = getDb();
   
   if (!query.trim()) {
@@ -61,7 +61,7 @@ export async function searchComplexNames(
       JOIN regions r ON c.lawd_code = r.lawd_code
       WHERE 1=1
     `;
-    const params: any[] = [];
+    const params: (string | number)[] = [];
     if (lawdCode) {
       queryStr += ` AND c.lawd_code LIKE ? || '%'`;
       params.push(lawdCode);
@@ -83,8 +83,8 @@ export async function searchComplexNames(
       params.push(filter.maxBuildYear);
     }
     queryStr += ` ORDER BY c.name LIMIT 30`;
-    const rows = db.prepare(queryStr).all(...params);
-    return rows.map((r: any) => ({
+    const rows = db.prepare(queryStr).all(...params) as unknown as ComplexSearchResult[];
+    return rows.map((r) => ({
       id: r.id,
       name: r.name,
       lawdCode: r.lawdCode,
@@ -103,7 +103,7 @@ export async function searchComplexNames(
   `;
   const tokens = query.trim().split(/\s+/).filter(Boolean);
   const matchQuery = tokens.map(t => `${t}*`).join(" AND ");
-  const params: any[] = [matchQuery];
+  const params: (string | number)[] = [matchQuery];
   if (lawdCode) {
     queryStr += ` AND c.lawd_code LIKE ? || '%'`;
     params.push(lawdCode);
@@ -126,8 +126,8 @@ export async function searchComplexNames(
   }
   queryStr += ` ORDER BY c.name LIMIT 30`;
 
-  const rows = db.prepare(queryStr).all(...params);
-  return rows.map((r: any) => ({
+  const rows = db.prepare(queryStr).all(...params) as unknown as ComplexSearchResult[];
+  return rows.map((r) => ({
     id: r.id,
     name: r.name,
     lawdCode: r.lawdCode,
@@ -215,10 +215,11 @@ export function getDbRegionsSummary(): {
              MIN(deal_date) AS minDealDate,
              MAX(deal_date) AS maxDealDate
       FROM transactions
+      WHERE cancel_date IS NULL
       GROUP BY lawd_code
     ) t ON r.lawd_code = t.lawd_code
     ORDER BY r.display_name ASC
-  `).all() as any[];
+  `).all() as unknown as { lawdCode: string; displayName: string; createdAt: string; transactionCount: number; minDealDate: string | null; maxDealDate: string | null; }[];
 
   return rows.map(r => ({
     lawdCode: r.lawdCode,
@@ -246,7 +247,7 @@ export function getComplexesByRegion(lawdCode?: string, filter?: ComplexMetaFilt
     FROM complexes
     WHERE 1=1
   `;
-  const params: any[] = [];
+  const params: (string | number)[] = [];
   if (lawdCode && lawdCode.trim() !== "") {
     query += ` AND lawd_code = ?`;
     params.push(lawdCode);
@@ -284,40 +285,13 @@ export function getComplexesByRegion(lawdCode?: string, filter?: ComplexMetaFilt
 export function getRegionComplexesMapData(
   lawdCode: string,
   filter?: ComplexMetaFilter
-): {
-  lawdCode: string;
-  regionName: string;
-  totalComplexes: number;
-  geocodedCount: number;
-  center: { lat: number; lng: number } | null;
-  complexes: {
-    id: string;
-    name: string;
-    lawdCode: string;
-    regionName: string;
-    dongName: string | null;
-    jibun: string | null;
-    roadName: string | null;
-    lat: number | null;
-    lng: number | null;
-    txCount: number;
-    latestDealDate: string | null;
-    latestPriceEok: number | null;
-    avgPriceEok: number | null;
-    minPriceEok: number | null;
-    maxPriceEok: number | null;
-    totalHouseholds: number | null;
-    totalParking: number | null;
-    parkingPerHousehold: number | null;
-    useApprovalDate: string | null;
-  }[];
-} {
+): RegionMapData {
   const db = getDb();
   const regionRow = db.prepare(`SELECT display_name FROM regions WHERE lawd_code = ?`).get(lawdCode) as { display_name: string } | undefined;
   const regionName = regionRow?.display_name || lawdCode;
 
   let filterConditions = "WHERE c.lawd_code = ?";
-  const params: any[] = [lawdCode];
+  const params: (string | number)[] = [lawdCode];
 
   if (filter?.minHouseholds !== undefined && filter.minHouseholds > 0) {
     filterConditions += " AND c.total_households >= ?";
@@ -351,7 +325,7 @@ export function getRegionComplexesMapData(
         MAX(price_eok) AS maxPriceEok,
         FIRST_VALUE(price_eok) OVER (PARTITION BY complex_id ORDER BY deal_date DESC, rowid DESC) AS latestPriceEok
       FROM transactions
-      WHERE lawd_code = ?
+      WHERE lawd_code = ? AND cancel_date IS NULL
       GROUP BY complex_id
     )
     SELECT 
@@ -382,7 +356,7 @@ export function getRegionComplexesMapData(
   `;
 
   // tx_summary의 lawd_code 파라미터가 1번째, 이후 filterConditions의 params가 결합
-  const rows = db.prepare(sql).all(lawdCode, ...params) as any[];
+  const rows = db.prepare(sql).all(lawdCode, ...params) as unknown as RegionMapComplexItem[];
 
   let totalLat = 0;
   let totalLng = 0;

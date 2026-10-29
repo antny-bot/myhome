@@ -1,4 +1,4 @@
-import { parseRealEstateXml } from "./xmlParser.js";
+import { parseRealEstateXmlResponse } from "./xmlParser.js";
 
 export type RawTransaction = {
   apartmentName: string;
@@ -6,10 +6,28 @@ export type RawTransaction = {
   priceEok: number;
   areaM2?: number;
   floor?: number;
-  dongName?: string;   // 법정동명 (umdNm)
-  jibun?: string;      // 지번
-  roadName?: string;   // 도로명 (roadNm)
+  dongName?: string;       // 법정동명 (umdNm)
+  jibun?: string;          // 지번
+  roadName?: string;       // 도로명 (roadNm)
+  aptDong?: string;        // 동 (aptDong)
+  kaptNo?: string;         // 단지코드 (kaptNo)
+  cancelDate?: string;     // 해제사유발생일 (cdealDay, YYYY-MM-DD 정규화)
+  cancelType?: string;     // 해제여부 (cdealType: 'O' 등)
+  dealingType?: string;    // 거래유형 (dealingGbn: '중개거래' / '직거래')
+  registeredDate?: string; // 등기일자 (rgstDate)
 };
+
+export class ApiFetchError extends Error {
+  constructor(
+    message: string,
+    public readonly code: string,
+    public readonly status?: number,
+    public readonly maskedUrl?: string
+  ) {
+    super(message);
+    this.name = "ApiFetchError";
+  }
+}
 
 // 헬퍼: 텍스트 또는 숫자로 변환된 필드 읽기
 function readString(record: Record<string, any>, keys: string[]): string | undefined {
@@ -32,6 +50,32 @@ function readNumber(record: Record<string, any>, keys: string[]): number | undef
     }
   }
   return undefined;
+}
+
+function normalizeCancelDate(raw?: string): string | undefined {
+  if (!raw) return undefined;
+  const s = raw.trim();
+  if (!s || s === "-" || s === "0") return undefined;
+  // 24.05.02 형태 (2자리 연도)
+  const dotMatch = s.match(/^(\d{2})\.(\d{2})\.(\d{2})$/);
+  if (dotMatch) {
+    const fullYear = `20${dotMatch[1]}`;
+    return `${fullYear}-${dotMatch[2]}-${dotMatch[3]}`;
+  }
+  // 2024.05.02 형태
+  const fullDotMatch = s.match(/^(\d{4})\.(\d{2})\.(\d{2})$/);
+  if (fullDotMatch) {
+    return `${fullDotMatch[1]}-${fullDotMatch[2]}-${fullDotMatch[3]}`;
+  }
+  // 20240502 형태
+  if (/^\d{8}$/.test(s)) {
+    return `${s.substring(0, 4)}-${s.substring(4, 6)}-${s.substring(6, 8)}`;
+  }
+  // 2024-05-02 형태
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    return s;
+  }
+  return s;
 }
 
 // 실거래 내역 정규화
@@ -92,40 +136,226 @@ export function normalizeTransaction(item: unknown, fallbackMonth: string): RawT
   const jibun = readString(r, ["jibun", "지번"]);
   const roadName = readString(r, ["roadNm", "도로명"]);
 
-  return { apartmentName, dealDate, priceEok, areaM2, floor, dongName, jibun, roadName };
+  // Task A-4: 신규 확장 필드 (동, 단지코드, 해제일, 해제구분, 거래유형, 등기일)
+  const aptDong = readString(r, ["aptDong", "동", "dong"]);
+  const kaptNo = readString(r, ["kaptNo", "단지코드"]);
+  const rawCancelDate = readString(r, ["cdealDay", "해제사유발생일", "cancelDate", "cdeal_day"]);
+  const cancelDate = normalizeCancelDate(rawCancelDate);
+  const cancelType = readString(r, ["cdealType", "해제여부", "cancelType", "cdeal_type"]);
+  const dealingType = readString(r, ["dealingGbn", "거래유형", "dealingType", "dealing_gbn"]);
+  const registeredDate = readString(r, ["rgstDate", "등기일자", "registeredDate", "rgst_date"]);
+
+  return {
+    apartmentName,
+    dealDate,
+    priceEok,
+    areaM2,
+    floor,
+    dongName,
+    jibun,
+    roadName,
+    aptDong,
+    kaptNo,
+    cancelDate,
+    cancelType,
+    dealingType,
+    registeredDate,
+  };
 }
 
 /**
- * 공공데이터포털 API를 직접 호출하여 해당 지역/월의 실거래 데이터를 무제한(numOfRows=9999)으로 수집
+ * URL에 포함된 민감한 serviceKey 파라미터를 마스킹
  */
-export async function fetchApartmentPricesDirect(lawdCode: string, dealMonth: string): Promise<RawTransaction[]> {
-  const apiKey = process.env.DATA_GO_KR_API_KEY;
+export function maskUrl(url: string): string {
+  return url.replace(/([?&]serviceKey=)[^&]+/gi, "$1***");
+}
+
+/**
+ * 공공데이터포털 URL 조립
+ * serviceKey가 이미 퍼센트 인코딩된 경우 이중 인코딩을 방지하고, 디코딩 키인 경우 encodeURIComponent 처리합니다.
+ */
+export function buildDataGoKrUrl(baseUrl: string, params: Record<string, string | number>): string {
+  const url = new URL(baseUrl);
+  const rawServiceKey = String(params.serviceKey ?? "");
+  const isAlreadyEncoded = rawServiceKey.includes("%");
+  const encodedKey = isAlreadyEncoded ? rawServiceKey : encodeURIComponent(rawServiceKey);
+
+  for (const [k, v] of Object.entries(params)) {
+    if (k === "serviceKey") continue;
+    url.searchParams.set(k, String(v));
+  }
+
+  const separator = url.search ? "&" : "?";
+  return `${url.toString()}${separator}serviceKey=${encodedKey}`;
+}
+
+const BASE_API_URL = "https://apis.data.go.kr/1613000/RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev";
+
+export type FetchPageResult = {
+  items: RawTransaction[];
+  totalCount: number;
+  pageNo: number;
+  numOfRows: number;
+};
+
+/**
+ * 특정 페이지 단건 호출 (지수 백오프 재시도 포함)
+ */
+export async function fetchApartmentPricesPage(
+  lawdCode: string,
+  dealMonth: string,
+  pageNo: number = 1,
+  numOfRows: number = 1000,
+  options?: {
+    apiKey?: string;
+    maxRetries?: number;
+    initialBackoffMs?: number;
+    fetchFn?: typeof fetch;
+  }
+): Promise<FetchPageResult> {
+  const apiKey = options?.apiKey ?? process.env.DATA_GO_KR_API_KEY;
   if (!apiKey) {
-    console.warn("[ApiClient] DATA_GO_KR_API_KEY 환경변수가 설정되지 않았습니다. API 직접 조회를 건너뜁니다.");
-    return [];
+    throw new ApiFetchError(
+      "DATA_GO_KR_API_KEY 환경변수가 설정되지 않았습니다.",
+      "CONFIG_MISSING"
+    );
   }
 
-  // 인코딩된 인증키인지 디코딩된 키인지 구분할 필요 없이, 소문자+숫자 키이므로 그대로 쿼리 파라미터에 매핑
-  const url = `http://apis.data.go.kr/1613000/RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev?serviceKey=${apiKey}&LAWD_CD=${lawdCode}&DEAL_YMD=${dealMonth}&pageNo=1&numOfRows=9999`;
+  const fetchFn = options?.fetchFn ?? fetch;
+  const maxRetries = options?.maxRetries ?? 3;
+  const initialBackoffMs = options?.initialBackoffMs ?? 500;
 
-  try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
-    if (!res.ok) {
-      throw new Error(`HTTP 에러: ${res.status}`);
-    }
+  const url = buildDataGoKrUrl(BASE_API_URL, {
+    LAWD_CD: lawdCode,
+    DEAL_YMD: dealMonth,
+    pageNo,
+    numOfRows,
+    serviceKey: apiKey,
+  });
+  const masked = maskUrl(url);
 
-    const xmlText = await res.text();
-    const rawItems = parseRealEstateXml(xmlText);
-    
-    const normalized: RawTransaction[] = [];
-    for (const item of rawItems) {
-      const norm = normalizeTransaction(item, dealMonth);
-      if (norm) normalized.push(norm);
+  let attempt = 0;
+  while (true) {
+    attempt++;
+    try {
+      const res = await fetchFn(url, { signal: AbortSignal.timeout(15000) });
+
+      if (!res.ok) {
+        const status = res.status;
+        const isClientError = status >= 400 && status < 500 && status !== 429;
+        const errorCode = status === 429 ? "RATE_LIMITED" : status >= 500 ? "SERVER_ERROR" : "CLIENT_ERROR";
+        
+        // 4xx(429 제외)는 재시도하지 않음
+        if (isClientError || attempt >= maxRetries) {
+          throw new ApiFetchError(`HTTP 에러: ${status}`, errorCode, status, masked);
+        }
+
+        // 5xx나 429는 지수 백오프 후 재시도
+        const delay = initialBackoffMs * Math.pow(2, attempt - 1);
+        await new Promise((r) => setTimeout(r, delay));
+        continue;
+      }
+
+      const xmlText = await res.text();
+      const parsed = parseRealEstateXmlResponse(xmlText);
+
+      // 공공데이터 API 응답 코드 검사
+      const code = parsed.resultCode;
+      if (code !== "000" && code !== "00" && code !== "0") {
+        if (code === "22") {
+          // 호출 한도 초과 (재시도 금지)
+          throw new ApiFetchError(
+            `국토부 API 일일 호출 한도 초과 (코드 22): ${parsed.resultMsg}`,
+            "LIMIT_EXCEEDED",
+            200,
+            masked
+          );
+        }
+        if (code === "30" || code === "31") {
+          // 서비스키 오류 (재시도 금지)
+          throw new ApiFetchError(
+            `국토부 API 서비스키 오류 (코드 ${code}): ${parsed.resultMsg}`,
+            "AUTH_ERROR",
+            200,
+            masked
+          );
+        }
+        throw new ApiFetchError(
+          `공공데이터 API 에러 [${code}]: ${parsed.resultMsg}`,
+          `API_ERROR_${code}`,
+          200,
+          masked
+        );
+      }
+
+      const normalized: RawTransaction[] = [];
+      for (const item of parsed.items) {
+        const norm = normalizeTransaction(item, dealMonth);
+        if (norm) normalized.push(norm);
+      }
+
+      return {
+        items: normalized,
+        totalCount: parsed.totalCount,
+        pageNo: parsed.pageNo,
+        numOfRows: parsed.numOfRows,
+      };
+    } catch (err: any) {
+      if (err instanceof ApiFetchError) {
+        // 이미 명시적 오류인 경우(재시도 중단 대상)
+        if (err.code === "LIMIT_EXCEEDED" || err.code === "AUTH_ERROR" || err.code === "CLIENT_ERROR" || attempt >= maxRetries) {
+          throw err;
+        }
+      }
+
+      // 네트워크/타임아웃 오류
+      if (attempt >= maxRetries) {
+        throw new ApiFetchError(
+          `국토부 API 호출 최종 실패: ${err.message}`,
+          err.code ?? "NETWORK_ERROR",
+          undefined,
+          masked
+        );
+      }
+
+      const delay = initialBackoffMs * Math.pow(2, attempt - 1);
+      await new Promise((r) => setTimeout(r, delay));
     }
-    
-    return normalized;
-  } catch (err: any) {
-    console.error(`[ApiClient] 국토교통부 API 직접 호출 실패 (${lawdCode} / ${dealMonth}):`, err.message);
-    return [];
   }
+}
+
+/**
+ * 공공데이터포털 API를 직접 호출하여 해당 지역/월의 실거래 데이터를 페이지네이션 반복하여 전량 수집
+ * 실패 시 ApiFetchError를 throw합니다.
+ */
+export async function fetchApartmentPricesDirect(
+  lawdCode: string,
+  dealMonth: string,
+  options?: {
+    apiKey?: string;
+    maxRetries?: number;
+    initialBackoffMs?: number;
+    fetchFn?: typeof fetch;
+  }
+): Promise<{ items: RawTransaction[]; totalCount: number }> {
+  const PAGE_SIZE = 1000;
+  
+  // 첫 페이지 호출
+  const firstPage = await fetchApartmentPricesPage(lawdCode, dealMonth, 1, PAGE_SIZE, options);
+  const allItems: RawTransaction[] = [...firstPage.items];
+  const totalCount = firstPage.totalCount;
+
+  // 전체 건수가 PAGE_SIZE보다 큰 경우 다음 페이지 반복 수집
+  if (totalCount > PAGE_SIZE) {
+    const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+    for (let page = 2; page <= totalPages; page++) {
+      const nextPage = await fetchApartmentPricesPage(lawdCode, dealMonth, page, PAGE_SIZE, options);
+      allItems.push(...nextPage.items);
+    }
+  }
+
+  return {
+    items: allItems,
+    totalCount,
+  };
 }

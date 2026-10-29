@@ -1,3 +1,12 @@
+interface PragmaColumn {
+  cid: number;
+  name: string;
+  type: string;
+  notnull: number;
+  dflt_value: unknown;
+  pk: number;
+}
+
 import { getDb } from "./connection.js";
 
 /**
@@ -30,9 +39,14 @@ export function initDb(): void {
       deal_date TEXT NOT NULL,
       price_eok REAL NOT NULL,
       area_m2 REAL,
+      area_key INTEGER,
       floor INTEGER,
       collected_at TEXT NOT NULL,
       updated_at TEXT,
+      cancel_date TEXT,
+      dealing_type TEXT,
+      apt_dong TEXT,
+      legacy_key TEXT,
       FOREIGN KEY (complex_id) REFERENCES complexes(id)
     );
 
@@ -55,6 +69,7 @@ export function initDb(): void {
     CREATE INDEX IF NOT EXISTS idx_transactions_lawd_code ON transactions(lawd_code);
     CREATE INDEX IF NOT EXISTS idx_transactions_lawd_complex ON transactions(lawd_code, complex_id, deal_date DESC, price_eok);
     CREATE INDEX IF NOT EXISTS idx_region_apartment_cache_lawd_code ON region_apartment_cache(lawd_code);
+    CREATE INDEX IF NOT EXISTS idx_transactions_cancel_date ON transactions(cancel_date);
 
     CREATE TABLE IF NOT EXISTS sessions (
       id TEXT PRIMARY KEY,
@@ -184,6 +199,7 @@ export function initDb(): void {
     CREATE TABLE IF NOT EXISTS complex_area_mappings (
       complex_id TEXT NOT NULL,
       area_m2 REAL NOT NULL,
+      area_key INTEGER,
       supply_area_m2 REAL NOT NULL,
       source TEXT DEFAULT 'api',
       created_at TEXT NOT NULL,
@@ -191,11 +207,12 @@ export function initDb(): void {
       FOREIGN KEY (complex_id) REFERENCES complexes(id)
     );
     CREATE INDEX IF NOT EXISTS idx_complex_area_mappings_complex_id ON complex_area_mappings(complex_id);
+    CREATE INDEX IF NOT EXISTS idx_cam_complex_area_key ON complex_area_mappings(complex_id, area_key);
   `);
 
   // -- complexes 테이블 주소·좌표 컬럼 마이그레이션 (기존 DB 호환)
   const complexCols = db.prepare("PRAGMA table_info(complexes)").all() as { name: string }[];
-  const colNames = new Set(complexCols.map((c: any) => c.name));
+  const colNames = new Set((complexCols as unknown as PragmaColumn[]).map(c => c.name));
   if (!colNames.has('dong_name')) db.exec('ALTER TABLE complexes ADD COLUMN dong_name TEXT');
   if (!colNames.has('jibun')) db.exec('ALTER TABLE complexes ADD COLUMN jibun TEXT');
   if (!colNames.has('road_name')) db.exec('ALTER TABLE complexes ADD COLUMN road_name TEXT');
@@ -212,18 +229,47 @@ export function initDb(): void {
   // 좌표 보유 단지 조회 성능 인덱스
   db.exec('CREATE INDEX IF NOT EXISTS idx_complexes_geocoded ON complexes(lat, lng) WHERE lat IS NOT NULL');
 
-  // -- transactions 테이블 lawd_code 컬럼 마이그레이션 (기존 DB 호환)
+  // -- transactions 테이블 컬럼 마이그레이션 (기존 DB 호환)
   const txCols = db.prepare("PRAGMA table_info(transactions)").all() as { name: string }[];
-  const txColNames = new Set(txCols.map((c: any) => c.name));
+  const txColNames = new Set((txCols as unknown as PragmaColumn[]).map(c => c.name));
   if (!txColNames.has('lawd_code')) {
     db.exec('ALTER TABLE transactions ADD COLUMN lawd_code TEXT');
     db.exec(`UPDATE transactions SET lawd_code = substr(complex_id, 1, instr(complex_id, '|') - 1) WHERE lawd_code IS NULL`);
   }
+  if (!txColNames.has('cancel_date')) {
+    db.exec('ALTER TABLE transactions ADD COLUMN cancel_date TEXT');
+  }
+  if (!txColNames.has('dealing_type')) {
+    db.exec('ALTER TABLE transactions ADD COLUMN dealing_type TEXT');
+  }
+  if (!txColNames.has('apt_dong')) {
+    db.exec('ALTER TABLE transactions ADD COLUMN apt_dong TEXT');
+  }
+  if (!txColNames.has('legacy_key')) {
+    db.exec('ALTER TABLE transactions ADD COLUMN legacy_key TEXT');
+    db.exec('UPDATE transactions SET legacy_key = dedupe_key WHERE legacy_key IS NULL');
+    db.exec(`INSERT OR IGNORE INTO system_config (key, value) VALUES ('collector.need_resync_dedupe_v2', 'true')`);
+  }
+  if (!txColNames.has('area_key')) {
+    db.exec('ALTER TABLE transactions ADD COLUMN area_key INTEGER');
+    db.exec('UPDATE transactions SET area_key = CAST(ROUND(area_m2 * 100) AS INTEGER) WHERE area_key IS NULL AND area_m2 IS NOT NULL');
+  }
   db.exec('CREATE INDEX IF NOT EXISTS idx_transactions_lawd_code_deal_date ON transactions(lawd_code, deal_date)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_transactions_cancel_date ON transactions(cancel_date)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_transactions_complex_area_key ON transactions(complex_id, area_key)');
+
+  // -- complex_area_mappings 테이블 area_key 컬럼 마이그레이션
+  const camCols = db.prepare("PRAGMA table_info(complex_area_mappings)").all() as { name: string }[];
+  const camColNames = new Set((camCols as unknown as PragmaColumn[]).map(c => c.name));
+  if (!camColNames.has('area_key')) {
+    db.exec('ALTER TABLE complex_area_mappings ADD COLUMN area_key INTEGER');
+    db.exec('UPDATE complex_area_mappings SET area_key = CAST(ROUND(area_m2 * 100) AS INTEGER) WHERE area_key IS NULL');
+  }
+  db.exec('CREATE INDEX IF NOT EXISTS idx_cam_complex_area_key ON complex_area_mappings(complex_id, area_key)');
 
   // -- user_settings 테이블 password_hash 컬럼 마이그레이션 (기존 DB 호환)
   const userSettingsCols = db.prepare("PRAGMA table_info(user_settings)").all() as { name: string }[];
-  const userSettingsColNames = new Set(userSettingsCols.map((c: any) => c.name));
+  const userSettingsColNames = new Set((userSettingsCols as unknown as PragmaColumn[]).map(c => c.name));
   if (!userSettingsColNames.has('password_hash')) {
     db.exec('ALTER TABLE user_settings ADD COLUMN password_hash TEXT');
   }
@@ -236,21 +282,21 @@ export function initDb(): void {
 
   // -- sessions 테이블 login_method 컬럼 마이그레이션 (기존 DB 호환)
   const sessionsCols = db.prepare("PRAGMA table_info(sessions)").all() as { name: string }[];
-  const sessionsColNames = new Set(sessionsCols.map((c: any) => c.name));
+  const sessionsColNames = new Set((sessionsCols as unknown as PragmaColumn[]).map(c => c.name));
   if (!sessionsColNames.has('login_method')) {
     db.exec('ALTER TABLE sessions ADD COLUMN login_method TEXT');
   }
 
   // -- rules 테이블 alert_time 컬럼 마이그레이션 (기존 DB 호환)
   const rulesCols = db.prepare("PRAGMA table_info(rules)").all() as { name: string }[];
-  const rulesColNames = new Set(rulesCols.map((c: any) => c.name));
+  const rulesColNames = new Set((rulesCols as unknown as PragmaColumn[]).map(c => c.name));
   if (!rulesColNames.has('alert_time')) {
     db.exec("ALTER TABLE rules ADD COLUMN alert_time TEXT DEFAULT '09:00'");
   }
 
   // -- graph_presets_analysis 테이블 area_max_m2 컬럼 마이그레이션 (기존 DB 호환)
   const gpaCols = db.prepare("PRAGMA table_info(graph_presets_analysis)").all() as { name: string }[];
-  const gpaColNames = new Set(gpaCols.map((c: any) => c.name));
+  const gpaColNames = new Set((gpaCols as unknown as PragmaColumn[]).map(c => c.name));
   if (!gpaColNames.has('area_max_m2')) {
     db.exec("ALTER TABLE graph_presets_analysis ADD COLUMN area_max_m2 REAL");
   }

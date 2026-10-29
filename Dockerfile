@@ -1,5 +1,5 @@
 # 1단계: 빌드 스테이지
-FROM node:22-alpine AS builder
+FROM node:24-alpine AS builder
 
 WORKDIR /usr/src/app
 
@@ -22,7 +22,7 @@ RUN npm run build
 RUN npm prune --omit=dev
 
 # 2단계: 실행 스테이지 (용량 최소화)
-FROM node:22-alpine AS runner
+FROM node:24-alpine AS runner
 
 WORKDIR /app
 
@@ -36,8 +36,15 @@ COPY --from=builder /usr/src/app/node_modules ./node_modules
 COPY --from=builder /usr/src/app/packages ./packages
 COPY --from=builder /usr/src/app/scripts ./scripts
 
-# 데이터 저장 디렉토리 생성
-RUN mkdir -p /app/data
+# 데이터 저장 디렉토리 생성 및 node 사용자 권한 부여
+RUN mkdir -p /app/data && chown -R node:node /app
+
+# 헬스체크 정의 (/api/v1/health)
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:4174/api/v1/health || exit 1
+
+# 비root 사용자 실행
+USER node
 
 EXPOSE 4174
 

@@ -4,7 +4,6 @@ services:
   myhome:
     container_name: myhome
     # GitHub Container Registry(GHCR)에 푸시된 이미지를 지정합니다. 
-    # 본인의 GitHub 사용자명 또는 리포지토리 설정에 맞춰 변경해 주세요.
     image: ghcr.io/antny-bot/myhome:latest
     restart: unless-stopped
     ports:
@@ -33,3 +32,17 @@ services:
       - GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI}
       - ALLOWED_EMAILS=${ALLOWED_EMAILS}
       - ADMIN_EMAILS=${ADMIN_EMAILS}
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://127.0.0.1:4174/api/v1/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1024M
+        reservations:
+          cpus: '0.2'
+          memory: 256M

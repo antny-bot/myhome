@@ -1,6 +1,9 @@
 {
   "name": "myhome-monorepo",
   "private": true,
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "workspaces": [
     "packages/shared",
     "packages/collector",
@@ -11,10 +14,11 @@
     "build:shared": "npm run build --workspace=packages/shared",
     "build:collector": "npm run build --workspace=packages/collector",
     "build:dashboard": "npm run build --workspace=packages/dashboard",
-    "build": "npm run build:shared && npm run build:collector && npm run build:dashboard"
-  },
-  "dependencies": {
-    "express-rate-limit": "^6.11.2"
+    "build": "npm run build:shared && npm run build:collector && npm run build:dashboard",
+    "test:shared": "npm run test --workspace=packages/shared",
+    "test:dashboard": "npm run test --workspace=packages/dashboard",
+    "test": "npm run test:shared && npm run test:dashboard",
+    "check:i18n": "node --import tsx/esm scripts/check-i18n.ts"
   },
   "devDependencies": {
     "pretendard": "^1.3.9",

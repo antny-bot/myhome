@@ -3,7 +3,11 @@ export type TransactionNode = {
   dealDate: string;
   priceEok: number;
   areaM2?: number;
+  areaKey?: number;
   floor?: number;
+  cancelDate?: string;
+  dealingType?: string;
+  aptDong?: string;
 };
 
 export type RegionInfo = {
@@ -55,6 +59,9 @@ export type GraphFilter = {
   minParkingPerHousehold?: number;
   minBuildYear?: number;
   maxBuildYear?: number;
+  limit?: number;
+  cursorDate?: string;
+  cursorDedupeKey?: string;
 };
 
 export interface ComplexMetaFilter {
@@ -145,4 +152,98 @@ export interface RegionMapData {
   geocodedCount: number;
   center: { lat: number; lng: number } | null;
   complexes: RegionMapComplexItem[];
+}
+
+export interface DrilldownRegionItem {
+  code: string;
+  name: string;
+  count: number;
+  avgPriceEok: number;
+}
+
+export interface DrilldownComplexItem {
+  name: string;
+  count: number;
+  avgPriceEok: number;
+}
+
+export interface DrilldownAreaItem {
+  name: string;
+  count: number;
+  avgPriceEok: number;
+}
+
+export interface SearchResultTransaction {
+  regionName: string;
+  lawdCode: string;
+  apartmentName: string;
+  dealDate: string;
+  priceEok: number;
+  areaM2?: number;
+  supplyAreaM2?: number | null;
+  floor?: number;
+  dedupeKey: string;
+  cancelDate?: string | null;
+  dealingType?: string | null;
+  aptDong?: string | null;
+}
+
+export type SearchTransactionsResult = SearchResultTransaction[] & {
+  truncated?: boolean;
+  nextCursor?: { dealDate: string; dedupeKey: string } | null;
+};
+
+export type AlertChannel = "telegram" | "kakao";
+
+export type NotificationStatus = "sent" | "skipped" | "failed";
+
+export type ComparisonCriteria =
+  | "none"
+  | "parking"
+  | "large_complex"
+  | "transit"
+  | "newer"
+  | "livability";
+
+export interface DbWatchRule {
+  id: string;
+  userEmail: string;
+  name: string;
+  regionName: string;
+  regionCode?: string;
+  apartmentKeywords?: string[];
+  minPriceEok?: number;
+  maxPriceEok?: number;
+  minArea?: number;
+  maxArea?: number;
+  comparisonCriteria: ComparisonCriteria;
+  intervalMinutes: number;
+  alertTime?: string;
+  channels: AlertChannel[];
+  enabled: boolean;
+  lastCheckedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DbCheckRun {
+  id: string;
+  ruleId: string;
+  ruleName: string;
+  matched: boolean;
+  summary: string;
+  matches: any[];
+  sourceLimitNotice: string;
+  error?: string;
+  createdAt: string;
+}
+
+export interface DbNotification {
+  id: string;
+  ruleId: string;
+  channel: AlertChannel;
+  status: NotificationStatus;
+  message: string;
+  dedupeKeys: string[];
+  createdAt: string;
 }
