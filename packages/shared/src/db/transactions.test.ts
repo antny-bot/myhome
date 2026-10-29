@@ -136,3 +136,91 @@ test("해제 거래 처리: cancel_date가 등록된 거래는 검색 및 통계
   const count = getLocalTransactionsCount("11680", "202604");
   assert.equal(count, 1);
 });
+
+test("area_key 정규화 조인 및 searchTransactions 커서 페이지네이션 검증", async () => {
+  initDb();
+  const db = getDb();
+
+  const regionInfo = { lawdCode: "11680", displayName: "서울시 강남구" };
+  const complexName = "개포자이프레지던스";
+
+  // 단지 면적 매핑 등록 (84.97㎡ -> 공급 114.5㎡, area_key = 8497)
+  const complexId = "11680|개포자이프레지던스";
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO complexes (id, lawd_code, name, created_at)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(id) DO NOTHING
+  `).run(complexId, "11680", complexName, now);
+
+  db.prepare(`
+    INSERT INTO complex_area_mappings (complex_id, area_m2, area_key, supply_area_m2, created_at)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(complex_id, area_m2) DO UPDATE SET supply_area_m2 = excluded.supply_area_m2, area_key = excluded.area_key
+  `).run(complexId, 84.97, 8497, 114.5, now);
+
+  // 실거래 3건 등록
+  const items = [
+    {
+      complexName,
+      tx: {
+        dedupeKey: "key-tx-1",
+        dealDate: "2026-05-15",
+        priceEok: 30.0,
+        areaM2: 84.97,
+        floor: 10,
+      },
+    },
+    {
+      complexName,
+      tx: {
+        dedupeKey: "key-tx-2",
+        dealDate: "2026-05-10",
+        priceEok: 29.5,
+        areaM2: 84.97,
+        floor: 8,
+      },
+    },
+    {
+      complexName,
+      tx: {
+        dedupeKey: "key-tx-3",
+        dealDate: "2026-05-01",
+        priceEok: 29.0,
+        areaM2: 84.97,
+        floor: 5,
+      },
+    },
+  ];
+
+  await upsertTransactionBatch(regionInfo, items);
+
+  // 1. area_key 기반 supplyAreaM2 매핑 확인
+  const page1 = await searchTransactions({
+    lawdCode: "11680",
+    complexName,
+    limit: 2,
+  });
+
+  assert.equal(page1.length, 2);
+  assert.equal((page1 as any).truncated, true);
+  assert.ok((page1 as any).nextCursor);
+  assert.equal(page1[0].supplyAreaM2, 114.5);
+  assert.equal(page1[0].dealDate, "2026-05-15");
+  assert.equal(page1[1].dealDate, "2026-05-10");
+
+  // 2. 2페이지 커서 조회 (dealDate, dedupeKey)
+  const nextCursor = (page1 as any).nextCursor;
+  const page2 = await searchTransactions({
+    lawdCode: "11680",
+    complexName,
+    limit: 2,
+    cursorDate: nextCursor.dealDate,
+    cursorDedupeKey: nextCursor.dedupeKey,
+  });
+
+  assert.equal(page2.length, 1);
+  assert.equal((page2 as any).truncated, false);
+  assert.equal(page2[0].dealDate, "2026-05-01");
+  assert.equal(page2[0].supplyAreaM2, 114.5);
+});

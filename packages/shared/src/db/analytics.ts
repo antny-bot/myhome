@@ -14,13 +14,15 @@ export function upsertAreaMapping(
   source: string = "api"
 ): void {
   const now = new Date().toISOString();
+  const areaKey = Math.round(areaM2 * 100);
   getPreparedStatement(`
-    INSERT INTO complex_area_mappings (complex_id, area_m2, supply_area_m2, source, created_at)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO complex_area_mappings (complex_id, area_m2, area_key, supply_area_m2, source, created_at)
+    VALUES (?, ?, ?, ?, ?, ?)
     ON CONFLICT(complex_id, area_m2) DO UPDATE SET
+      area_key = excluded.area_key,
       supply_area_m2 = excluded.supply_area_m2,
       source = excluded.source
-  `).run(complexId, areaM2, supplyAreaM2, source, now);
+  `).run(complexId, areaM2, areaKey, supplyAreaM2, source, now);
 }
 
 /**
@@ -30,12 +32,13 @@ export function getAreaMapping(
   complexId: string,
   areaM2: number
 ): { supplyAreaM2: number; source: string } | null {
+  const areaKey = Math.round(areaM2 * 100);
   const row = getPreparedStatement(`
     SELECT supply_area_m2 AS supplyAreaM2, source
     FROM complex_area_mappings
-    WHERE complex_id = ? AND ROUND(area_m2, 2) = ROUND(?, 2)
+    WHERE complex_id = ? AND area_key = ?
     LIMIT 1
-  `).get(complexId, areaM2) as { supplyAreaM2: number; source: string } | undefined;
+  `).get(complexId, areaKey) as { supplyAreaM2: number; source: string } | undefined;
   return row ?? null;
 }
 
@@ -60,7 +63,7 @@ export async function getComplexTrend(
            m.supply_area_m2          AS supplyAreaM2
     FROM transactions t
     JOIN complexes c ON t.complex_id = c.id
-    LEFT JOIN complex_area_mappings m ON t.complex_id = m.complex_id AND ROUND(t.area_m2, 2) = ROUND(m.area_m2, 2)
+    LEFT JOIN complex_area_mappings m ON t.complex_id = m.complex_id AND t.area_key = m.area_key
     WHERE c.name = ? AND t.cancel_date IS NULL
   `;
   const params: any[] = [resolvedName];

@@ -79,13 +79,14 @@ export async function upsertTransactionBatch(
   `);
   const txStmt = getPreparedStatement(`
     INSERT INTO transactions (
-      dedupe_key, complex_id, lawd_code, deal_date, price_eok, area_m2, floor,
+      dedupe_key, complex_id, lawd_code, deal_date, price_eok, area_m2, area_key, floor,
       collected_at, cancel_date, dealing_type, apt_dong
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(dedupe_key) DO UPDATE SET
       price_eok = excluded.price_eok,
       cancel_date = excluded.cancel_date,
+      area_key = COALESCE(excluded.area_key, transactions.area_key),
       dealing_type = COALESCE(excluded.dealing_type, transactions.dealing_type),
       apt_dong = COALESCE(excluded.apt_dong, transactions.apt_dong),
       updated_at = ?
@@ -121,6 +122,8 @@ export async function upsertTransactionBatch(
         addressInfo?.roadName ?? null
       );
 
+      const areaKey = tx.areaKey ?? (tx.areaM2 ? Math.round(tx.areaM2 * 100) : null);
+
       txStmt.run(
         tx.dedupeKey,
         complexId,
@@ -128,6 +131,7 @@ export async function upsertTransactionBatch(
         tx.dealDate,
         tx.priceEok,
         tx.areaM2 ?? null,
+        areaKey,
         tx.floor ?? null,
         now,
         tx.cancelDate ?? null,
@@ -162,7 +166,7 @@ export async function searchTransactions(filter: GraphFilter): Promise<any[]> {
     FROM transactions t
     JOIN complexes c ON t.complex_id = c.id
     JOIN regions r ON c.lawd_code = r.lawd_code
-    LEFT JOIN complex_area_mappings m ON t.complex_id = m.complex_id AND ROUND(t.area_m2, 2) = ROUND(m.area_m2, 2)
+    LEFT JOIN complex_area_mappings m ON t.complex_id = m.complex_id AND t.area_key = m.area_key
     WHERE t.cancel_date IS NULL
   `;
   const params: any[] = [];
@@ -175,10 +179,32 @@ export async function searchTransactions(filter: GraphFilter): Promise<any[]> {
     queryStr += " AND t.lawd_code LIKE ? || '%'";
     params.push(filter.lawdCode);
   }
+
   if (filter.complexName) {
-    queryStr += " AND c.name LIKE '%' || ? || '%'";
-    params.push(filter.complexName);
+    const term = filter.complexName.trim();
+    // 2글자 이상이면 FTS5 접두사 매칭 우선 시도, 실패 시 인덱스 prefix 및 fallback 포함 검색
+    try {
+      const sanitized = term.replace(/["*]/g, "");
+      if (sanitized.length >= 2) {
+        const ftsRows = db.prepare("SELECT complex_id FROM complexes_fts WHERE name MATCH ? LIMIT 100").all(`"${sanitized}"*`) as { complex_id: string }[];
+        if (ftsRows.length > 0) {
+          const placeholders = ftsRows.map(() => "?").join(",");
+          queryStr += ` AND t.complex_id IN (${placeholders})`;
+          params.push(...ftsRows.map((r) => r.complex_id));
+        } else {
+          queryStr += " AND (c.name LIKE ? || '%' OR c.name LIKE '%' || ? || '%')";
+          params.push(sanitized, sanitized);
+        }
+      } else {
+        queryStr += " AND (c.name LIKE ? || '%' OR c.name LIKE '%' || ? || '%')";
+        params.push(term, term);
+      }
+    } catch {
+      queryStr += " AND c.name LIKE '%' || ? || '%'";
+      params.push(term);
+    }
   }
+
   if (filter.startDate) {
     const startVal = filter.startDate.length === 7 ? `${filter.startDate}-01` : filter.startDate;
     queryStr += " AND t.deal_date >= ?";
@@ -218,10 +244,21 @@ export async function searchTransactions(filter: GraphFilter): Promise<any[]> {
     params.push(filter.maxBuildYear);
   }
 
-  queryStr += " ORDER BY t.deal_date DESC LIMIT 50000";
+  // 커서 페이징 지원 (dealDate DESC, dedupeKey DESC)
+  if (filter.cursorDate && filter.cursorDedupeKey) {
+    queryStr += " AND (t.deal_date < ? OR (t.deal_date = ? AND t.dedupe_key < ?))";
+    params.push(filter.cursorDate, filter.cursorDate, filter.cursorDedupeKey);
+  }
+
+  const limit = Math.min(Math.max(filter.limit || 10000, 1), 10000);
+  queryStr += ` ORDER BY t.deal_date DESC, t.dedupe_key DESC LIMIT ${limit + 1}`;
 
   const rows = db.prepare(queryStr).all(...params);
-  return rows.map((r: any) => ({
+  const hasMore = rows.length > limit;
+  const sliced = hasMore ? rows.slice(0, limit) : rows;
+  const lastItem = sliced.length > 0 ? sliced[sliced.length - 1] : null;
+
+  const result = sliced.map((r: any) => ({
     regionName: r.regionName,
     lawdCode: r.lawdCode,
     apartmentName: r.apartmentName,
@@ -235,6 +272,15 @@ export async function searchTransactions(filter: GraphFilter): Promise<any[]> {
     dealingType: r.dealingType,
     aptDong: r.aptDong,
   }));
+
+  // 페이지네이션 메타데이터 부착 (하위 호환성 유지)
+  (result as any).truncated = hasMore;
+  (result as any).nextCursor = hasMore && lastItem ? {
+    dealDate: (lastItem as any).dealDate,
+    dedupeKey: (lastItem as any).dedupeKey,
+  } : null;
+
+  return result;
 }
 
 /**

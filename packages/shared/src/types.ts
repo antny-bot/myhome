@@ -3,6 +3,7 @@ export type TransactionNode = {
   dealDate: string;
   priceEok: number;
   areaM2?: number;
+  areaKey?: number;
   floor?: number;
   cancelDate?: string;
   dealingType?: string;
@@ -58,6 +59,9 @@ export type GraphFilter = {
   minParkingPerHousehold?: number;
   minBuildYear?: number;
   maxBuildYear?: number;
+  limit?: number;
+  cursorDate?: string;
+  cursorDedupeKey?: string;
 };
 
 export interface ComplexMetaFilter {

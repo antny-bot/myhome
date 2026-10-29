@@ -211,7 +211,7 @@ flowchart LR
 **수용 기준**: 시계 모킹 테스트로 KST 00:30/06:00/23:59 케이스 통과. 재시작해도 같은 날 2회 수집되지 않음.
 
 ### B-2. 검색 쿼리 성능 개선 (P-1, P-2)
-- [ ] 완료 (A-4 선행)
+- [x] 완료 (A-4 선행)
 
 **관련 파일**: `shared/src/db/transactions.ts`, `schema.ts`, `server/routes/graph/analyticsRoutes.ts`, `src/pages/graph/*`
 

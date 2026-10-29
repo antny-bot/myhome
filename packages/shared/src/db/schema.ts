@@ -30,6 +30,7 @@ export function initDb(): void {
       deal_date TEXT NOT NULL,
       price_eok REAL NOT NULL,
       area_m2 REAL,
+      area_key INTEGER,
       floor INTEGER,
       collected_at TEXT NOT NULL,
       updated_at TEXT,
@@ -189,6 +190,7 @@ export function initDb(): void {
     CREATE TABLE IF NOT EXISTS complex_area_mappings (
       complex_id TEXT NOT NULL,
       area_m2 REAL NOT NULL,
+      area_key INTEGER,
       supply_area_m2 REAL NOT NULL,
       source TEXT DEFAULT 'api',
       created_at TEXT NOT NULL,
@@ -196,6 +198,7 @@ export function initDb(): void {
       FOREIGN KEY (complex_id) REFERENCES complexes(id)
     );
     CREATE INDEX IF NOT EXISTS idx_complex_area_mappings_complex_id ON complex_area_mappings(complex_id);
+    CREATE INDEX IF NOT EXISTS idx_cam_complex_area_key ON complex_area_mappings(complex_id, area_key);
   `);
 
   // -- complexes 테이블 주소·좌표 컬럼 마이그레이션 (기존 DB 호환)
@@ -238,8 +241,22 @@ export function initDb(): void {
     db.exec('UPDATE transactions SET legacy_key = dedupe_key WHERE legacy_key IS NULL');
     db.exec(`INSERT OR IGNORE INTO system_config (key, value) VALUES ('collector.need_resync_dedupe_v2', 'true')`);
   }
+  if (!txColNames.has('area_key')) {
+    db.exec('ALTER TABLE transactions ADD COLUMN area_key INTEGER');
+    db.exec('UPDATE transactions SET area_key = CAST(ROUND(area_m2 * 100) AS INTEGER) WHERE area_key IS NULL AND area_m2 IS NOT NULL');
+  }
   db.exec('CREATE INDEX IF NOT EXISTS idx_transactions_lawd_code_deal_date ON transactions(lawd_code, deal_date)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_transactions_cancel_date ON transactions(cancel_date)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_transactions_complex_area_key ON transactions(complex_id, area_key)');
+
+  // -- complex_area_mappings 테이블 area_key 컬럼 마이그레이션
+  const camCols = db.prepare("PRAGMA table_info(complex_area_mappings)").all() as { name: string }[];
+  const camColNames = new Set(camCols.map((c: any) => c.name));
+  if (!camColNames.has('area_key')) {
+    db.exec('ALTER TABLE complex_area_mappings ADD COLUMN area_key INTEGER');
+    db.exec('UPDATE complex_area_mappings SET area_key = CAST(ROUND(area_m2 * 100) AS INTEGER) WHERE area_key IS NULL');
+  }
+  db.exec('CREATE INDEX IF NOT EXISTS idx_cam_complex_area_key ON complex_area_mappings(complex_id, area_key)');
 
   // -- user_settings 테이블 password_hash 컬럼 마이그레이션 (기존 DB 호환)
   const userSettingsCols = db.prepare("PRAGMA table_info(user_settings)").all() as { name: string }[];

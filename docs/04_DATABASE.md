@@ -5,7 +5,7 @@ Node.js 24 내장 `node:sqlite` 모듈 도입, 파일 기반(`data/myhome.db`) �
 ---
 
 ## 1. 데이터베이스 스키마 (Schema)
-로컬 DB 지역(`regions`), 아파트 단지(`complexes`), 실거래 내역(`transactions`) 테이블 구성, 1:N 관계 가짐.
+로컬 DB 지역(`regions`), 아파트 단지(`complexes`), 실거래 내역(`transactions`), 분양면적 매핑(`complex_area_mappings`) 테이블 구성, 1:N 관계 가짐.
 
 ### A. 지역 정보 테이블 (`regions`)
 ```sql
@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   deal_date TEXT NOT NULL,        -- 계약일 (YYYY-MM-DD)
   price_eok REAL NOT NULL,        -- 거래금액 (억)
   area_m2 REAL,                   -- 전용면적 (㎡)
+  area_key INTEGER,               -- 정규화 면적 키 (ROUND(area_m2 * 100), 인덱스 조인용)
   floor INTEGER,                  -- 층수
   collected_at TEXT NOT NULL,     -- 수집 일시
   updated_at TEXT,                -- 갱신 일시
@@ -48,9 +49,23 @@ CREATE TABLE IF NOT EXISTS transactions (
 );
 ```
 
+### D. 분양면적 매핑 테이블 (`complex_area_mappings`)
+```sql
+CREATE TABLE IF NOT EXISTS complex_area_mappings (
+  complex_id TEXT NOT NULL,
+  area_m2 REAL NOT NULL,
+  area_key INTEGER,               -- 정규화 면적 키 (ROUND(area_m2 * 100))
+  supply_area_m2 REAL NOT NULL,
+  source TEXT DEFAULT 'api',
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (complex_id, area_m2),
+  FOREIGN KEY (complex_id) REFERENCES complexes(id)
+);
+```
+
 ---
 
-### D. 주요 인덱스 구성 (Indexes)
+### E. 주요 인덱스 구성 (Indexes)
 ```sql
 -- 거래일 및 단지별 시계열 조회 최적화
 CREATE INDEX IF NOT EXISTS idx_transactions_deal_date ON transactions(deal_date);
@@ -58,6 +73,10 @@ CREATE INDEX IF NOT EXISTS idx_transactions_complex_id ON transactions(complex_i
 CREATE INDEX IF NOT EXISTS idx_transactions_complex_deal_date ON transactions(complex_id, deal_date DESC);
 CREATE INDEX IF NOT EXISTS idx_transactions_lawd_code_deal_date ON transactions(lawd_code, deal_date);
 CREATE INDEX IF NOT EXISTS idx_transactions_cancel_date ON transactions(cancel_date);
+CREATE INDEX IF NOT EXISTS idx_transactions_complex_area_key ON transactions(complex_id, area_key);
+
+-- 단지 면적 매핑 조인 최적화
+CREATE INDEX IF NOT EXISTS idx_cam_complex_area_key ON complex_area_mappings(complex_id, area_key);
 
 -- 단지명 및 지역명 검색 성능 인덱스
 CREATE INDEX IF NOT EXISTS idx_complexes_lawd_code ON complexes(lawd_code);
@@ -72,6 +91,8 @@ CREATE VIRTUAL TABLE IF NOT EXISTS complexes_fts USING fts5(
 );
 ```
 
+---
+
 ## 2. 적재 기조 및 룰
 - **지역 코드 단위 전체 적재**: 국토부 API 특성상 특정 단지 조회 시 해당 지역 코드(5자리 시군구) 전체 실거래 데이터 다운로드됨. 수집 지역 전체 실거래 DB Upsert, 이후 해당 지역 타 아파트 검색 시 캐시 히트 확률 극대화, 통계 정확성 담보.
 - **정밀 중복 방지 (Deduplicate) 및 복수 거래 보존**:
@@ -83,7 +104,13 @@ CREATE VIRTUAL TABLE IF NOT EXISTS complexes_fts USING fts5(
 ---
 
 ## 3. SQL 쿼리 최적화 패턴
-1. **SARGable 범위 비교 원칙**:
+1. **정규화 `area_key` 정수 기반 조인**:
+   - 부동소수점(`ROUND(t.area_m2, 2) = ROUND(m.area_m2, 2)`) 대신 `t.complex_id = m.complex_id AND t.area_key = m.area_key` 조건으로 정수 인덱스(`idx_transactions_complex_area_key`, `idx_cam_complex_area_key`)를 직접 태워 풀 스캔을 제거했습니다.
+2. **SARGable 범위 비교 원칙**:
    - `deal_date`(YYYY-MM-DD) 컬럼에 `substr(deal_date, 1, 7)`과 같은 함수식을 씌우지 않고, `deal_date >= ? AND deal_date <= ?` 직접 범위 조건으로 조회하여 B-Tree 인덱스 레인지 스캔을 보장합니다.
-2. **Window Function CTE 일괄 집계**:
-   - N+1 상관 서브쿼리 대신 `tx_summary` CTE 및 Window Function(`FIRST_VALUE`, `PARTITION BY`)으로 단 1회 스캔하여 집계합니다.
+3. **FTS5 우선 검색 및 Prefix 인덱스 활용**:
+   - `c.name LIKE '%...%'` 풀 스캔 대신 FTS5 가상 테이블 접두 매칭을 우선 적용하여 complex_id를 특정합니다.
+4. **커서 기반 페이지네이션 및 10,000건 안전 상한**:
+   - `searchTransactions`는 `(deal_date, dedupe_key)` 커서 페이징을 지원하며, 기본 상한을 10,000건으로 제한하여 메모리 폭주를 방어합니다.
+5. **Prepared Statement LRU 캐시**:
+   - 동적 SQL에 따른 캐시 팽창을 방지하기 위해 최대 200개 LRU 상한(`getPreparedStatement`)을 적용했습니다.
