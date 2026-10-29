@@ -63,9 +63,16 @@ export async function runDueCollector() {
   if (hour >= 6 && lastCollectedDate !== todayStr) {
     console.log(`[Scheduler] Daily collection triggered for date: ${todayStr}`);
     try {
-      lastCollectedDate = todayStr;
       const result = await runCollector();
       console.log(`[Scheduler] Daily collection finished: collected ${result.totalCollected} items, upserted ${result.totalUpserted}`);
+
+      if (result.failures && result.failures.length > 0) {
+        console.warn(`[Scheduler] 수집 중 일부 실패 발생 (${result.failures.length}건):`, result.failures.map((f) => `${f.target}(${f.month}): ${f.error}`).join("; "));
+        // 수집 실패가 발생한 경우 당일 완료 처리하지 않고 재시도 허용
+        lastCollectedDate = "";
+      } else {
+        lastCollectedDate = todayStr;
+      }
 
       // 신규 수집된 아파트 단지에 대한 일괄 Geocoding 수행
       console.log("[Scheduler] Starting batch geocoding for new complexes...");

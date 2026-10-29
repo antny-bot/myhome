@@ -88,7 +88,7 @@ router.post("/complex-fetch", asyncHandler(async (req, res) => {
 
   const results = await mapLimit(apiFetchMonths, 3, async (month) => {
     try {
-      const transactions = await fetchApartmentPricesDirect(lawdCode, month);
+      const { items: transactions } = await fetchApartmentPricesDirect(lawdCode, month);
       const items: BatchUpsertItem[] = [];
       for (const rawTx of transactions) {
         const norm = normalizeTransaction(rawTx, month);

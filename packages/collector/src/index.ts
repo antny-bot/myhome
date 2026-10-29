@@ -1,6 +1,6 @@
 import { promises as fs, existsSync } from "node:fs";
 import { join } from "node:path";
-import { upsertTransactionBatch, makeGraphDedupeKey, getAllRules, initDb, getAllDbRegions } from "@myhome/shared";
+import { upsertTransactionBatch, makeGraphDedupeKey, getAllRules, initDb, getAllDbRegions, maskUrl } from "@myhome/shared";
 import type { BatchUpsertItem } from "@myhome/shared";
 import { fetchApartmentPricesDirect } from "./fetcher.js";
 
@@ -29,9 +29,16 @@ findAndLoadEnv();
 
 const CONFIG_PATH = join(process.cwd(), "packages", "collector", "config", "targets.json");
 
-type CollectTarget = {
+export type CollectTarget = {
   lawdCode: string;
   displayName: string;
+};
+
+export type CollectorFailure = {
+  target: string;
+  month: string;
+  error: string;
+  code?: string;
 };
 
 type ConfigData = {
@@ -115,7 +122,11 @@ async function fetchRulesFromDashboard(dashboardUrl: string): Promise<CollectTar
   }
 }
 
-export async function runCollector(): Promise<{ totalCollected: number; totalUpserted: number }> {
+export async function runCollector(): Promise<{
+  totalCollected: number;
+  totalUpserted: number;
+  failures: CollectorFailure[];
+}> {
   console.log(`[Collector] 데이터 수집 및 SQLite 적재 작업 시작 (${new Date().toLocaleString()})`);
   
   if (process.env.GRAPH_DB_ENABLED !== "true") {
@@ -154,9 +165,11 @@ export async function runCollector(): Promise<{ totalCollected: number; totalUps
     displayName: name,
   }));
 
+  const failures: CollectorFailure[] = [];
+
   if (finalTargets.length === 0) {
     console.log("[Collector] 수집할 대상 지역이 존재하지 않습니다. 종료.");
-    return { totalCollected: 0, totalUpserted: 0 };
+    return { totalCollected: 0, totalUpserted: 0, failures: [] };
   }
 
   // 최근 2달
@@ -166,13 +179,19 @@ export async function runCollector(): Promise<{ totalCollected: number; totalUps
 
   let totalCollected = 0;
   let totalUpserted = 0;
+  let limitExceeded = false;
 
   for (const target of finalTargets) {
+    if (limitExceeded) break;
+
     for (const month of months) {
+      if (limitExceeded) break;
+
       console.log(`[Collector] 국토부 API에 직접 요청 중... (${target.displayName} / ${month})`);
       try {
-        const transactions = await fetchApartmentPricesDirect(target.lawdCode, month);
-        console.log(`[Collector] 조회 완료: ${transactions.length}건`);
+        const fetchResult = await fetchApartmentPricesDirect(target.lawdCode, month);
+        const transactions = fetchResult.items;
+        console.log(`[Collector] 조회 완료: ${transactions.length}건 (전체 ${fetchResult.totalCount}건 중)`);
         totalCollected += transactions.length;
 
         if (transactions.length > 0 && process.env.GRAPH_DB_ENABLED === "true") {
@@ -237,10 +256,28 @@ export async function runCollector(): Promise<{ totalCollected: number; totalUps
             })();
           } catch (err: any) {
             console.error(`[Collector] SQLite 배치 적재 오류 (${target.displayName} / ${month}): ${err.message}`);
+            failures.push({
+              target: target.displayName,
+              month,
+              error: `DB 적재 실패: ${err.message}`,
+            });
           }
         }
       } catch (err: any) {
-        console.error(`[Collector] 수집 중 오류 발생 (${target.displayName} / ${month}):`, err.message);
+        const safeMsg = maskUrl(err.message || String(err));
+        console.error(`[Collector] 수집 중 오류 발생 (${target.displayName} / ${month}):`, safeMsg);
+        failures.push({
+          target: target.displayName,
+          month,
+          error: safeMsg,
+          code: err.code,
+        });
+
+        if (err.code === "LIMIT_EXCEEDED") {
+          console.warn("[Collector] 국토부 API 일일 호출 한도(코드 22)에 도달하여 수집을 조기 종료합니다. 다음 주기에 이어서 재개합니다.");
+          limitExceeded = true;
+          break;
+        }
       }
     }
   }
@@ -248,9 +285,12 @@ export async function runCollector(): Promise<{ totalCollected: number; totalUps
   console.log(`[Collector] 수집 완료 요약:`);
   console.log(`- 수집한 전체 실거래 내역: ${totalCollected}건`);
   console.log(`- SQLite 적재(INSERT/UPDATE) 성공 건수: ${totalUpserted}건`);
-  console.log(`[Collector] 모든 작업 성공적으로 종료.`);
+  if (failures.length > 0) {
+    console.warn(`- 실패 건수: ${failures.length}건`);
+  }
+  console.log(`[Collector] 작업 종료.`);
   
-  return { totalCollected, totalUpserted };
+  return { totalCollected, totalUpserted, failures };
 }
 
 // 직접 실행 여부 판별
@@ -265,4 +305,3 @@ if (isMain) {
     process.exit(1);
   });
 }
-
