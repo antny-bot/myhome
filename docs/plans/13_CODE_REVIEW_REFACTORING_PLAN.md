@@ -266,7 +266,7 @@ flowchart LR
 **수용 기준**: 캐시 항목 수 상한 테스트, 정적 자산 응답 헤더 확인.
 
 ### B-6. 단지 식별자 개선 (D-3)
-- [ ] 완료 — **설계 합의 후 진행**
+- [x] 완료 — **설계 합의 후 진행**
 
 > [!WARNING]
 > `complexes.id` 변경은 `transactions`, `complex_area_mappings`, `presets`, 프론트 URL 파라미터에 모두 영향. **먼저 설계 문서(`docs/plans/13a_COMPLEX_ID_DESIGN.md`)를 작성하고 사용자 승인을 받은 뒤 구현**하세요.
