@@ -6,6 +6,7 @@ import { createGraphRouter } from "./routes-graph.js";
 import { createAdminRouter } from "./routes-admin.js";
 import { createAuthRouter, authMiddleware, adminRequired, authRateLimiter } from "./authRoutes.js";
 import { globalErrorHandler } from "./middlewares/errorHandler.js";
+import { requestLogger } from "./middleware/requestLogger.js";
 import { getLastSuccessCollectedDate } from "./scheduler.js";
 import { getDb } from "@myhome/shared";
 
@@ -37,6 +38,7 @@ export function mountApi(app: express.Express, prefix: string, isDeprecated = fa
 export function createApp(): express.Express {
   const app = express();
   app.set("trust proxy", 1); // Reverse proxy 환경에서 X-Forwarded-For 신뢰
+  app.use(requestLogger);
 
   // 1. 헬스체크 엔드포인트 (인증 제외, 무조건 통과)
   app.get(["/api/health", "/api/v1/health"], (req, res) => {

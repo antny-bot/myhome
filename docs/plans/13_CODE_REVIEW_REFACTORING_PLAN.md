@@ -320,7 +320,7 @@ flowchart LR
 **수용 기준**: `tsc --noEmit --strict`(shared) 통과, `as any` 건수 감소 수치 PR에 기재.
 
 ### C-3. 로깅 표준화 (A-5)
-- [ ] 완료
+- [x] 완료
 
 **작업**
 1. 경량 로거 `packages/shared/src/logger.ts`(`debug/info/warn/error`, `LOG_LEVEL` 환경변수, 컨텍스트 prefix, 민감값 마스킹) 추가 — 외부 의존성 없이 구현.

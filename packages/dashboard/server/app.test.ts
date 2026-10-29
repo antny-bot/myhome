@@ -24,7 +24,16 @@ function mockRequest(
       socket: { remoteAddress: "127.0.0.1" },
     };
 
+    const eventListeners: Record<string, Function[]> = {};
     const res: any = {
+      on(event: string, fn: Function) {
+        if (!eventListeners[event]) eventListeners[event] = [];
+        eventListeners[event].push(fn);
+        return this;
+      },
+      emit(event: string) {
+        for (const fn of eventListeners[event] || []) fn();
+      },
       status(code: number) {
         statusCode = code;
         return this;
@@ -39,6 +48,7 @@ function mockRequest(
       json(data: any) {
         resHeaders["content-type"] = "application/json; charset=utf-8";
         responseBody = JSON.stringify(data);
+        this.emit("finish");
         resolve({
           statusCode,
           headers: resHeaders,
@@ -48,6 +58,7 @@ function mockRequest(
       },
       send(data: any) {
         responseBody = String(data);
+        this.emit("finish");
         resolve({
           statusCode,
           headers: resHeaders,
@@ -56,6 +67,7 @@ function mockRequest(
         return this;
       },
       end() {
+        this.emit("finish");
         resolve({
           statusCode,
           headers: resHeaders,
@@ -83,6 +95,7 @@ test("app.ts 통합 테스트: /api/v1/health 및 /api/health Deprecation 헤더
     assert.equal(resV1.statusCode, 200);
     assert.equal(resV1.body.status, "ok");
     assert.equal(resV1.body.db, "connected");
+    assert.ok(resV1.headers["x-request-id"], "X-Request-Id 헤더가 존재해야 함");
     assert.equal(resV1.headers["deprecation"], undefined);
 
     // 2. 레거시 헬스체크 (v0 /api/health)

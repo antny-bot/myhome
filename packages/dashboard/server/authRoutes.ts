@@ -3,6 +3,9 @@ import { Config } from "./config.js";
 import crypto from "node:crypto";
 import { promisify } from "node:util";
 import rateLimit from "express-rate-limit";
+import { createLogger } from "@myhome/shared";
+const log = createLogger("Auth");
+
 import {
   saveSession,
   getSession,
@@ -351,7 +354,7 @@ export function createAuthRouter() {
     const googleRedirectUri = Config.GOOGLE_REDIRECT_URI;
 
     if (!googleClientId || !googleRedirectUri) {
-      console.error("❌ 구글 OAuth 설정이 완료되지 않았습니다. GOOGLE_CLIENT_ID / GOOGLE_REDIRECT_URI 확인 필요.");
+      log.error("❌ 구글 OAuth 설정이 완료되지 않았습니다. GOOGLE_CLIENT_ID / GOOGLE_REDIRECT_URI 확인 필요.");
       res.status(500).json({ error: "Google OAuth is not configured on this server." });
       return;
     }
@@ -375,7 +378,7 @@ export function createAuthRouter() {
 
     // CSRF state 파라미터 및 쿠키 일치 여부 검증
     if (!queryState || !cookieState || typeof queryState !== "string" || queryState !== cookieState) {
-      console.warn("⚠️ Google OAuth state mismatch or missing (CSRF attempt suspected)");
+      log.warn("⚠️ Google OAuth state mismatch or missing (CSRF attempt suspected)");
       res.setHeader("Set-Cookie", clearStateCookie);
       res.redirect("/login?error=oauth_failed");
       return;
@@ -415,7 +418,7 @@ export function createAuthRouter() {
 
       if (!tokenResp.ok) {
         const errText = await tokenResp.text();
-        console.error("❌ Google Token API Error:", errText);
+        log.error("❌ Google Token API Error:", errText);
         res.setHeader("Set-Cookie", clearStateCookie);
         res.redirect("/login?error=oauth_failed");
         return;
@@ -423,7 +426,7 @@ export function createAuthRouter() {
 
       const tokenData = (await tokenResp.json()) as { id_token?: string };
       if (!tokenData.id_token) {
-        console.error("❌ id_token missing in Google Token API response");
+        log.error("❌ id_token missing in Google Token API response");
         res.setHeader("Set-Cookie", clearStateCookie);
         res.redirect("/login?error=oauth_failed");
         return;
@@ -433,7 +436,7 @@ export function createAuthRouter() {
       const payload = decodeJwtPayload(tokenData.id_token);
       const validation = validateGoogleIdTokenPayload(payload, googleClientId);
       if (!validation.valid) {
-        console.error("❌ Google ID token claim validation failed:", validation.error);
+        log.error("❌ Google ID token claim validation failed:", validation.error);
         res.setHeader("Set-Cookie", clearStateCookie);
         res.redirect("/login?error=oauth_failed");
         return;
@@ -449,7 +452,7 @@ export function createAuthRouter() {
         .filter(Boolean);
 
       if (allowedList.length === 0 || !allowedList.includes(email)) {
-        console.warn(`⚠️ Access Blocked: ${email} is not in ALLOWED_EMAILS list or list is empty.`);
+        log.warn(`⚠️ Access Blocked: ${email} is not in ALLOWED_EMAILS list or list is empty.`);
         res.setHeader("Set-Cookie", clearStateCookie);
         res.redirect("/login?error=no_access");
         return;
@@ -469,7 +472,7 @@ export function createAuthRouter() {
       ]);
       res.redirect("/");
     } catch (err) {
-      console.error("❌ Google OAuth Callback Error:", err);
+      log.error("❌ Google OAuth Callback Error:", err);
       res.setHeader("Set-Cookie", clearStateCookie);
       res.redirect("/login?error=oauth_failed");
     }
@@ -565,7 +568,7 @@ export function createAuthRouter() {
           const newHash = await hashPasswordAsync(password);
           updateUserCredentials(lowerEmail, lowerEmail, newHash);
         } catch (rehashErr) {
-          console.warn("⚠️ 비밀번호 신규 포맷 재해싱 실패 (무시):", rehashErr);
+          log.warn("⚠️ 비밀번호 신규 포맷 재해싱 실패 (무시):", rehashErr);
         }
       }
 
@@ -622,7 +625,7 @@ export function createAuthRouter() {
 
         res.json({ ok: true, email: newEmail });
       } catch (err: any) {
-        console.error("❌ Failed to update credentials:", err);
+        log.error("❌ Failed to update credentials:", err);
         res.status(500).json({ error: err.message || "설정 변경에 실패했습니다." });
       }
     }
@@ -678,7 +681,7 @@ export function createAuthRouter() {
 
         res.json({ ok: true, email: lowerEmail, tempPassword, isAdmin: isAdmin || false });
       } catch (err: any) {
-        console.error("❌ Failed to add user with temporary password:", err);
+        log.error("❌ Failed to add user with temporary password:", err);
         res.status(500).json({ error: err.message || "계정 추가에 실패했습니다." });
       }
     }

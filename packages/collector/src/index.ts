@@ -10,11 +10,13 @@ import {
   syncSupplyArea,
   getAreaMapping,
   findAndLoadEnv,
+  createLogger,
   type BatchUpsertItem,
 } from "@myhome/shared";
 import { fetchApartmentPricesDirect } from "./fetcher.js";
 
 findAndLoadEnv();
+const log = createLogger("Collector");
 
 const CONFIG_PATH = join(process.cwd(), "packages", "collector", "config", "targets.json");
 
@@ -73,7 +75,7 @@ async function loadConfig(): Promise<ConfigData> {
       return JSON.parse(content) as ConfigData;
     }
   } catch (err) {
-    console.error("[Collector] 설정 파일을 읽을 수 없습니다.", err);
+    log.error("[Collector] 설정 파일을 읽을 수 없습니다.", err);
   }
   return {
     targets: [],
@@ -88,7 +90,7 @@ async function fetchRulesFromDashboard(dashboardUrl: string): Promise<CollectTar
     initDb();
     const rules = getAllRules();
     if (rules && rules.length > 0) {
-      console.log(`[Collector] 로컬 SQLite DB에서 ${rules.length}개의 알림 규칙을 직접 조회했습니다.`);
+      log.info(`[Collector] 로컬 SQLite DB에서 ${rules.length}개의 알림 규칙을 직접 조회했습니다.`);
       const map = new Map<string, string>();
       rules.forEach((r) => {
         if (r.enabled && r.regionCode && r.regionName) {
@@ -101,7 +103,7 @@ async function fetchRulesFromDashboard(dashboardUrl: string): Promise<CollectTar
       }));
     }
   } catch (dbErr: any) {
-    console.warn(`[Collector] 로컬 DB 직접 조회 실패 (대시보드 API로 Fallback 진행): ${dbErr.message}`);
+    log.warn(`[Collector] 로컬 DB 직접 조회 실패 (대시보드 API로 Fallback 진행): ${dbErr.message}`);
   }
 
   // 2. Fallback: 대시보드 API 호출
@@ -123,7 +125,7 @@ async function fetchRulesFromDashboard(dashboardUrl: string): Promise<CollectTar
       displayName: name,
     }));
   } catch (err: any) {
-    console.warn(`[Collector] 대시보드 규칙 조회 실패: ${err.message}`);
+    log.warn(`[Collector] 대시보드 규칙 조회 실패: ${err.message}`);
     return [];
   }
 }
@@ -135,10 +137,10 @@ export async function runCollector(options?: { signal?: AbortSignal }): Promise<
   supplyAreaStats: SupplyAreaStats;
 }> {
   const signal = options?.signal;
-  console.log(`[Collector] 데이터 수집 및 SQLite 적재 작업 시작 (${new Date().toLocaleString()})`);
+  log.info(`[Collector] 데이터 수집 및 SQLite 적재 작업 시작 (${new Date().toLocaleString()})`);
   
   if (process.env.GRAPH_DB_ENABLED !== "true") {
-    console.warn("[Collector] GRAPH_DB_ENABLED가 true가 아닙니다. 환경 설정을 확인하세요.");
+    log.warn("[Collector] GRAPH_DB_ENABLED가 true가 아닙니다. 환경 설정을 확인하세요.");
   }
 
   const config = await loadConfig();
@@ -148,9 +150,9 @@ export async function runCollector(options?: { signal?: AbortSignal }): Promise<
   finalTargets.forEach((t) => map.set(t.lawdCode, t.displayName));
 
   if (config.fetchFromDashboard) {
-    console.log(`[Collector] 대시보드(${config.dashboardUrl})로부터 알림 규칙 지역 조회 중...`);
+    log.info(`[Collector] 대시보드(${config.dashboardUrl})로부터 알림 규칙 지역 조회 중...`);
     const ruleTargets = await fetchRulesFromDashboard(config.dashboardUrl);
-    console.log(`[Collector] 대시보드 규칙에서 ${ruleTargets.length}개 지역 감지됨.`);
+    log.info(`[Collector] 대시보드 규칙에서 ${ruleTargets.length}개 지역 감지됨.`);
     ruleTargets.forEach((t) => map.set(t.lawdCode, t.displayName));
   }
 
@@ -158,14 +160,14 @@ export async function runCollector(options?: { signal?: AbortSignal }): Promise<
   try {
     initDb();
     const dbRegions = getAllDbRegions();
-    console.log(`[Collector] DB regions 테이블에서 ${dbRegions.length}개 지역 감지됨.`);
+    log.info(`[Collector] DB regions 테이블에서 ${dbRegions.length}개 지역 감지됨.`);
     dbRegions.forEach((r) => {
       if (r.lawdCode && r.displayName) {
         map.set(r.lawdCode, r.displayName);
       }
     });
   } catch (err: any) {
-    console.warn(`[Collector] DB 수집 지역 조회 실패: ${err.message}`);
+    log.warn(`[Collector] DB 수집 지역 조회 실패: ${err.message}`);
   }
 
   finalTargets = Array.from(map.entries()).map(([code, name]) => ({
@@ -183,14 +185,14 @@ export async function runCollector(options?: { signal?: AbortSignal }): Promise<
   };
 
   if (finalTargets.length === 0) {
-    console.log("[Collector] 수집할 대상 지역이 존재하지 않습니다. 종료.");
+    log.info("[Collector] 수집할 대상 지역이 존재하지 않습니다. 종료.");
     return emptyResult;
   }
 
   // 최근 2달
   const months = getRecentMonths(2);
-  console.log(`[Collector] 대상 지역: ${finalTargets.map((t) => t.displayName).join(", ")}`);
-  console.log(`[Collector] 수집 대상 월: ${months.join(", ")}`);
+  log.info(`[Collector] 대상 지역: ${finalTargets.map((t) => t.displayName).join(", ")}`);
+  log.info(`[Collector] 수집 대상 월: ${months.join(", ")}`);
 
   let totalCollected = 0;
   let totalUpserted = 0;
@@ -205,11 +207,11 @@ export async function runCollector(options?: { signal?: AbortSignal }): Promise<
     for (const month of months) {
       if (limitExceeded || signal?.aborted) break;
 
-      console.log(`[Collector] 국토부 API에 직접 요청 중... (${target.displayName} / ${month})`);
+      log.info(`[Collector] 국토부 API에 직접 요청 중... (${target.displayName} / ${month})`);
       try {
         const fetchResult = await fetchApartmentPricesDirect(target.lawdCode, month);
         const transactions = fetchResult.items;
-        console.log(`[Collector] 조회 완료: ${transactions.length}건 (전체 ${fetchResult.totalCount}건 중)`);
+        log.info(`[Collector] 조회 완료: ${transactions.length}건 (전체 ${fetchResult.totalCount}건 중)`);
         totalCollected += transactions.length;
 
         if (transactions.length > 0 && process.env.GRAPH_DB_ENABLED === "true") {
@@ -257,7 +259,7 @@ export async function runCollector(options?: { signal?: AbortSignal }): Promise<
               }
             }
           } catch (err: any) {
-            console.error(`[Collector] SQLite 배치 적재 오류 (${target.displayName} / ${month}): ${err.message}`);
+            log.error(`[Collector] SQLite 배치 적재 오류 (${target.displayName} / ${month}): ${err.message}`);
             failures.push({
               target: target.displayName,
               month,
@@ -267,7 +269,7 @@ export async function runCollector(options?: { signal?: AbortSignal }): Promise<
         }
       } catch (err: any) {
         const safeMsg = maskUrl(err.message || String(err));
-        console.error(`[Collector] 수집 중 오류 발생 (${target.displayName} / ${month}):`, safeMsg);
+        log.error(`[Collector] 수집 중 오류 발생 (${target.displayName} / ${month}):`, safeMsg);
         failures.push({
           target: target.displayName,
           month,
@@ -276,7 +278,7 @@ export async function runCollector(options?: { signal?: AbortSignal }): Promise<
         });
 
         if (err.code === "LIMIT_EXCEEDED") {
-          console.warn("[Collector] 국토부 API 일일 호출 한도(코드 22)에 도달하여 수집을 조기 종료합니다. 다음 주기에 이어서 재개합니다.");
+          log.warn("[Collector] 국토부 API 일일 호출 한도(코드 22)에 도달하여 수집을 조기 종료합니다. 다음 주기에 이어서 재개합니다.");
           limitExceeded = true;
           break;
         }
@@ -293,12 +295,12 @@ export async function runCollector(options?: { signal?: AbortSignal }): Promise<
   };
 
   if (pendingAreaTasks.size > 0 && process.env.GRAPH_DB_ENABLED === "true") {
-    console.log(`[Collector] 총 ${pendingAreaTasks.size}개의 분양면적 매핑 동기화 작업을 시작합니다...`);
+    log.info(`[Collector] 총 ${pendingAreaTasks.size}개의 분양면적 매핑 동기화 작업을 시작합니다...`);
     const delayMs = Number(process.env.SUPPLY_AREA_DELAY_MS || "200");
 
     for (const task of pendingAreaTasks.values()) {
       if (signal?.aborted) {
-        console.log("[Collector] 중단 신호(AbortSignal) 감지로 분양면적 동기화를 중지합니다.");
+        log.info("[Collector] 중단 신호(AbortSignal) 감지로 분양면적 동기화를 중지합니다.");
         break;
       }
 
@@ -326,22 +328,22 @@ export async function runCollector(options?: { signal?: AbortSignal }): Promise<
         }
       } catch (areaErr: any) {
         supplyAreaStats.failed++;
-        console.warn(`[Collector] 분양면적 매핑 수집 실패 (${task.complexName} / ${task.areaM2}㎡):`, areaErr.message);
+        log.warn(`[Collector] 분양면적 매핑 수집 실패 (${task.complexName} / ${task.areaM2}㎡):`, areaErr.message);
       }
     }
-    console.log(
+    log.info(
       `[Collector] 분양면적 동기화 완료: 성공 ${supplyAreaStats.success}건, 스킵 ${supplyAreaStats.skipped}건, 실패 ${supplyAreaStats.failed}건 (전체 ${supplyAreaStats.total}건)`
     );
   }
 
-  console.log(`[Collector] 수집 완료 요약:`);
-  console.log(`- 수집한 전체 실거래 내역: ${totalCollected}건`);
-  console.log(`- SQLite 적재(INSERT/UPDATE) 성공 건수: ${totalUpserted}건`);
-  console.log(`- 분양면적 매핑: 성공 ${supplyAreaStats.success}건, 스킵 ${supplyAreaStats.skipped}건, 실패 ${supplyAreaStats.failed}건`);
+  log.info(`[Collector] 수집 완료 요약:`);
+  log.info(`- 수집한 전체 실거래 내역: ${totalCollected}건`);
+  log.info(`- SQLite 적재(INSERT/UPDATE) 성공 건수: ${totalUpserted}건`);
+  log.info(`- 분양면적 매핑: 성공 ${supplyAreaStats.success}건, 스킵 ${supplyAreaStats.skipped}건, 실패 ${supplyAreaStats.failed}건`);
   if (failures.length > 0) {
-    console.warn(`- 실패 건수: ${failures.length}건`);
+    log.warn(`- 실패 건수: ${failures.length}건`);
   }
-  console.log(`[Collector] 작업 종료.`);
+  log.info(`[Collector] 작업 종료.`);
   
   return { totalCollected, totalUpserted, failures, supplyAreaStats };
 }
@@ -354,7 +356,7 @@ const isMain = process.argv[1] && (
 
 if (isMain) {
   runCollector().catch((err) => {
-    console.error("[Collector] 실행 중 치명적 오류 발생:", err);
+    log.error("[Collector] 실행 중 치명적 오류 발생:", err);
     process.exit(1);
   });
 }

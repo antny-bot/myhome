@@ -9,6 +9,9 @@
 
 import { Config } from "./config.js";
 import { simpleStringHash } from "./geocoding-utils.js";
+import { createLogger } from "@myhome/shared";
+
+const log = createLogger("Geocoding");
 
 // ──────────────────────────────────────────────────
 // 내부 유틸: 카테고리 거리 평점 계산
@@ -517,7 +520,7 @@ export async function getComplexInfraRating(
                 }
               }
             } catch (pErr) {
-              console.error("[Geocoding] 약국 추가 조회 실패:", pErr);
+              log.error("[Geocoding] 약국 추가 조회 실패:", pErr);
             }
             
             let sLarge = 0;
@@ -590,7 +593,7 @@ export async function getComplexInfraRating(
                 }
               }
             } catch (cErr) {
-              console.error("[Geocoding] 편의점 추가 조회 실패:", cErr);
+              log.error("[Geocoding] 편의점 추가 조회 실패:", cErr);
             }
             
             count = docs.length;
@@ -815,7 +818,7 @@ export async function getComplexInfraRating(
         };
       }
     } catch (err) {
-      console.error("[Geocoding] NAT 병렬 수집 중 에러 발생:", err);
+      log.error("[Geocoding] NAT 병렬 수집 중 에러 발생:", err);
     }
 
     categories["NAT"] = {
@@ -846,7 +849,7 @@ export async function getComplexInfraRating(
     return result;
 
   } catch (err) {
-    console.error(`[Geocoding] 입지 분석 실패 (${lat}, ${lng}), Mock 폴백 사용:`, err);
+    log.error(`[Geocoding] 입지 분석 실패 (${lat}, ${lng}), Mock 폴백 사용:`, err);
     return generateMockInfraRating(complexName);
   }
 }

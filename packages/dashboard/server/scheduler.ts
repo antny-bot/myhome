@@ -1,7 +1,9 @@
 import { runRuleCheck } from "./ruleEngine.js";
 import { sendNotifications } from "./notifications.js";
 import { runCollector } from "@myhome/collector";
-import { getAllRules, mapLimit, getSystemConfigDb, saveSystemConfigDb } from "@myhome/shared";
+import { getAllRules, mapLimit, getSystemConfigDb, saveSystemConfigDb, createLogger } from "@myhome/shared";
+
+const log = createLogger("Scheduler");
 import { batchGeocodeComplexes } from "./geocoding.js";
 import { Config } from "./config.js";
 import { graphCache } from "./cache.js";
@@ -92,7 +94,7 @@ export function setLastSuccessCollectedDate(dateStr: string): void {
   try {
     saveSystemConfigDb({ "collector.lastSuccessDate": dateStr });
   } catch (err) {
-    console.warn("⚠️ system_config 저장 실패:", err);
+    log.warn("⚠️ system_config 저장 실패:", err);
   }
 }
 
@@ -113,7 +115,7 @@ export async function stopScheduler(): Promise<void> {
   while (running && Date.now() - start < 30_000) {
     await new Promise<void>((resolve) => setTimeout(resolve, 200));
   }
-  console.log("[Scheduler] Stopped gracefully.");
+  log.info("[Scheduler] Stopped gracefully.");
 }
 
 export async function runDueCollector(): Promise<{ executed: boolean; reason?: string }> {
@@ -132,20 +134,20 @@ export async function runDueCollector(): Promise<{ executed: boolean; reason?: s
   }
 
   if (!CollectorLock.acquire()) {
-    console.warn("[Scheduler] Collector is already running. Skipping this cycle.");
+    log.warn("[Scheduler] Collector is already running. Skipping this cycle.");
     return { executed: false, reason: "LOCKED" };
   }
 
   try {
-    console.log(`[Scheduler] Daily collection triggered for date: ${todayStr} (KST hour: ${hour})`);
+    log.info(`[Scheduler] Daily collection triggered for date: ${todayStr} (KST hour: ${hour})`);
     const result = await runCollector();
-    console.log(`[Scheduler] Daily collection finished: collected ${result.totalCollected} items, upserted ${result.totalUpserted}`);
+    log.info(`[Scheduler] Daily collection finished: collected ${result.totalCollected} items, upserted ${result.totalUpserted}`);
     if (result.supplyAreaStats) {
-      console.log(`[Scheduler] 분양면적 매핑 완료: 성공 ${result.supplyAreaStats.success}건, 스킵 ${result.supplyAreaStats.skipped}건, 실패 ${result.supplyAreaStats.failed}건`);
+      log.info(`[Scheduler] 분양면적 매핑 완료: 성공 ${result.supplyAreaStats.success}건, 스킵 ${result.supplyAreaStats.skipped}건, 실패 ${result.supplyAreaStats.failed}건`);
     }
 
     if (result.failures && result.failures.length > 0) {
-      console.warn(
+      log.warn(
         `[Scheduler] 수집 중 일부 실패 발생 (${result.failures.length}건):`,
         result.failures.map((f) => `${f.target}(${f.month}): ${f.error}`).join("; ")
       );
@@ -155,15 +157,15 @@ export async function runDueCollector(): Promise<{ executed: boolean; reason?: s
     }
 
     // 신규 수집된 아파트 단지에 대한 일괄 Geocoding 수행
-    console.log("[Scheduler] Starting batch geocoding for new complexes...");
+    log.info("[Scheduler] Starting batch geocoding for new complexes...");
     const geoResult = await batchGeocodeComplexes();
-    console.log(`[Scheduler] Batch geocoding finished: total ${geoResult.total}, success ${geoResult.success}, failed ${geoResult.failed}`);
+    log.info(`[Scheduler] Batch geocoding finished: total ${geoResult.total}, success ${geoResult.success}, failed ${geoResult.failed}`);
 
-    console.log("[Scheduler] Daily collection & geocoding completed. Invalidating graph cache.");
+    log.info("[Scheduler] Daily collection & geocoding completed. Invalidating graph cache.");
     graphCache.clear();
     return { executed: true };
   } catch (err: any) {
-    console.error("[Scheduler] Daily collection or geocoding failed:", err.message);
+    log.error("[Scheduler] Daily collection or geocoding failed:", err.message);
     return { executed: false, reason: err.message };
   } finally {
     CollectorLock.release();
@@ -172,7 +174,7 @@ export async function runDueCollector(): Promise<{ executed: boolean; reason?: s
 
 export async function runDueRules() {
   if (running) {
-    console.log("Scheduler is already running. Skipping this cycle.");
+    log.info("Scheduler is already running. Skipping this cycle.");
     return;
   }
   running = true;
@@ -182,7 +184,7 @@ export async function runDueRules() {
 
     if (dueRules.length === 0) return;
 
-    console.log(`[Scheduler] Executing ${dueRules.length} due rules with concurrency limit = 3...`);
+    log.info(`[Scheduler] Executing ${dueRules.length} due rules with concurrency limit = 3...`);
 
     // 최대 3개 동시성으로 병렬 룰 검사 수행
     const CONCURRENCY_LIMIT = 3;
@@ -192,11 +194,11 @@ export async function runDueRules() {
         const email = (rule as any).userEmail || "bootstrap-admin@myhome.local";
         await sendNotifications(rule, outcome.newMatches, email);
       } catch (error) {
-        console.error(`Scheduled check failed for ${rule.name}:`, error);
+        log.error(`Scheduled check failed for ${rule.name}:`, error);
       }
     });
 
-    console.log(`[Scheduler] Finished processing ${dueRules.length} rules.`);
+    log.info(`[Scheduler] Finished processing ${dueRules.length} rules.`);
   } finally {
     running = false;
   }
