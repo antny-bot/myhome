@@ -1,5 +1,5 @@
 import { promises as fs, existsSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { join } from "node:path";
 import {
   upsertTransactionBatch,
   makeGraphDedupeKey,
@@ -9,29 +9,11 @@ import {
   maskUrl,
   syncSupplyArea,
   getAreaMapping,
+  findAndLoadEnv,
   type BatchUpsertItem,
 } from "@myhome/shared";
 import { fetchApartmentPricesDirect } from "./fetcher.js";
 
-function findAndLoadEnv() {
-  let currentDir = process.cwd();
-  const fileDir = dirname(new URL(import.meta.url).pathname).replace(/^\/([a-zA-Z]:)/, '$1');
-  
-  const dirsToSearch = [currentDir, fileDir];
-  for (let startDir of dirsToSearch) {
-    let dir = startDir;
-    while (true) {
-      const envPath = join(dir, ".env");
-      if (existsSync(envPath)) {
-        process.loadEnvFile(envPath);
-        return;
-      }
-      const parent = dirname(dir);
-      if (parent === dir) break;
-      dir = parent;
-    }
-  }
-}
 findAndLoadEnv();
 
 const CONFIG_PATH = join(process.cwd(), "packages", "collector", "config", "targets.json");

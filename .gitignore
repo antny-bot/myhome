@@ -22,3 +22,6 @@ app.yml
 *.bak
 **/*.bak
 
+# Logs & Test DBs
+*.log
+test_*.db*
