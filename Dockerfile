@@ -37,14 +37,14 @@ COPY --from=builder /usr/src/app/packages ./packages
 COPY --from=builder /usr/src/app/scripts ./scripts
 
 # 데이터 저장 디렉토리 생성 및 node 사용자 권한 부여
-RUN mkdir -p /app/data && chown -R node:node /app
+RUN mkdir -p /app/data
 
 # 헬스체크 정의 (/api/v1/health)
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:4174/api/v1/health || exit 1
 
-# 비root 사용자 실행
-USER node
+
+
 
 EXPOSE 4174
 
