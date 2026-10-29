@@ -17,7 +17,8 @@
     "build": "npm run build:shared && npm run build:collector && npm run build:dashboard",
     "test:shared": "npm run test --workspace=packages/shared",
     "test:dashboard": "npm run test --workspace=packages/dashboard",
-    "test": "npm run test:shared && npm run test:dashboard"
+    "test": "npm run test:shared && npm run test:dashboard",
+    "check:i18n": "node --import tsx/esm scripts/check-i18n.ts"
   },
   "devDependencies": {
     "pretendard": "^1.3.9",

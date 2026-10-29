@@ -78,7 +78,8 @@ myhome/                            ← 모노레포 루트
 │       ├── vite.config.ts         ← Vite 설정
 │       ├── index.html             ← HTML 엔트리
 │       ├── server/                ← Express 백엔드
-│       │   ├── index.ts           ← 서버 엔트리 + SQLite 초기화 연동
+│       │   ├── app.ts             ← Express 애플리케이션 팩토리 & 공통 미들웨어
+│       │   ├── index.ts           ← 서버 엔트리 + Graceful Shutdown
 │       │   ├── routes.ts          ← 모듈러 라우터 조합 진입점
 │       │   ├── routes/            ← 도메인별 분할 Express 라우터
 │       │   │   ├── configRoutes.ts ← 시스템 및 유저 설정 API
@@ -86,15 +87,18 @@ myhome/                            ← 모노레포 루트
 │       │   │   ├── transactionRoutes.ts ← 실거래 수집, 지역/단지 검색 API
 │       │   │   ├── logRoutes.ts    ← 감사 및 활동 로그 API
 │       │   │   └── graph/          ← SQLite 실거래 분석 및 통계 서브라우터
-│       │   ├── mcpClient.ts       ← 국토부 API 단일화 래퍼 (getApartmentPrices/getApartmentList), MCP는 자연어 NL 전용 예약
+│       │   ├── infra/             ← 지오코딩 및 입지 분석 모듈 (scoreCalculator, mockInfra 등)
+│       │   ├── http/              ← HTTP 정책 래퍼 (fetchWithPolicy, CircuitBreaker)
 │       │   ├── scheduler.ts       ← 주기적 매물 룰 감시 + 매일 새벽 수집 스케줄러 통합
 │       │   ├── ruleEngine.ts      ← 매물 매칭 + SQLite upsert
-│       │   ├── storage.ts         ← JSON 파일 기반 상태 저장소 (Rules)
+│       │   ├── storage.ts         ← 상태 저장소 (Rules)
 │       │   ├── graphPresets.ts    ← 조회 프리셋 CRUD
-│       │   ├── graphInsights.ts   ← LLM 인사이트 CRUD
+│       │   └── graphInsights.ts   ← LLM 인사이트 CRUD
 │       └── src/                   ← React 프론트엔드
 │           ├── main.tsx           ← 엔트리
 │           ├── App.tsx            ← 메인 UI + 뷰 라우팅
+│           ├── api/               ← 모듈러 API 클라이언트 (http, auth, graph, rules, admin)
+│           ├── locales/           ← 도메인별 i18n 사전 (ko/, en/)
 │           ├── components/        ← 공통 컴포넌트
 │           │   └── charts/        ← 공통 Recharts 시각화 모듈 (BoxPlotShape, chartStyles)
 │           └── pages/             ← 페이지 컴포넌트
@@ -138,6 +142,7 @@ myhome/                            ← 모노레포 루트
 | XML 응답 파싱 유틸 | `packages/shared/src/xmlParser.ts` |
 | 백엔드 스케줄러 및 자동 수집 제어 | `packages/dashboard/server/scheduler.ts` |
 | 대시보드 분석 API 및 라우팅 | `packages/dashboard/server/routes-graph.ts` |
+| 표준 에러 코드 및 응답 규격 | `docs/11_ERROR_CODES.md` |
 | 대시보드 분석 UI/UX 수정 | `packages/dashboard/src/pages/GraphDashboard.tsx` |
 | 부동산원 API 명세 및 호출 가이드 | `docs/08_RONE_API.md` |
 | 부동산원 통계표 코드 목록 | `docs/08-1_RONE_API_LIST.md` |

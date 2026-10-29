@@ -29,5 +29,8 @@ jobs:
       - name: Typecheck dashboard
         run: npm run typecheck --workspace=packages/dashboard
 
+      - name: Verify i18n dictionary sync
+        run: npm run check:i18n
+
       - name: Run all tests
         run: npm test

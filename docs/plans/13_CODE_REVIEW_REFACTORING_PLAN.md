@@ -398,7 +398,7 @@ flowchart LR
 **수용 기준**: 기존 화면 동작 동일, `api.ts` 직접 import 0건(배럴 경유).
 
 ### D-4. i18n 및 문서 품질 (F-3, 문서)
-- [ ] 완료
+- [x] 완료
 
 **작업**
 1. `locales/ko.ts`(1,063줄)를 도메인별 파일(`common`, `auth`, `graph`, `map`, `admin`, `rules`)로 분리하고 `ko/index.ts`에서 병합. en 사전과 **키 누락 검사 스크립트**(`scripts/check-i18n.ts`)를 추가하여 CI에 연결.
