@@ -373,7 +373,7 @@ flowchart LR
 **수용 기준**: 기존 화면과 시각·동작 동일, `npm run build` 번들 경고 증가 없음, 대상 파일 모두 400줄 이하.
 
 ### D-2. 지도/관리자/룰 페이지 분할
-- [ ] 완료
+- [x] 완료
 
 **대상**: `RegionMapPage.tsx`(1,168), `DatabaseAdmin.tsx`(1,326), `Rules.tsx`(894), `Dashboard.tsx`(884)
 
@@ -440,7 +440,7 @@ flowchart LR
 
 | Task | 상태 |
 |---|---|
-| A-1 ~ A-5 | 미착수 |
-| B-1 ~ B-7 | 미착수 |
-| C-1 ~ C-5 | 미착수 |
-| D-1 ~ D-4 | 미착수 |
+| A-1 ~ A-5 | 완료 (Phase A 마감) |
+| B-1 ~ B-7 | 완료 (Phase B 마감) |
+| C-1 ~ C-5 | 완료 (Phase C 마감) |
+| D-1 ~ D-4 | 완료 (Phase D 마감) |
