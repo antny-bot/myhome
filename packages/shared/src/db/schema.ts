@@ -66,10 +66,7 @@ export function initDb(): void {
     CREATE INDEX IF NOT EXISTS idx_complexes_lawd_code ON complexes(lawd_code);
     CREATE INDEX IF NOT EXISTS idx_complexes_name ON complexes(name);
     CREATE INDEX IF NOT EXISTS idx_transactions_complex_deal_date ON transactions(complex_id, deal_date DESC);
-    CREATE INDEX IF NOT EXISTS idx_transactions_lawd_code ON transactions(lawd_code);
-    CREATE INDEX IF NOT EXISTS idx_transactions_lawd_complex ON transactions(lawd_code, complex_id, deal_date DESC, price_eok);
     CREATE INDEX IF NOT EXISTS idx_region_apartment_cache_lawd_code ON region_apartment_cache(lawd_code);
-    CREATE INDEX IF NOT EXISTS idx_transactions_cancel_date ON transactions(cancel_date);
 
     CREATE TABLE IF NOT EXISTS sessions (
       id TEXT PRIMARY KEY,
@@ -207,7 +204,6 @@ export function initDb(): void {
       FOREIGN KEY (complex_id) REFERENCES complexes(id)
     );
     CREATE INDEX IF NOT EXISTS idx_complex_area_mappings_complex_id ON complex_area_mappings(complex_id);
-    CREATE INDEX IF NOT EXISTS idx_cam_complex_area_key ON complex_area_mappings(complex_id, area_key);
   `);
 
   // -- complexes 테이블 주소·좌표 컬럼 마이그레이션 (기존 DB 호환)
@@ -254,6 +250,8 @@ export function initDb(): void {
     db.exec('ALTER TABLE transactions ADD COLUMN area_key INTEGER');
     db.exec('UPDATE transactions SET area_key = CAST(ROUND(area_m2 * 100) AS INTEGER) WHERE area_key IS NULL AND area_m2 IS NOT NULL');
   }
+  db.exec('CREATE INDEX IF NOT EXISTS idx_transactions_lawd_code ON transactions(lawd_code)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_transactions_lawd_complex ON transactions(lawd_code, complex_id, deal_date DESC, price_eok)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_transactions_lawd_code_deal_date ON transactions(lawd_code, deal_date)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_transactions_cancel_date ON transactions(cancel_date)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_transactions_complex_area_key ON transactions(complex_id, area_key)');
