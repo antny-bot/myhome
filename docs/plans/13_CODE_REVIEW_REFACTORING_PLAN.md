@@ -109,7 +109,7 @@ flowchart LR
 ## Phase A — 보안 · 데이터 정확성 (P0)
 
 ### A-1. 인증 하드닝 (S-1, S-3, S-4, S-5)
-- [ ] 완료
+- [x] 완료
 
 **관련 파일**: `server/authRoutes.ts`, `server/validation.ts`, `server/index.ts`, `server/routes.ts`, `server/config.ts`
 

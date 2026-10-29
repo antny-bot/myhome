@@ -6,7 +6,7 @@ import { createGraphRouter } from "./routes-graph.js";
 import { createAdminRouter } from "./routes-admin.js";
 import { startScheduler, stopScheduler } from "./scheduler.js";
 import { initDb, closeGraphDb, cleanExpiredSessions } from "@myhome/shared";
-import { createAuthRouter, authMiddleware, adminRequired } from "./authRoutes.js";
+import { createAuthRouter, authMiddleware, adminRequired, authRateLimiter } from "./authRoutes.js";
 import { globalErrorHandler } from "./middlewares/errorHandler.js";
 
 import { join, dirname } from "node:path";
@@ -17,8 +17,7 @@ validateRequiredConfig();
 
 function findAndLoadYamlPort(): number | null {
   let currentDir = process.cwd();
-  // tsx watch 등으로 실행되는 파일 디렉토리 기준으로도 탐색할 수 있도록 __dirname 지원
-  const fileDir = dirname(new URL(import.meta.url).pathname).replace(/^\/([a-zA-Z]:)/, '$1'); // Windows drive letter 정규화
+  const fileDir = dirname(new URL(import.meta.url).pathname).replace(/^\/([a-zA-Z]:)/, '$1');
   
   const dirsToSearch = [currentDir, fileDir];
   const yamlNames = ["config.yaml", "config.yml", "app.yaml", "app.yml"];
@@ -31,12 +30,12 @@ function findAndLoadYamlPort(): number | null {
         if (existsSync(yamlPath)) {
           try {
             const content = readFileSync(yamlPath, "utf-8");
-            const match = content.match(/^\s*(?:port|PORT)\s*:\s*(\d+)/m);
-            if (match) {
-              return Number(match[1]);
+            const portMatch = content.match(/port:\s*["']?(\d+)["']?/);
+            if (portMatch) {
+              return parseInt(portMatch[1], 10);
             }
-          } catch (err) {
-            console.error(`⚠️ YAML 설정을 읽는 중 오류 발생 (${yamlPath}):`, err);
+          } catch (e) {
+            console.error(`⚠️ YAML 파일(${yamlPath}) 파싱 에러:`, e);
           }
         }
       }
@@ -57,14 +56,14 @@ app.use(express.json());
 
 // --- Legacy API Routes (v0 / backward compatibility) ---
 app.use("/api", authMiddleware);
-app.use("/api/auth", createAuthRouter());
+app.use("/api/auth", authRateLimiter, createAuthRouter());
 app.use("/api", createRouter());
 app.use("/api/graph", createGraphRouter());
 app.use("/api/admin", adminRequired, createAdminRouter());
 
 // --- Versioned API Routes (v1) ---
 app.use("/api/v1", authMiddleware);
-app.use("/api/v1/auth", createAuthRouter());
+app.use("/api/v1/auth", authRateLimiter, createAuthRouter());
 app.use("/api/v1", createRouter());
 app.use("/api/v1/graph", createGraphRouter());
 app.use("/api/v1/admin", adminRequired, createAdminRouter());

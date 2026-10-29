@@ -67,19 +67,25 @@ export const regionsSearchQuerySchema = z.object({
   query: z.string().optional(),
 });
 
+/** 비밀번호 정책: 최소 10자, 영문+숫자 포함 */
+export const passwordPolicySchema = z
+  .string()
+  .min(10, "비밀번호는 최소 10자 이상이어야 합니다.")
+  .regex(/^(?=.*[A-Za-z])(?=.*\d)/, "비밀번호는 영문과 숫자를 모두 포함해야 합니다.");
+
 /** New schemas for auth routes */
 export const loginLocalSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1),
+  email: z.string().email("유효한 이메일 형식이 아닙니다."),
+  password: z.string().min(1, "비밀번호를 입력해주세요."),
 });
 
 export const credentialsSchema = z.object({
-  email: z.string().email(),
-  password: z.string().optional(),
+  email: z.string().email("유효한 이메일 형식이 아닙니다."),
+  password: passwordPolicySchema.optional(),
 });
 
 export const createUserSchema = z.object({
-  email: z.string().email(),
+  email: z.string().email("유효한 이메일 형식이 아닙니다."),
   isAdmin: z.boolean().optional().default(false),
 });
 
@@ -101,6 +107,7 @@ export const userConfigUpdateSchema = z.object({
   kakaoRestApiKey: z.string().optional().nullable(),
   geminiApiKey: z.string().optional().nullable(),
 });
+
 export const logEntrySchema = z.object({
   activityType: z.string().min(1),
   description: z.string().min(1),

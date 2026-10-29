@@ -10,7 +10,7 @@
     "build": "tsc -p tsconfig.json && vite build && tsc -p tsconfig.node.json",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.node.json",
     "start:server": "tsx server/index.ts",
-    "test": "node --import tsx/esm --test server/mcpThrottle.test.ts && node --import tsx/esm --test server/validation.test.ts && node --import tsx/esm --test server/storage.test.ts && node --import tsx/esm --test server/ruleEngine.test.ts",
+    "test": "node --import tsx/esm --test server/mcpThrottle.test.ts && node --import tsx/esm --test server/validation.test.ts && node --import tsx/esm --test server/storage.test.ts && node --import tsx/esm --test server/ruleEngine.test.ts && node --import tsx/esm --test server/authRoutes.test.ts",
     "test:watch": "node --import tsx/esm --test --watch server/*.test.ts"
   },
   "dependencies": {
@@ -28,18 +28,14 @@
     "remark-gfm": "^4.0.1",
     "tsx": "^4.21.0",
     "vite": "^7.2.7",
-    "zod": "^4.2.0"
+    "zod": "^3.24.2"
   },
   "devDependencies": {
-    "@types/express": "^5.0.6",
-    "@types/node": "^25.0.3",
-    "@types/react": "^19.2.7",
-    "@types/react-dom": "^19.2.3",
-    "autoprefixer": "^10.4.23",
-    "postcss": "^8.5.6",
-    "react": "^19.2.3",
-    "react-dom": "^19.2.3",
-    "tailwindcss": "^3.4.19",
-    "typescript": "^5.9.3"
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.13.5",
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.3"
   }
 }
