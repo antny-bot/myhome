@@ -266,7 +266,7 @@ export function useOverviewData({
       const key = `${rowKey}|${colKey}`;
       const cell = cellMap.get(key) || { prices: [], complexes: new Set<string>() };
       cell.prices.push(d.priceEok);
-      if (d.complexName) cell.complexes.add(d.complexName);
+      if (d.apartmentName || d.complexName) cell.complexes.add(d.apartmentName || d.complexName);
       cellMap.set(key, cell);
 
       const floorKey = getFloorCategory(d.floor);
@@ -276,7 +276,7 @@ export function useOverviewData({
         complexes: new Set<string>(),
       };
       floorCell.prices.push(d.priceEok);
-      if (d.complexName) floorCell.complexes.add(d.complexName);
+      if (d.apartmentName || d.complexName) floorCell.complexes.add(d.apartmentName || d.complexName);
       floorCellMap.set(floorCellKey, floorCell);
     });
 

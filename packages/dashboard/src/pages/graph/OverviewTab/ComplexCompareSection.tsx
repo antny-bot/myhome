@@ -63,9 +63,10 @@ export function ComplexCompareSection({
     >();
 
     targetData.forEach((d) => {
-      const cName = d.complexName;
+      const cName = d.apartmentName || d.complexName;
       if (!cName) return;
-      const current = complexStats.get(cName) || {
+      const key = `${cName}|${d.lawdCode || ""}`;
+      const current = complexStats.get(key) || {
         count: 0,
         prices: [] as number[],
         region: d.regionName ? d.regionName.split(" ").slice(-1)[0] : "기타",
@@ -73,13 +74,14 @@ export function ComplexCompareSection({
       };
       current.count += 1;
       current.prices.push(d.priceEok);
-      complexStats.set(cName, current);
+      complexStats.set(key, current);
     });
 
     return Array.from(complexStats.entries())
       .sort((a, b) => b[1].count - a[1].count)
       .slice(0, complexLimit)
-      .map(([name, stat]) => {
+      .map(([key, stat]) => {
+        const name = key.split("|")[0];
         const prices = stat.prices;
         const avg = prices.reduce((a, b) => a + b, 0) / prices.length;
         const max = Math.max(...prices);
@@ -99,11 +101,11 @@ export function ComplexCompareSection({
   const CHART_COLORS = React.useMemo(
     () => [
       "var(--color-chart-primary)",
-      "var(--color-chart-secondary)",
+      "var(--color-chart-min)",
       "var(--color-chart-accent)",
-      "var(--color-chart-warning)",
-      "var(--color-chart-danger)",
-      "var(--color-chart-info)",
+      "var(--color-chart-floor)",
+      "var(--color-chart-max)",
+      "var(--color-chart-median)",
     ],
     []
   );
