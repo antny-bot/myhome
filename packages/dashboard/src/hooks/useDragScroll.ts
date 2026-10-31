@@ -8,6 +8,30 @@ export function useDragScroll() {
   const scrollLeftRef = useRef(0);
   const hasDraggedRef = useRef(false);
 
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const onWheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaY) > Math.abs(e.deltaX) || e.deltaX !== 0) {
+        const delta = Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+        if (el.scrollWidth > el.clientWidth) {
+          const atLeft = el.scrollLeft <= 0 && delta < 0;
+          const atRight = el.scrollLeft >= el.scrollWidth - el.clientWidth && delta > 0;
+          if (!atLeft && !atRight) {
+            e.preventDefault();
+            el.scrollLeft += delta;
+          }
+        }
+      }
+    };
+
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+    };
+  }, []);
+
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!containerRef.current) return;
     isDownRef.current = true;
