@@ -277,9 +277,9 @@ export function InfraScoreSection({ detailData, showDetailInfras }: InfraScoreSe
                               학교
                             </span>
                             <span className="font-semibold text-strong">
-                              {info.details.schoolCount}개
-                              {info.details.schoolMinDistance !== null
-                                ? ` (${info.details.schoolMinDistance}m)`
+                              {info.details?.schoolCount ?? info.count ?? 0}개
+                              {(info.details?.schoolMinDistance ?? info.minDistance) != null
+                                ? ` (${info.details?.schoolMinDistance ?? info.minDistance}m)`
                                 : " (-)"}
                             </span>
                           </div>

@@ -144,7 +144,9 @@ export function generateMockInfraRating(complexName: string, parkingPerHousehold
           middleCount,
           middleMinDistance,
           highCount,
-          highMinDistance
+          highMinDistance,
+          schoolCount: count,
+          schoolMinDistance: minDistance
         };
       } else {
         score = calculateCategoryScore(config.code, minDistance, count);

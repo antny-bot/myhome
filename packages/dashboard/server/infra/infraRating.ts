@@ -338,7 +338,9 @@ export async function getComplexInfraRating(
                 middleCount,
                 middleMinDistance,
                 highCount,
-                highMinDistance
+                highMinDistance,
+                schoolCount: count,
+                schoolMinDistance: minDistance
               };
             } else {
               count = docs.length;
