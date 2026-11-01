@@ -45,6 +45,7 @@ export function OverviewTab(props: OverviewTabProps) {
         filteredData={filteredData}
         activeRegions={activeRegions}
         onSelectComplex={props.onSelectComplex}
+        filter={props.filter}
       />
     </div>
   );

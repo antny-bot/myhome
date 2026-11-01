@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { initDb } from "./schema.js";
 import { upsertTransactionBatch } from "./transactions.js";
-import { getOverviewMonthlyTrend } from "./analytics.js";
+import { getOverviewMonthlyTrend, getOverviewTopComplexes, getOverviewPivot } from "./analytics.js";
 
 // 테스트용 인메모리 DB 초기화
 process.env.SQLITE_DB_PATH = ":memory:";
@@ -99,4 +99,43 @@ test("getOverviewMonthlyTrend: 1만 건 제한 없이 전체 월별 시계열 �
   const mar2023_30s = result30s.find((r) => r.name === "2023-03");
   assert.ok(mar2023_30s);
   assert.equal(mar2023_30s.volume, 0); // 30평대가 아니므로 필터링됨
+});
+
+
+test("getOverviewTopComplexes: 거래량 상위 단지 집계 정상 산출", async () => {
+  const topList = await getOverviewTopComplexes({
+    lawdCodes: ["41135"],
+    startDate: "2023-01",
+    endDate: "2024-01",
+    limit: 5,
+  });
+
+  assert.ok(topList.length > 0);
+  const hanyang = topList.find((c) => c.name === "시범단지한양");
+  assert.ok(hanyang);
+  assert.equal(hanyang.거래수, 4);
+  assert.equal(hanyang.최고가, 18);
+  assert.equal(hanyang.최저가, 11);
+  assert.equal(hanyang.지역, "분당구");
+});
+
+test("getOverviewPivot: 지역x평형대별 요약 매트릭스 피벗 정상 산출", async () => {
+  const pivot = await getOverviewPivot({
+    lawdCodes: ["41135"],
+    startDate: "2023-01",
+    endDate: "2024-01",
+    areaUnit: "pyeong",
+    areaType: "supply",
+  });
+
+  assert.ok(pivot.activeRegions.includes("분당구"));
+  assert.ok(pivot.maxCount >= 1);
+  assert.ok(pivot.minAvg > 0);
+
+  // 31~35평|분당구 키 존재 확인 (84.9m2 거래)
+  const cell30s = pivot.data["31~35평|분당구"];
+  assert.ok(cell30s);
+  assert.equal(cell30s.count, 3);
+  assert.ok(cell30s.avg > 0);
+  assert.ok(cell30s.complexesSummary.includes("시범단지한양"));
 });

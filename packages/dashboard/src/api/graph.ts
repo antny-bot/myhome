@@ -1,5 +1,5 @@
 import { request } from "./http.js";
-import type { ComplexMetaFilter, GraphFilter, TrendPoint, GraphStats, GraphPreset, Insight, ComplexSearchResult, GraphTopologyData, RegionMapData, OverviewMonthlyFilter, OverviewMonthlyItem } from "@myhome/shared";
+import type { ComplexMetaFilter, GraphFilter, TrendPoint, GraphStats, GraphPreset, Insight, ComplexSearchResult, GraphTopologyData, RegionMapData, OverviewMonthlyFilter, OverviewMonthlyItem, OverviewTopComplexItem, OverviewTopComplexesFilter, OverviewPivotResult, OverviewPivotFilter } from "@myhome/shared";
 
 export function loadGraphStats() {
   return request<GraphStats>("/api/graph/stats");
@@ -46,6 +46,46 @@ export function fetchOverviewMonthlyTrend(filter: OverviewMonthlyFilter) {
   if (filter.maxBuildYear !== undefined) params.set("maxBuildYear", String(filter.maxBuildYear));
 
   return request<OverviewMonthlyItem[]>(`/api/graph/overview/monthly?${params.toString()}`);
+}
+
+export function fetchOverviewTopComplexes(filter: OverviewTopComplexesFilter) {
+  const params = new URLSearchParams();
+  if (filter.lawdCodes && filter.lawdCodes.length > 0) {
+    filter.lawdCodes.forEach((code) => params.append("lawdCodes", code));
+  } else if (filter.lawdCode) {
+    params.set("lawdCode", filter.lawdCode);
+  }
+  if (filter.startDate) params.set("startDate", filter.startDate);
+  if (filter.endDate) params.set("endDate", filter.endDate);
+  if (filter.region && filter.region !== "all") params.set("region", filter.region);
+  if (filter.limit) params.set("limit", String(filter.limit));
+  if (filter.minHouseholds !== undefined) params.set("minHouseholds", String(filter.minHouseholds));
+  if (filter.minTotalParking !== undefined) params.set("minTotalParking", String(filter.minTotalParking));
+  if (filter.minParkingPerHousehold !== undefined) params.set("minParkingPerHousehold", String(filter.minParkingPerHousehold));
+  if (filter.minBuildYear !== undefined) params.set("minBuildYear", String(filter.minBuildYear));
+  if (filter.maxBuildYear !== undefined) params.set("maxBuildYear", String(filter.maxBuildYear));
+
+  return request<OverviewTopComplexItem[]>(`/api/graph/overview/top-complexes?${params.toString()}`);
+}
+
+export function fetchOverviewPivot(filter: OverviewPivotFilter) {
+  const params = new URLSearchParams();
+  if (filter.lawdCodes && filter.lawdCodes.length > 0) {
+    filter.lawdCodes.forEach((code) => params.append("lawdCodes", code));
+  } else if (filter.lawdCode) {
+    params.set("lawdCode", filter.lawdCode);
+  }
+  if (filter.startDate) params.set("startDate", filter.startDate);
+  if (filter.endDate) params.set("endDate", filter.endDate);
+  if (filter.areaUnit) params.set("areaUnit", filter.areaUnit);
+  if (filter.areaType) params.set("areaType", filter.areaType);
+  if (filter.minHouseholds !== undefined) params.set("minHouseholds", String(filter.minHouseholds));
+  if (filter.minTotalParking !== undefined) params.set("minTotalParking", String(filter.minTotalParking));
+  if (filter.minParkingPerHousehold !== undefined) params.set("minParkingPerHousehold", String(filter.minParkingPerHousehold));
+  if (filter.minBuildYear !== undefined) params.set("minBuildYear", String(filter.minBuildYear));
+  if (filter.maxBuildYear !== undefined) params.set("maxBuildYear", String(filter.maxBuildYear));
+
+  return request<OverviewPivotResult>(`/api/graph/overview/pivot?${params.toString()}`);
 }
 
 export function searchGraphTransactions(filter: GraphFilter) {

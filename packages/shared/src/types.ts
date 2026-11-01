@@ -100,6 +100,61 @@ export interface OverviewMonthlyFilter {
   maxBuildYear?: number;
 }
 
+export interface OverviewTopComplexItem {
+  name: string;
+  거래수: number;
+  평균가: number;
+  최고가: number;
+  최저가: number;
+  지역: string;
+  lawdCode: string;
+}
+
+export interface OverviewTopComplexesFilter {
+  lawdCode?: string;
+  lawdCodes?: string[];
+  startDate?: string;
+  endDate?: string;
+  region?: string;
+  limit?: number;
+  minHouseholds?: number;
+  minTotalParking?: number;
+  minParkingPerHousehold?: number;
+  minBuildYear?: number;
+  maxBuildYear?: number;
+}
+
+export interface OverviewPivotCell {
+  avg: number;
+  median: number;
+  min: number;
+  max: number;
+  count: number;
+  complexesSummary: string;
+}
+
+export interface OverviewPivotResult {
+  data: Record<string, OverviewPivotCell>;
+  maxCount: number;
+  minAvg: number;
+  maxAvg: number;
+  activeRegions: string[];
+}
+
+export interface OverviewPivotFilter {
+  lawdCode?: string;
+  lawdCodes?: string[];
+  startDate?: string;
+  endDate?: string;
+  areaUnit?: "pyeong" | "m2";
+  areaType?: "supply" | "dedicated";
+  minHouseholds?: number;
+  minTotalParking?: number;
+  minParkingPerHousehold?: number;
+  minBuildYear?: number;
+  maxBuildYear?: number;
+}
+
 export type GraphPreset = {
   id: string;
   name: string;

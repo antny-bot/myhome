@@ -17,8 +17,12 @@ import {
   getComplexGeo,
   updateComplexCoords,
   getOverviewMonthlyTrend,
+  getOverviewTopComplexes,
+  getOverviewPivot,
   type GraphFilter,
-  type OverviewMonthlyFilter
+  type OverviewMonthlyFilter,
+  type OverviewTopComplexesFilter,
+  type OverviewPivotFilter
 } from "@myhome/shared";
 import {
   geocodeAddress,
@@ -87,6 +91,66 @@ router.get("/overview/monthly", asyncHandler(async (req, res) => {
 
   const cacheKey = `overview:monthly:${stableStringify(filter)}`;
   const results = await withCache(cacheKey, TTL.SEARCH, () => getOverviewMonthlyTrend(filter));
+  res.json(results);
+}));
+
+/** GET /api/graph/overview/top-complexes — 종합 현황 전용 거래량 상위 단지 집계 */
+router.get("/overview/top-complexes", asyncHandler(async (req, res) => {
+  let lawdCodes: string[] | undefined = undefined;
+  if (req.query.lawdCodes) {
+    if (Array.isArray(req.query.lawdCodes)) {
+      lawdCodes = req.query.lawdCodes as string[];
+    } else if (typeof req.query.lawdCodes === "string") {
+      lawdCodes = (req.query.lawdCodes as string).split(",").map((s) => s.trim()).filter(Boolean);
+    }
+  }
+
+  const filter: OverviewTopComplexesFilter = {
+    lawdCode: req.query.lawdCode as string | undefined,
+    lawdCodes,
+    startDate: req.query.startDate as string | undefined,
+    endDate: req.query.endDate as string | undefined,
+    region: req.query.region as string | undefined,
+    limit: req.query.limit ? Number(req.query.limit) : undefined,
+    minHouseholds: req.query.minHouseholds ? Number(req.query.minHouseholds) : undefined,
+    minTotalParking: req.query.minTotalParking ? Number(req.query.minTotalParking) : undefined,
+    minParkingPerHousehold: req.query.minParkingPerHousehold ? Number(req.query.minParkingPerHousehold) : undefined,
+    minBuildYear: req.query.minBuildYear ? Number(req.query.minBuildYear) : undefined,
+    maxBuildYear: req.query.maxBuildYear ? Number(req.query.maxBuildYear) : undefined,
+  };
+
+  const cacheKey = `overview:top-complexes:${stableStringify(filter)}`;
+  const results = await withCache(cacheKey, TTL.SEARCH, () => getOverviewTopComplexes(filter));
+  res.json(results);
+}));
+
+/** GET /api/graph/overview/pivot — 종합 현황 전용 지역별·평형대별 요약 매트릭스 집계 */
+router.get("/overview/pivot", asyncHandler(async (req, res) => {
+  let lawdCodes: string[] | undefined = undefined;
+  if (req.query.lawdCodes) {
+    if (Array.isArray(req.query.lawdCodes)) {
+      lawdCodes = req.query.lawdCodes as string[];
+    } else if (typeof req.query.lawdCodes === "string") {
+      lawdCodes = (req.query.lawdCodes as string).split(",").map((s) => s.trim()).filter(Boolean);
+    }
+  }
+
+  const filter: OverviewPivotFilter = {
+    lawdCode: req.query.lawdCode as string | undefined,
+    lawdCodes,
+    startDate: req.query.startDate as string | undefined,
+    endDate: req.query.endDate as string | undefined,
+    areaUnit: req.query.areaUnit as any,
+    areaType: req.query.areaType as any,
+    minHouseholds: req.query.minHouseholds ? Number(req.query.minHouseholds) : undefined,
+    minTotalParking: req.query.minTotalParking ? Number(req.query.minTotalParking) : undefined,
+    minParkingPerHousehold: req.query.minParkingPerHousehold ? Number(req.query.minParkingPerHousehold) : undefined,
+    minBuildYear: req.query.minBuildYear ? Number(req.query.minBuildYear) : undefined,
+    maxBuildYear: req.query.maxBuildYear ? Number(req.query.maxBuildYear) : undefined,
+  };
+
+  const cacheKey = `overview:pivot:${stableStringify(filter)}`;
+  const results = await withCache(cacheKey, TTL.SEARCH, () => getOverviewPivot(filter));
   res.json(results);
 }));
 

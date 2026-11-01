@@ -21,17 +21,21 @@ import {
 import { useBreakpoint } from "../../../useBreakpoint.js";
 import { useLocale } from "../../../lib/i18n.js";
 import { ComplexBarTooltip } from "./TooltipComponents.js";
+import { fetchOverviewTopComplexes } from "../../../api/index.js";
+import type { OverviewTopComplexItem, GraphFilter } from "@myhome/shared";
 
 interface ComplexCompareSectionProps {
   filteredData: any[];
   activeRegions: string[];
   onSelectComplex?: (complexName: string, lawdCode?: string) => void;
+  filter?: GraphFilter;
 }
 
 export function ComplexCompareSection({
   filteredData,
   activeRegions,
   onSelectComplex,
+  filter,
 }: ComplexCompareSectionProps) {
   const { t } = useLocale();
   const { isNarrow } = useBreakpoint();
@@ -43,7 +47,54 @@ export function ComplexCompareSection({
   });
   const [complexLimit, setComplexLimit] = React.useState<number>(10);
 
-  const complexChartData = React.useMemo(() => {
+  const [serverTopComplexes, setServerTopComplexes] = React.useState<OverviewTopComplexItem[] | null>(null);
+
+  React.useEffect(() => {
+    let isMounted = true;
+    const fetchTop = async () => {
+      try {
+        const list = await fetchOverviewTopComplexes({
+          lawdCode: filter?.lawdCode,
+          lawdCodes: filter?.lawdCodes,
+          startDate: filter?.startDate,
+          endDate: filter?.endDate,
+          region: activeRegionFilter !== "all" ? activeRegionFilter : undefined,
+          limit: complexLimit,
+          minHouseholds: filter?.minHouseholds,
+          minTotalParking: filter?.minTotalParking,
+          minParkingPerHousehold: filter?.minParkingPerHousehold,
+          minBuildYear: filter?.minBuildYear,
+          maxBuildYear: filter?.maxBuildYear,
+        });
+        if (isMounted) {
+          setServerTopComplexes(list);
+        }
+      } catch (err) {
+        console.error("Failed to load server top complexes", err);
+        if (isMounted) {
+          setServerTopComplexes(null);
+        }
+      }
+    };
+    void fetchTop();
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    filter?.lawdCode,
+    filter?.lawdCodes,
+    filter?.startDate,
+    filter?.endDate,
+    filter?.minHouseholds,
+    filter?.minTotalParking,
+    filter?.minParkingPerHousehold,
+    filter?.minBuildYear,
+    filter?.maxBuildYear,
+    activeRegionFilter,
+    complexLimit,
+  ]);
+
+  const localComplexChartData = React.useMemo(() => {
     const targetData =
       activeRegionFilter === "all"
         ? filteredData
@@ -97,6 +148,13 @@ export function ComplexCompareSection({
         };
       });
   }, [filteredData, activeRegionFilter, complexLimit]);
+
+  const complexChartData = React.useMemo(() => {
+    if (serverTopComplexes && serverTopComplexes.length > 0) {
+      return serverTopComplexes;
+    }
+    return localComplexChartData;
+  }, [serverTopComplexes, localComplexChartData]);
 
   const CHART_COLORS = React.useMemo(
     () => [

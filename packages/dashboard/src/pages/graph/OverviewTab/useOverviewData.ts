@@ -2,8 +2,8 @@ import React from "react";
 import { calculateBoxPlot } from "../../../lib/stats.js";
 import { useLocale } from "../../../lib/i18n.js";
 import type { OverviewTabProps } from "./types.js";
-import { fetchOverviewMonthlyTrend } from "../../../api/index.js";
-import type { OverviewMonthlyItem } from "@myhome/shared";
+import { fetchOverviewMonthlyTrend, fetchOverviewPivot } from "../../../api/index.js";
+import type { OverviewMonthlyItem, OverviewPivotResult } from "@myhome/shared";
 
 export function useOverviewData({
   data,
@@ -303,8 +303,58 @@ export function useOverviewData({
     return localMonthlyChartData;
   }, [serverMonthlyData, localMonthlyChartData]);
 
-  // 피벗 데이터
-  const activeRegions = React.useMemo(() => {
+  // 백엔드 종합 현황 전용 피벗 집계 데이터
+  const [serverPivotData, setServerPivotData] = React.useState<OverviewPivotResult | null>(null);
+
+  React.useEffect(() => {
+    let isMounted = true;
+    const loadPivot = async () => {
+      try {
+        const res = await fetchOverviewPivot({
+          lawdCode: filter?.lawdCode,
+          lawdCodes: filter?.lawdCodes,
+          startDate: filter?.startDate || startDate,
+          endDate: filter?.endDate || endDate,
+          areaUnit,
+          areaType,
+          minHouseholds: filter?.minHouseholds,
+          minTotalParking: filter?.minTotalParking,
+          minParkingPerHousehold: filter?.minParkingPerHousehold,
+          minBuildYear: filter?.minBuildYear,
+          maxBuildYear: filter?.maxBuildYear,
+        });
+        if (isMounted) {
+          setServerPivotData(res);
+        }
+      } catch (err) {
+        console.error("Failed to load server pivot data", err);
+        if (isMounted) {
+          setServerPivotData(null);
+        }
+      }
+    };
+    void loadPivot();
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    filter?.lawdCode,
+    filter?.lawdCodes,
+    filter?.startDate,
+    filter?.endDate,
+    filter?.minHouseholds,
+    filter?.minTotalParking,
+    filter?.minParkingPerHousehold,
+    filter?.minBuildYear,
+    filter?.maxBuildYear,
+    startDate,
+    endDate,
+    areaUnit,
+    areaType,
+  ]);
+
+  // 로컬 피벗 데이터 (서버 실패 시 Fallback용)
+  const localActiveRegions = React.useMemo(() => {
     const counts = new Map<string, number>();
     filteredData.forEach((d) => {
       const rName = d.regionName ? d.regionName.split(" ").slice(-1)[0] : "기타";
@@ -315,7 +365,14 @@ export function useOverviewData({
       .map(([name]) => name);
   }, [filteredData]);
 
-  const pivotData = React.useMemo(() => {
+  const activeRegions = React.useMemo(() => {
+    if (serverPivotData?.activeRegions && serverPivotData.activeRegions.length > 0) {
+      return serverPivotData.activeRegions;
+    }
+    return localActiveRegions;
+  }, [serverPivotData, localActiveRegions]);
+
+  const localPivotData = React.useMemo(() => {
     const cellMap = new Map<string, { prices: number[]; complexes: Set<string> }>();
     const floorCellMap = new Map<string, { prices: number[]; complexes: Set<string> }>();
 
@@ -414,6 +471,7 @@ export function useOverviewData({
       maxCount,
       minAvg: minAvg === Infinity ? 0 : minAvg,
       maxAvg: maxAvg === -Infinity ? 0 : maxAvg,
+      activeRegions,
     };
   }, [
     filteredData,
@@ -424,6 +482,14 @@ export function useOverviewData({
     getSizeCategory,
     getFloorCategory,
   ]);
+
+  // 서버 피벗 데이터 우선 적용 (없거나 에러 시 로컬 계산 Fallback)
+  const pivotData = React.useMemo(() => {
+    if (serverPivotData) {
+      return serverPivotData;
+    }
+    return localPivotData;
+  }, [serverPivotData, localPivotData]);
 
   return {
     getAreaValue,
