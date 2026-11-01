@@ -41,7 +41,7 @@ export function AdminPage({ state, onChanged, initialTab = "collect" }: AdminPag
     <div className="space-y-6">
       <PageHeader
         title="관리자 센터 (Admin Console)"
-        subtitle="시스템 데이터 수집, 로컬 SQLite 데이터베이스, 계정 권한 및 활동 감사 로그를 일원화하여 관리합니다."
+
         icon={ShieldCheck}
       />
 

@@ -1,17 +1,15 @@
 import React from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { useBreakpoint } from '../useBreakpoint';
 
 interface PageHeaderProps {
   title: string;
-  subtitle: string;
+  subtitle?: string;
   icon: LucideIcon;
   actions?: React.ReactNode;
   className?: string;
 }
 
-export function PageHeader({ title, subtitle, icon: Icon, actions, className = "mb-6" }: PageHeaderProps) {
-  const { isMobile } = useBreakpoint();
+export function PageHeader({ title, icon: Icon, actions, className = "mb-6" }: PageHeaderProps) {
   return (
     <header className={`flex flex-col gap-1 ${className}`}>
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -25,11 +23,6 @@ export function PageHeader({ title, subtitle, icon: Icon, actions, className = "
           </div>
         )}
       </div>
-      {!isMobile && (
-        <p className="text-sm text-neutral mt-0.5 leading-relaxed">
-          {subtitle}
-        </p>
-      )}
     </header>
   );
 }

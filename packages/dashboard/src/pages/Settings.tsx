@@ -165,7 +165,7 @@ export function SettingsPage({ state, onChanged, isAdmin = false, userEmail }: {
       {/* Page Header */}
       <PageHeader
         title="환경 설정"
-        subtitle="시스템 연동 API 키와 화면 표시 설정을 관리합니다."
+
         icon={Settings}
       />
 

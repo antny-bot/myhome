@@ -75,10 +75,6 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
       <div ref={topSectionRef} className="flex flex-col gap-1 sm:gap-3 shrink-0">
         <PageHeader
           title={t.regionMapNavLabel || "단지 지도"}
-          subtitle={
-            t.regionMapSubtitle ||
-            "수집된 지역구 내 아파트 단지 위치와 최근 실거래가를 지도에서 한눈에 확인하고 단지 분석으로 연결합니다."
-          }
           icon={MapIcon}
           className={`mb-1 sm:mb-4 ${mobileTab === "map" ? "hidden sm:flex" : "flex"}`}
         />

@@ -75,7 +75,7 @@ export const graph = {
   "noActiveChartData": "No data to display. Please enable series in the legend.",
   "axisVolume": "Volume (Count)",
   "axisAvgPrice": "Avg Price (Eok)",
-  "nearbyStationTitle": "Search Near Station",
+  "nearbyStationTitle": "Station Search",
   "nearbyStationSubtitle": "Search apartment complexes and positions within a target radius from a subway station.",
   "stationPlaceholder": "e.g. Pangyo Station, Gangnam Station",
   "nearbyComplexesTitle": "Complexes within Radius",

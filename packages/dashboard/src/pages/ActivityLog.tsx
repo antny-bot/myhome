@@ -216,7 +216,7 @@ export function ActivityLogPage() {
       {/* 헤더 */}
       <PageHeader
         title={t.activityLogTitle}
-        subtitle={t.activityLogSubtitle}
+
         icon={Activity}
         actions={
           <button

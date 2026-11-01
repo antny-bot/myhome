@@ -212,7 +212,7 @@ export function AllowedAccountsPage({ onChanged, currentUserEmail }: { onChanged
     <div className="space-y-6">
       <PageHeader
         title={t.allowedAccountsTitle}
-        subtitle={t.allowedAccountsSubtitle}
+
         icon={UserCheck}
       />
 

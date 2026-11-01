@@ -160,7 +160,7 @@ export function CollectPage() {
       {/* Title Header */}
       <PageHeader
         title={t.collectTitle}
-        subtitle={t.collectSubtitle}
+
         icon={ClipboardList}
         actions={
           <div className="flex flex-wrap items-center gap-2">

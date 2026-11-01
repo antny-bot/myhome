@@ -32,7 +32,7 @@ export function RulesPage({
 
   return (
     <div className="space-y-6">
-      <PageHeader title={t.rulesTitle} subtitle={t.rulesSubtitle} icon={Bell} />
+      <PageHeader title={t.rulesTitle} icon={Bell} />
 
       {telegramNotConfigured ? (
         <div className="rounded-xl border border-warn bg-warn/5 p-6 shadow-sm space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">

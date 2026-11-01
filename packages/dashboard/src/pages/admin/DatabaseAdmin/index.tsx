@@ -20,7 +20,7 @@ export function DatabaseAdminPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title={t.dbAdminTitle} subtitle={t.dbAdminSubtitle} icon={Database} />
+      <PageHeader title={t.dbAdminTitle} icon={Database} />
 
       <ResponsiveTabs
         tabs={tabs}

@@ -59,7 +59,7 @@ export function MobileDashboardView({
       <div className="shrink-0 px-2.5 pt-1">
         <PageHeader
           title={t.dashboardTitle}
-          subtitle={t.dashboardSubtitle}
+
           icon={LayoutDashboard}
           actions={
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral select-none shrink-0 font-medium w-full md:w-auto justify-start md:justify-end">

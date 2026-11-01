@@ -28,11 +28,7 @@ export function NearbyStationTab({
     <div className="space-y-6">
       {!hideHeader && (
         <PageHeader
-          title={t.nearbyStationTitle || "역세권 아파트 검색"}
-          subtitle={
-            t.nearbyStationSubtitle ||
-            "지하철역 주변 관심 반경 내의 아파트 단지 정보와 위치를 검색합니다."
-          }
+          title={t.nearbyStationTitle || "역세권 검색"}
           icon={Compass}
         />
       )}

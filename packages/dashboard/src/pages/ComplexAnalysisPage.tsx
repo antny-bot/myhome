@@ -82,7 +82,7 @@ export default function ComplexAnalysisPage({
       {/* Page Header */}
       <PageHeader
         title="단지 분석"
-        subtitle="특정 아파트 단지의 실거래 데이터를 심층 분석합니다. 단지명을 검색하거나, 종합 현황에서 단지를 클릭하면 자동으로 진입됩니다."
+
         icon={Building2}
       />
 

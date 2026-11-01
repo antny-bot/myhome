@@ -28,7 +28,7 @@ export function StationSearchCard({ state }: StationSearchCardProps) {
   return (
     <div className="space-y-4">
       <SectionCard
-        title={t.nearbyStationTitle || "역세권 아파트 검색"}
+        title={t.nearbyStationTitle || "역세권 검색"}
         right={
           <button
             type="button"

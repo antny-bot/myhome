@@ -75,7 +75,7 @@ export const graph = {
   "noActiveChartData": "표시할 데이터가 없습니다. 범례에서 그래프를 활성화해주세요.",
   "axisVolume": "거래수 (건)",
   "axisAvgPrice": "평균가 (억)",
-  "nearbyStationTitle": "역세권 아파트 검색",
+  "nearbyStationTitle": "역세권 검색",
   "nearbyStationSubtitle": "지하철역 주변 관심 반경 내의 아파트 단지 정보와 위치를 검색합니다.",
   "stationPlaceholder": "예: 판교역, 강남역",
   "nearbyComplexesTitle": "반경 내 단지 정보",

@@ -36,7 +36,7 @@ export default function GraphDashboard({
   const tabs = [
     { id: "overview" as const, label: t.analyticsTabOverview || "종합 현황", icon: BarChart3 },
     { id: "complex" as const, label: t.analyticsTabComplex || "단지 분석", icon: Building2 },
-    { id: "nearby" as const, label: t.nearbyStationTitle || "역세권 분석", icon: Compass },
+    { id: "nearby" as const, label: t.nearbyStationTitle || "역세권 검색", icon: Compass },
     { id: "insight" as const, label: t.analyticsTabInsight || "AI 인사이트", icon: Sparkles },
   ];
   const [activeTab, setActiveTab] = useState<"overview" | "complex" | "nearby" | "insight">(initialTab);
@@ -154,21 +154,10 @@ export default function GraphDashboard({
     <div className="space-y-6">
       <PageHeader
         title={t.analyticsTitle || "실거래 심층 분석"}
-        subtitle="로컬 SQLite 실거래 적재 데이터와 건축물대장을 시계열 차트 및 단지 입체 리포트로 분석합니다."
         icon={BarChart3}
       />
 
-      {activeTab !== "nearby" && (
-        <FilterPanel
-          filter={filter}
-          regionName={regionName}
-          onFilterChange={handleFilterChange}
-          onApply={handleApply}
-          hideComplexSearch={activeTab === "overview"}
-        />
-      )}
-
-      {/* 탭 네비게이션 & 면적/단위 토글 */}
+      {/* 탭 네비게이션 & 면적/단위 토글 (최상단 고정) */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-normal pb-1">
         <ResponsiveTabs
           tabs={tabs}
@@ -176,7 +165,7 @@ export default function GraphDashboard({
           onChange={(tabId) => setActiveTab(tabId as "overview" | "complex" | "nearby" | "insight")}
         />
 
-        {activeTab !== "insight" && activeTab !== "nearby" && (
+        {(activeTab === "overview" || activeTab === "complex") && (
           <div className="flex items-center gap-2 self-end sm:self-auto pb-1 sm:pb-0">
             <div className="flex items-center gap-0.5 rounded-lg border border-normal p-0.5 bg-alternative">
               <button
@@ -234,6 +223,17 @@ export default function GraphDashboard({
           </div>
         )}
       </div>
+
+      {/* 종합 현황 및 단지 분석 전용 조회 카드 */}
+      {(activeTab === "overview" || activeTab === "complex") && (
+        <FilterPanel
+          filter={filter}
+          regionName={regionName}
+          onFilterChange={handleFilterChange}
+          onApply={handleApply}
+          hideComplexSearch={activeTab === "overview"}
+        />
+      )}
 
       <div>
         {activeTab === "overview" && (
