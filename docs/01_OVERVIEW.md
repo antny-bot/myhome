@@ -1,6 +1,6 @@
 # [01] myhome 프로젝트 개요
 
-> **아파트 알림 서비스 (Apartment Alert)** — 국토부 오픈 API 직접 호출 및 알림 자동화 + SQLite 실거래 분석 대시보드 (v0.3.5)
+> 아파트 알림 서비스 (Apartment Alert) — 국토부 오픈 API 직접 호출 및 알림 자동화 + SQLite 실거래 분석 대시보드 (v0.3.5)
 
 ## 기술 스택
 
@@ -8,14 +8,14 @@
 |------|------|
 | 백엔드 | Node.js (v24), Express, TypeScript |
 | 프론트엔드 | React (v19) + TypeScript + Vite + Tailwind CSS |
-| 로컬 DB | SQLite (Node.js 내장 `node:sqlite` 활용) |
-| 시각화 | Recharts (시계열 차트 및 통계 분석) |
+| 로컬 DB | SQLite (Node.js 내장 `node:sqlite`) |
+| 시각화 | Recharts (시계열 차트, BoxPlot) |
 | 런타임 | `tsx` (Server), `Vite` (Web) |
 | 빌드 | `npm run build` (workspaces 순차 빌드) |
-| 실행 | `npm run dev` (Dashboard Backend/Frontend 동시 실행 + 수집 스케줄러 내장) |
-| 외부 연동 | 국토부 아파트매매 실거래 상세 자료 API (실거래·지역코드·단지목록 단일 소스), Telegram Bot API, PlayMCP `mcp-gateway` (**자연어 NL 질의 전용** — Phase 8 이후 활성화 예정) |
-| 배포 | Synology Container Manager (Docker Compose), Docker |
-| CI/CD | GitHub Actions (Release 트리거 GHCR 이미지 생성 / 주간 10개 버전 자동 관리) |
+| 실행 | `npm run dev` (Frontend + Backend 동시 기동 + 수집 스케줄러 내장) |
+| 외부 연동 | 국토부 아파트매매 실거래 API, Telegram Bot API, 카카오 Local API, 행안부 주소 API, Gemini API |
+| 배포 | Docker, Docker Compose (Synology NAS Container Manager) |
+| CI/CD | GitHub Actions (Release 트리거 GHCR 빌드/푸시, 10개 버전 유지) |
 | 패키지 관리 | npm workspaces (모노레포) |
 
 ## 디렉토리 구조
@@ -24,143 +24,84 @@
 myhome/                            ← 모노레포 루트
 ├── package.json                   ← workspaces 정의
 ├── tsconfig.base.json             ← 공통 TS 설정
-├── AGENTS.md / GEMINI.md          ← AI 에이전트 규칙
-├── Dockerfile                     ← Docker 패키징 설정
+├── AGENTS.md                      ← 에이전트 개발 규칙 및 sitemap
+├── Dockerfile                     ← 멀티스테이지 Dockerfile
 ├── docker-compose.yml             ← Synology / 로컬 배포용 템플릿
-├── config.yaml                    ← 수동 가동 포트 지정 파일
-├── .github/                       ← GitHub Actions 워크플로우 설정
-│   └── workflows/
-│       ├── docker-release.yml     ← 릴리즈 시 GHCR 빌드/푸시
-│       └── cleanup-ghcr.yml       ← 매주 월요일 오래된 이미지 삭제 (10개 보존)
-├── docs/                          ← 프로젝트 문서
-│   ├── 01_OVERVIEW.md             ← 이 파일
-│   ├── 02_CACHE_POLICY.md         ← 국토부 OpenAPI 연동 & 실거래 캐싱 정책
-│   ├── 03_BACKEND_SCHEDULER.md    ← 백엔드 Express 서버 & 자동 수집 스케줄러
-│   ├── 04_DATABASE.md             ← SQLite DB 스키마 & 집계 SQL 쿼리
-│   ├── 05_DESIGN.md               ← 프론트엔드 UI, Recharts 차트, 반응형/i18n
-│   ├── 06_ROADMAP.md              ← 개발 진행 현황 & Phase별 로드맵
-│   ├── 07_REGION_SEARCH.md        ← 지역 검색 및 주소 자동완성 기능
-│   ├── 08_RONE_API.md             ← 부동산원 OpenAPI 명세 및 호출 가이드
-│   ├── 08-1_RONE_API_LIST.md      ← 부동산원 통계표 코드 목록
-│   ├── 08-2_RONE_API_REGION_CODE.md ← 부동산원 지역코드 마스터 목록
-│   ├── 09_ARCHITECTURE.md         ← 시스템 아키텍처 가이드 (컴포넌트·데이터 흐름·외부 연동)
-│   ├── 10_BUILDING_REGISTER_API.md ← 국토부 건축HUB 건축물대장 API 명세 & 연동 가이드
-│   └── archived/                  ← 완료 또는 지난 참조 문서 보관
-│
+├── config.yaml                    ← 수동 가동 포트 지정
+├── .github/workflows/             ← CI/CD (docker-release, cleanup-ghcr)
+├── docs/                          ← 기술 및 도메인 개발 문서
 ├── packages/
-│   ├── shared/                    ← @myhome/shared 공통 모듈
+│   ├── shared/                    ← @myhome/shared 공통 패키지
 │   │   └── src/
-│   │       ├── index.ts           ← barrel export
-│   │       ├── db.ts              ← 하위 호환 re-export 배럴
-│       ├── db/                ← 도메인별 분할 DB 계층 (8개 도메인 모듈화)
-│       │   ├── connection.ts  ← SQLite 연결 및 Prepared Statement 캐시
-│       │   ├── schema.ts      ← DDL 스키마, 인덱스, 마이그레이션, FTS5
-│       │   ├── transactions.ts← 실거래 배치 Upsert, 다중 필터 검색
-│       │   ├── analytics.ts   ← 시계열 추이 통계, 드릴다운 집계
-│       │   ├── regions.ts     ← 지역/단지 FTS5 검색, 지도 마커 데이터
-│       │   ├── geocoding.ts   ← 좌표 조회/갱신, 지오코딩 실패 관리
-│       │   ├── auth.ts        ← 세션 관리, 유저 설정, 인증
-│       │   ├── rules.ts       ← 감시 룰, 체크런, 알림 발송 기록
-│       │   ├── presets.ts     ← 조회 필터 프리셋 CRUD
-│       │   ├── activityLogs.ts← 시스템 설정, 감사 및 활동 로그
-│       │   └── index.ts       ← DB 통합 export
-│   │       ├── apiClient.ts       ← 국토부 API 직접 fetch 및 정규화(normalizeTransaction)
-│   │       ├── xmlParser.ts       ← fast-xml-parser 기반 공공데이터 XML 파서
-│   │       ├── types.ts           ← 공통 타입 (TransactionNode, RegionInfo 등)
-│   │       └── utils.ts           ← 유틸리티
-│   │
-│   ├── collector/                 ← @myhome/collector 데이터 수집 라이브러리
-│   │   └── src/
-│   │       ├── index.ts           ← 수집 엔트리 및 runCollector() export
-│   │       └── fetcher.ts         ← @myhome/shared apiClient 재수출 (하위 호환)
-│   │
+│   │       ├── db/                ← 도메인별 분할 DB 계층 (8개 도메인)
+│   │       │   ├── connection.ts  ← SQLite 연결, Prepared Statement LRU 캐시
+│   │       │   ├── schema.ts      ← DDL, 인덱스, FTS5 가상테이블
+│   │       │   ├── transactions.ts← 실거래 Upsert, 커서 페이징 검색
+│   │       │   ├── analytics.ts   ← 시계열 통계, 드릴다운 집계
+│   │       │   ├── regions.ts     ← FTS5 지역/단지 검색, 지도 마커
+│   │       │   ├── geocoding.ts   ← 좌표 캐시, 실패 이력
+│   │       │   ├── auth.ts        ← 세션, 유저 설정
+│   │       │   ├── rules.ts       ← 감시 룰, 체크런, 알림 이력
+│   │       │   ├── presets.ts     ← 조회 필터 프리셋
+│   │       │   └── activityLogs.ts← 시스템 설정, 활동 로그
+│   │       ├── apiClient.ts       ← 국토부 API fetch, 재시도, URL 마스킹
+│   │       ├── xmlParser.ts       ← fast-xml-parser 응답 파서
+│   │       ├── types.ts           ← 공통 타입
+│   │       └── utils.ts           ← 공통 유틸리티
+│   ├── collector/                 ← @myhome/collector 수집 라이브러리
+│   │   └── src/index.ts           ← 수집 엔트리, runCollector()
 │   └── dashboard/                 ← @myhome/dashboard 웹 대시보드
 │       ├── vite.config.ts         ← Vite 설정
-│       ├── index.html             ← HTML 엔트리
 │       ├── server/                ← Express 백엔드
-│       │   ├── app.ts             ← Express 애플리케이션 팩토리 & 공통 미들웨어
+│       │   ├── app.ts             ← Express 앱 팩토리, 미들웨어
 │       │   ├── index.ts           ← 서버 엔트리 + Graceful Shutdown
-│       │   ├── routes.ts          ← 모듈러 라우터 조합 진입점
-│       │   ├── routes/            ← 도메인별 분할 Express 라우터
-│       │   │   ├── configRoutes.ts ← 시스템 및 유저 설정 API
-│       │   │   ├── ruleRoutes.ts   ← 감시 룰, 체크런, 알림 API
-│       │   │   ├── transactionRoutes.ts ← 실거래 수집, 지역/단지 검색 API
-│       │   │   ├── logRoutes.ts    ← 감사 및 활동 로그 API
-│       │   │   └── graph/          ← SQLite 실거래 분석 및 통계 서브라우터
-│       │   ├── infra/             ← 지오코딩 및 입지 분석 모듈 (scoreCalculator, mockInfra 등)
-│       │   ├── http/              ← HTTP 정책 래퍼 (fetchWithPolicy, CircuitBreaker)
-│       │   ├── scheduler.ts       ← 주기적 매물 룰 감시 + 매일 새벽 수집 스케줄러 통합
-│       │   ├── ruleEngine.ts      ← 매물 매칭 + SQLite upsert
-│       │   ├── storage.ts         ← 상태 저장소 (Rules)
-│       │   ├── graphPresets.ts    ← 조회 프리셋 CRUD
-│       │   └── graphInsights.ts   ← LLM 인사이트 CRUD
+│       │   ├── routes/            ← 도메인별 Express 라우터
+│       │   │   ├── configRoutes.ts← 환경/유저 설정 API
+│       │   │   ├── ruleRoutes.ts  ← 감시 룰/알림 API
+│       │   │   ├── transactionRoutes.ts ← 실거래/지역 API
+│       │   │   ├── logRoutes.ts   ← 감사/활동 로그 API
+│       │   │   └── graph/         ← SQLite 분석 서브라우터
+│       │   ├── scheduler.ts       ← 룰 감시(300초) + 일일 수집(KST 06:00)
+│       │   └── ruleEngine.ts      ← 조건 매칭 + SQLite upsert
 │       └── src/                   ← React 프론트엔드
 │           ├── main.tsx           ← 엔트리
-│           ├── App.tsx            ← 메인 UI + 뷰 라우팅
-│           ├── api/               ← 모듈러 API 클라이언트 (http, auth, graph, rules, admin)
-│           ├── locales/           ← 도메인별 i18n 사전 (ko/, en/)
-│           ├── components/        ← 공통 컴포넌트
-│           │   └── charts/        ← 공통 Recharts 시각화 모듈 (BoxPlotShape, chartStyles)
-│           └── pages/             ← 페이지 컴포넌트
-│               ├── Dashboard.tsx  ← 홈 대시보드
-│               ├── RegionMapPage.tsx ← 지역별 단지 지도 (지도 탐색 & 단지 분석 연결)
-│               ├── ExploreV2.tsx  ← 실거래 탐색
-│               └── GraphDashboard.tsx  ← 4탭 실거래 분석 메인 대시보드
+│           ├── App.tsx            ← 네비게이션 + 뷰 라우팅
+│           ├── api/               ← 모듈러 API 클라이언트
+│           ├── locales/           ← i18n 리소스 (ko/, en/)
+│           ├── components/charts/ ← 공통 Recharts 모듈
+│           └── pages/             ← 화면별 페이지 컴포넌트
 ```
 
 ## 핵심 구현 패턴
 
-**모노레포 (npm workspaces)**:
-- `@myhome/shared`: SQLite 커넥션, XML 파서, 국토부 API fetch, 공통 타입 공유. collector 및 dashboard 중복 코드 없이 재사용.
-- `@myhome/collector`: 경량 수집 모듈. 대시보드 서버 내 라이브러리로 탑재 및 작동.
-- `@myhome/dashboard`: Express 백엔드, React 프론트엔드 포함. 백엔드 가동 시 수집 스케줄러 연동 작동.
-
-**백엔드 (Express)**:
-- **모듈러 라우터 & 도메인 분리**: `server/routes/` 하위에 `configRoutes`, `ruleRoutes`, `transactionRoutes`, `logRoutes`, `graph/`로 분리하여 단일 라우터 비대화 해소.
-- `scheduler.ts` 300초 간격 `ruleEngine` 구동, 텔레그램 알림 발송. 매일 새벽 6시 이후 1회 자동 `@myhome/collector` `runCollector` 호출, 로컬 SQLite DB 실거래 적재 파이프라인 가동.
-- `routes-graph.ts` 로컬 SQLite DB 파일(`data/myhome.db`) SQL 집계 함수(`AVG`, `COUNT`, `Window Function` 등) 수행, 대시보드 분석 데이터 고속 제공.
-- **SQL 쿼리 & 인덱스 최적화**:
-  - `idx_complexes_name`, `idx_transactions_complex_deal_date` 복합 인덱스로 시계열 및 최근 거래 풀 스캔 방지.
-  - `substr` 함수식 비교를 `deal_date >= ? AND deal_date <= ?` 직접 범위 비교로 전환(SARGable)하여 B-Tree 인덱스 스캔 복원.
-  - 지도 마커 집계 시 SQLite 윈도우 함수(`ROW_NUMBER() OVER`) CTE를 적용하여 N회 반복 상관 서브쿼리 제거.
-- **국토부 API 및 DB 적재 특징**: 국토부 API 한계로 단지별 조회 시 백엔드에서 **해당 법정동/지역구(5자리 LAWD_CD) 전체 실거래 데이터 수집**. 수집 데이터 전체 DB 적재(Upsert), 동일 지역 타 단지 조회 성능 향상 및 통계 정확도 보장 최적화.
-
-**프론트엔드 (React)**:
-- Recharts 활용 시계열 차트, 층수 분포, 면적대별 분석 그래프 제공.
-- **분석 대시보드 4탭**: 종합 현황, 단지별 분석, 드릴다운, 💡 AI 인사이트 구성.
-
----
+- **모노레포**: `@myhome/shared`에 DB·API·파서 통합. `collector`와 `dashboard` 간 코드 중복 배제.
+- **모듈러 백엔드**: `server/routes/` 도메인 라우터 분할. 단일 파일 비대화 방지.
+- **듀얼 스케줄러**: 300초 주기 룰 매칭 알림 + 매일 KST 06:00 1회 대량 수집 파이프라인.
+- **SQL 최적화**:
+  - `idx_transactions_complex_deal_date` 등 복합 인덱스로 풀 스캔 방지.
+  - SARGable 범위 조건(`deal_date >= ? AND deal_date <= ?`)으로 B-Tree 인덱스 스캔 복원.
+  - FTS5 접두 검색으로 단지명 고속 색인.
+  - SQLite Window Function(`ROW_NUMBER() OVER`) CTE로 N+1 상관 서브쿼리 제거.
+- **국토부 API 수집 특성**: 단지 조회 시 소속 시군구(5자리 `LAWD_CD`) 전체 수집·Upsert 적재하여 캐시 히트율 극대화.
 
 ## 작업 유형별 필독 파일
 
 | 작업 유형 | 필독 파일 |
 |-----------|-----------|
-| 전체 로드맵·Phase 파악 | `docs/06_ROADMAP.md` |
-| 국토부 API 캐싱 및 수집 정책 | `docs/02_CACHE_POLICY.md` |
-| SQLite 클라이언트 / DDL / 집계 SQL | `packages/shared/src/db.ts` |
-| 국토부 오픈 API 직접 호출 / 정규화 | `packages/shared/src/apiClient.ts` |
-| XML 응답 파싱 유틸 | `packages/shared/src/xmlParser.ts` |
-| 백엔드 스케줄러 및 자동 수집 제어 | `packages/dashboard/server/scheduler.ts` |
-| 대시보드 분석 API 및 라우팅 | `packages/dashboard/server/routes-graph.ts` |
-| 표준 에러 코드 및 응답 규격 | `docs/11_ERROR_CODES.md` |
-| 대시보드 분석 UI/UX 수정 | `packages/dashboard/src/pages/GraphDashboard.tsx` |
-| 부동산원 API 명세 및 호출 가이드 | `docs/08_RONE_API.md` |
-| 부동산원 통계표 코드 목록 | `docs/08-1_RONE_API_LIST.md` |
-| 부동산원 지역코드 마스터 목록 | `docs/08-2_RONE_API_REGION_CODE.md` |
-| 시스템 아키텍처 전체 파악 | `docs/09_ARCHITECTURE.md` |
-
-
-
-
----
+| 전체 로드맵·Phase 파악 | [`docs/06_ROADMAP.md`](file:///e:/apps/myhome/docs/06_ROADMAP.md) |
+| 국토부 API 캐싱/수집 정책 | [`docs/02_CACHE_POLICY.md`](file:///e:/apps/myhome/docs/02_CACHE_POLICY.md) |
+| 백엔드 스케줄러/설정 | [`docs/03_BACKEND_SCHEDULER.md`](file:///e:/apps/myhome/docs/03_BACKEND_SCHEDULER.md) |
+| SQLite 스키마/인덱스/SQL | [`docs/04_DATABASE.md`](file:///e:/apps/myhome/docs/04_DATABASE.md) |
+| 프론트엔드 디자인/컴포넌트 | [`docs/05_DESIGN.md`](file:///e:/apps/myhome/docs/05_DESIGN.md) |
+| 지역 검색/자동완성 | [`docs/07_REGION_SEARCH.md`](file:///e:/apps/myhome/docs/07_REGION_SEARCH.md) |
+| 부동산원 API 연동 | [`docs/08_RONE_API.md`](file:///e:/apps/myhome/docs/08_RONE_API.md) |
+| 시스템 아키텍처/API 명세 | [`docs/09_ARCHITECTURE.md`](file:///e:/apps/myhome/docs/09_ARCHITECTURE.md) |
+| 건축물대장 API 연동 | [`docs/10_BUILDING_REGISTER_API.md`](file:///e:/apps/myhome/docs/10_BUILDING_REGISTER_API.md) |
+| 표준 에러 코드 규격 | [`docs/11_ERROR_CODES.md`](file:///e:/apps/myhome/docs/11_ERROR_CODES.md) |
 
 ## 개발 현황 요약
 
-- **Phase 1~6** (알림, 대시보드 기초) 완료 ✓
-- **Phase 7A** (모노레포 전환 및 shared 추출) 완료 ✓
-- **Phase 7B** (분석 대시보드 4탭 및 SQLite 집계 쿼리 연동) 완료 ✓
-- **Phase 7C** (통합 수집 스케줄러 및 data/myhome.db 구축) 완료 ✓
-- **Phase 7D** (Docker 컨테이너화 및 GitHub Actions CI/CD) 완료 ✓
-- **Phase 7E** (국토부 API 단일화 + MCP 자연어 전용 분리 + 역세권/어드민/활동로그 UX 개선) 완료 ✓
-- **Phase 8** (Gemini API 직접 연동 및 AI 인사이트 자동화) 완료 ✓
-- **Phase 9** (MCP 서버 — SQLite 데이터 노출 + 자연어 NL 질의 처리) 계획 📋
+- **Phase 1~6**: 프로젝트 기반, 도메인 타입, JSON 저장소, 알림 스케줄러, 프론트엔드 완료 ✓
+- **Phase 7A~7D**: 모노레포 분리, SQLite DB 대시보드, 통합 수집기, Docker CI/CD 완료 ✓
+- **Phase 7E~8.5**: 국토부 API 단일화, Gemini AI 연동, 모바일 UI 최적화, 번들 스플리팅 완료 ✓
+- **Phase 9+**: MCP 서버 (SQLite 데이터 LLM 연동), 호가/매물 데이터 확장 예정 📋
