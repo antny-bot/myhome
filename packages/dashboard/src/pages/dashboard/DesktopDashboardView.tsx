@@ -5,6 +5,7 @@ import { RegionSearchInput } from "../../components/RegionSearchInput.js";
 import { classNames } from "../../lib/format.js";
 import { useLocale } from "../../lib/i18n.js";
 import type { DashboardState, RegionSearchResult } from "../../types.js";
+import { BentoGrid, BentoItem } from "../../components/common/BentoGrid.js";
 import { AlertHistorySection } from "./AlertHistorySection.js";
 import { DashboardStatCards } from "./DashboardStatCards.js";
 
@@ -62,7 +63,9 @@ export function DesktopDashboardView({
         </div>
       )}
 
-      <div className="relative w-full h-[420px] md:h-[500px] rounded-2xl overflow-hidden border border-normal shadow-sm bg-slate-100 dark:bg-slate-900">
+      <BentoGrid>
+      <BentoItem md={6} lg={8} rows={2} className="min-h-[420px] lg:min-h-[500px]">
+      <div className="relative w-full h-full rounded-2xl overflow-hidden border border-normal shadow-sm bg-slate-100 dark:bg-slate-900">
         {!mapLoaded ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-slate-50 dark:bg-slate-900 text-neutral">
             <RefreshCw className="h-6 w-6 animate-spin text-primary" />
@@ -91,22 +94,28 @@ export function DesktopDashboardView({
           </div>
         )}
       </div>
+      </BentoItem>
 
-      <DashboardStatCards state={state} stats={stats} onNavigate={onNavigate} isMobile={false} />
+      <BentoItem md={6} lg={4} rows={2}>
+        <DashboardStatCards state={state} stats={stats} onNavigate={onNavigate} isMobile={false} fill />
+      </BentoItem>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+      <BentoItem md={3} lg={6}>
         <RecentRuns
           runs={state.checkRuns ?? []}
           onChanged={onChanged}
           isOpen={recentRunsOpen}
           onToggle={() => setRecentRunsOpen(!recentRunsOpen)}
         />
+      </BentoItem>
+      <BentoItem md={3} lg={6}>
         <AlertHistorySection
           notifications={state.notifications ?? []}
           isOpen={alertHistoryOpen}
           onToggle={() => setAlertHistoryOpen(!alertHistoryOpen)}
         />
-      </div>
+      </BentoItem>
+      </BentoGrid>
     </>
   );
 }

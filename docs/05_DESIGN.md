@@ -238,3 +238,27 @@ import { BarChart3 } from "lucide-react";
 
 ### 4. 범례 (Legend) 표준
 - 지도 좌하단에 플로팅되는 일관된 형태의 `MapLegend` 공통 컴포넌트(`packages/dashboard/src/components/MapLegend.tsx`)를 배치하여 가격대 및 상태 기준을 명시합니다.
+
+---
+
+## 11. Bento Grid 레이아웃 표준 (화면 공간 효율화)
+
+정보가 여러 종류(지도, KPI, 목록, 이력 등)로 섞이는 화면은 단일 열 세로 적층 대신 **Bento Grid**로 구성해 가로 공간을 활용합니다. 공통 모듈은 `packages/dashboard/src/components/common/BentoGrid.tsx` (`BentoGrid`, `BentoItem`)입니다.
+
+### 규격
+- **열 구성**: 모바일 `grid-cols-1` → md 6열 → lg(1024px) 12열. gap은 `gap-4`.
+- **셀 크기**: `BentoItem`의 `md`(1~6), `lg`(1~12), `rows`(lg 기준 1~3) 속성으로 지정. Tailwind JIT 때문에 span 클래스는 컴포넌트 내부 정적 매핑 테이블만 사용하고, 동적 문자열 조합(`col-span-${n}`)은 금지합니다.
+- **셀 내부**: `BentoItem`이 자식에 `h-full`을 적용하므로 카드는 셀 높이를 가득 채웁니다. 고정 높이가 필요한 셀(지도 등)은 `min-h-*`를 `BentoItem`에 지정하고 내부는 `h-full`로 둡니다.
+- **모바일 우선**: 390px에서는 항상 1열 순차 스택이며 기존 모바일 전용 뷰(`MobileDashboardView`)는 변경하지 않습니다.
+- **셀 위계**: 핵심 시각물(지도/메인 차트)은 큰 셀(lg 8열 이상, 2행), KPI는 2x2 소형 셀, 목록/이력은 6열 반분 셀로 배치합니다.
+- **카드 컴포넌트**: `StatCard`는 `className`, `DashboardStatCards`는 `fill` 속성으로 셀 높이 채움을 지원합니다.
+
+### 적용 현황
+| 화면 | 구성 |
+|---|---|
+| 홈 대시보드 (데스크톱, `DesktopDashboardView`) | 지도 8열×2행 + KPI 2x2 4열×2행, 하단 최근 실행/알림 이력 6열씩 |
+
+| 단지 분석 탭 (`ComplexChartsSection`) | 월별 트렌드 8열 + 층별 분포 4열 (층별 데이터 없으면 트렌드 12열). 트렌드 카드 내 KPI는 xl 4열 / sm 2열 |
+
+> 적용 후보(미적용): `InfraScoreSection`(지도 + 역세권 요약), `InsightTab`.
+

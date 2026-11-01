@@ -16,6 +16,7 @@ import {
   Layers,
   Layers2,
 } from "lucide-react";
+import { BentoGrid, BentoItem } from "../../../components/common/BentoGrid.js";
 import { SectionCard } from "../../../components/SectionCard.js";
 import { StatCard } from "../../../components/StatCard.js";
 import {
@@ -123,9 +124,12 @@ export function ComplexChartsSection({
     );
   };
 
+  const hasFloor = !!(detailData?.floorDistribution && detailData.floorDistribution.length > 0);
+
   return (
-    <div className="space-y-6">
+    <BentoGrid>
       {/* 1. 월별 거래 트렌드 시계열 */}
+      <BentoItem md={6} lg={hasFloor ? 8 : 12}>
       <SectionCard
         title={
           <span className="flex items-center gap-2">
@@ -136,7 +140,7 @@ export function ComplexChartsSection({
       >
         {/* 요약 통계 카드 그리드 */}
         {kpiData && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
             <StatCard
               icon={DollarSign}
               label={`${t.recentAvgPrice} (${kpiData.latestMonth})`}
@@ -246,9 +250,11 @@ export function ComplexChartsSection({
           </ResponsiveContainer>
         </div>
       </SectionCard>
+      </BentoItem>
 
       {/* 2. 층별 거래 분포 차트 */}
-      {detailData?.floorDistribution && detailData.floorDistribution.length > 0 && (
+      {hasFloor && (
+        <BentoItem md={6} lg={4}>
         <SectionCard
           title={
             <span className="flex items-center gap-2">
@@ -334,7 +340,8 @@ export function ComplexChartsSection({
             </ResponsiveContainer>
           </div>
         </SectionCard>
+        </BentoItem>
       )}
-    </div>
+    </BentoGrid>
   );
 }
