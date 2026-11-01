@@ -16,7 +16,9 @@ import {
   getRegionCollectionStatsByDate,
   getComplexGeo,
   updateComplexCoords,
-  type GraphFilter
+  getOverviewMonthlyTrend,
+  type GraphFilter,
+  type OverviewMonthlyFilter
 } from "@myhome/shared";
 import {
   geocodeAddress,
@@ -55,6 +57,37 @@ router.get("/region/:lawdCode/trend", asyncHandler(async (req, res) => {
     return { lawdCode, trend };
   });
   res.json(result);
+}));
+
+/** GET /api/graph/overview/monthly — 종합 현황 전용 월별 실거래가 & 거래량 시계열 집계 */
+router.get("/overview/monthly", asyncHandler(async (req, res) => {
+  let lawdCodes: string[] | undefined = undefined;
+  if (req.query.lawdCodes) {
+    if (Array.isArray(req.query.lawdCodes)) {
+      lawdCodes = req.query.lawdCodes as string[];
+    } else if (typeof req.query.lawdCodes === "string") {
+      lawdCodes = (req.query.lawdCodes as string).split(",").map((s) => s.trim()).filter(Boolean);
+    }
+  }
+
+  const filter: OverviewMonthlyFilter = {
+    lawdCode: req.query.lawdCode as string | undefined,
+    lawdCodes,
+    startDate: req.query.startDate as string | undefined,
+    endDate: req.query.endDate as string | undefined,
+    sizeFilter: req.query.sizeFilter as any,
+    selectedRegion: req.query.selectedRegion as string | undefined,
+    areaType: req.query.areaType as any,
+    minHouseholds: req.query.minHouseholds ? Number(req.query.minHouseholds) : undefined,
+    minTotalParking: req.query.minTotalParking ? Number(req.query.minTotalParking) : undefined,
+    minParkingPerHousehold: req.query.minParkingPerHousehold ? Number(req.query.minParkingPerHousehold) : undefined,
+    minBuildYear: req.query.minBuildYear ? Number(req.query.minBuildYear) : undefined,
+    maxBuildYear: req.query.maxBuildYear ? Number(req.query.maxBuildYear) : undefined,
+  };
+
+  const cacheKey = `overview:monthly:${stableStringify(filter)}`;
+  const results = await withCache(cacheKey, TTL.SEARCH, () => getOverviewMonthlyTrend(filter));
+  res.json(results);
 }));
 
 /** GET /api/graph/search — 필터 조건 검색 */

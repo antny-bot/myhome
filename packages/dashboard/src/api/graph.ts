@@ -1,5 +1,5 @@
 import { request } from "./http.js";
-import type { ComplexMetaFilter, GraphFilter, TrendPoint, GraphStats, GraphPreset, Insight, ComplexSearchResult, GraphTopologyData, RegionMapData } from "@myhome/shared";
+import type { ComplexMetaFilter, GraphFilter, TrendPoint, GraphStats, GraphPreset, Insight, ComplexSearchResult, GraphTopologyData, RegionMapData, OverviewMonthlyFilter, OverviewMonthlyItem } from "@myhome/shared";
 
 export function loadGraphStats() {
   return request<GraphStats>("/api/graph/stats");
@@ -25,6 +25,27 @@ export function loadGraphComplexTrend(complexName: string, lawdCode?: string) {
 
 export function loadGraphRegionTrend(lawdCode: string) {
   return request<{ lawdCode: string; trend: TrendPoint[] }>(`/api/graph/region/${lawdCode}/trend`);
+}
+
+export function fetchOverviewMonthlyTrend(filter: OverviewMonthlyFilter) {
+  const params = new URLSearchParams();
+  if (filter.lawdCodes && filter.lawdCodes.length > 0) {
+    filter.lawdCodes.forEach((code) => params.append("lawdCodes", code));
+  } else if (filter.lawdCode) {
+    params.set("lawdCode", filter.lawdCode);
+  }
+  if (filter.startDate) params.set("startDate", filter.startDate);
+  if (filter.endDate) params.set("endDate", filter.endDate);
+  if (filter.sizeFilter && filter.sizeFilter !== "all") params.set("sizeFilter", filter.sizeFilter);
+  if (filter.selectedRegion && filter.selectedRegion !== "all") params.set("selectedRegion", filter.selectedRegion);
+  if (filter.areaType) params.set("areaType", filter.areaType);
+  if (filter.minHouseholds !== undefined) params.set("minHouseholds", String(filter.minHouseholds));
+  if (filter.minTotalParking !== undefined) params.set("minTotalParking", String(filter.minTotalParking));
+  if (filter.minParkingPerHousehold !== undefined) params.set("minParkingPerHousehold", String(filter.minParkingPerHousehold));
+  if (filter.minBuildYear !== undefined) params.set("minBuildYear", String(filter.minBuildYear));
+  if (filter.maxBuildYear !== undefined) params.set("maxBuildYear", String(filter.maxBuildYear));
+
+  return request<OverviewMonthlyItem[]>(`/api/graph/overview/monthly?${params.toString()}`);
 }
 
 export function searchGraphTransactions(filter: GraphFilter) {

@@ -2,6 +2,8 @@ import React from "react";
 import { calculateBoxPlot } from "../../../lib/stats.js";
 import { useLocale } from "../../../lib/i18n.js";
 import type { OverviewTabProps } from "./types.js";
+import { fetchOverviewMonthlyTrend } from "../../../api/index.js";
+import type { OverviewMonthlyItem } from "@myhome/shared";
 
 export function useOverviewData({
   data,
@@ -9,6 +11,7 @@ export function useOverviewData({
   areaType = "supply",
   startDate,
   endDate,
+  filter,
 }: OverviewTabProps) {
   const { t } = useLocale();
 
@@ -167,8 +170,60 @@ export function useOverviewData({
     });
   }, [data, selectedRegion, sizeFilter, getAreaValue]);
 
-  // 월별 시계열 가공
-  const monthlyChartData = React.useMemo(() => {
+  // 백엔드 종합 현황 전용 집계 데이터
+  const [serverMonthlyData, setServerMonthlyData] = React.useState<OverviewMonthlyItem[] | null>(null);
+
+  React.useEffect(() => {
+    let isMounted = true;
+    const fetchTrend = async () => {
+      try {
+        const trend = await fetchOverviewMonthlyTrend({
+          lawdCode: filter?.lawdCode,
+          lawdCodes: filter?.lawdCodes,
+          startDate: filter?.startDate || startDate,
+          endDate: filter?.endDate || endDate,
+          sizeFilter,
+          selectedRegion: selectedRegion !== "all" ? selectedRegion : undefined,
+          areaType,
+          minHouseholds: filter?.minHouseholds,
+          minTotalParking: filter?.minTotalParking,
+          minParkingPerHousehold: filter?.minParkingPerHousehold,
+          minBuildYear: filter?.minBuildYear,
+          maxBuildYear: filter?.maxBuildYear,
+        });
+        if (isMounted) {
+          setServerMonthlyData(trend);
+        }
+      } catch (err) {
+        console.error("Failed to load server monthly trend", err);
+        if (isMounted) {
+          setServerMonthlyData(null);
+        }
+      }
+    };
+    void fetchTrend();
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    filter?.lawdCode,
+    filter?.lawdCodes,
+    filter?.startDate,
+    filter?.endDate,
+    filter?.minHouseholds,
+    filter?.minTotalParking,
+    filter?.minParkingPerHousehold,
+    filter?.minBuildYear,
+    filter?.maxBuildYear,
+    startDate,
+    endDate,
+    sizeFilter,
+    selectedRegion,
+    areaType,
+  ]);
+
+  // 로컬 월별 시계열 가공 (서버 집계 실패 시 또는 오프라인 Fallback용)
+  const localMonthlyChartData = React.useMemo(() => {
     const monthlyDataMap = new Map<string, { count: number; prices: number[] }>();
 
     let startMonthStr = startDate ? startDate.substring(0, 7) : undefined;
@@ -239,6 +294,14 @@ export function useOverviewData({
         };
       });
   }, [monthlyFilteredData, startDate, endDate]);
+
+  // 서버 전용 집계 데이터 우선 적용 (없거나 에러 시 로컬 계산 Fallback)
+  const monthlyChartData = React.useMemo(() => {
+    if (serverMonthlyData && serverMonthlyData.length > 0) {
+      return serverMonthlyData;
+    }
+    return localMonthlyChartData;
+  }, [serverMonthlyData, localMonthlyChartData]);
 
   // 피벗 데이터
   const activeRegions = React.useMemo(() => {

@@ -1,5 +1,5 @@
 import { getDb, getPreparedStatement } from "./connection.js";
-import type { TrendPoint, GraphStats, GraphFilter, GraphTopologyData, DailyCollectStat, RegionCollectStat, DrilldownRegionItem, DrilldownComplexItem, DrilldownAreaItem } from "../types.js";
+import type { TrendPoint, GraphStats, GraphFilter, GraphTopologyData, DailyCollectStat, RegionCollectStat, DrilldownRegionItem, DrilldownComplexItem, DrilldownAreaItem, OverviewMonthlyItem, OverviewMonthlyFilter } from "../types.js";
 import { calculateBoxPlot } from "../stats.js";
 import { resolveComplexName } from "./regions.js";
 import { searchTransactions } from "./transactions.js";
@@ -550,4 +550,170 @@ export function getRegionCollectionStatsByMonth(month: string): RegionCollectSta
     ORDER BY count DESC
   `).all(month) as { lawdCode: string; regionName: string; count: number }[];
   return rows;
+}
+
+
+/**
+ * 종합 현황 전용 월별 실거래가 & 거래량 시계열 집계 (BoxPlot)
+ * - 10,000건 제한 없이 해당 기간 전체 데이터를 SARGable 인덱스로 조회하여 월별 통계 산출
+ */
+export async function getOverviewMonthlyTrend(
+  filter: OverviewMonthlyFilter
+): Promise<OverviewMonthlyItem[]> {
+  const db = getDb();
+
+  let queryStr = `
+    SELECT substr(t.deal_date, 1, 7) AS month,
+           t.price_eok AS priceEok,
+           t.area_m2 AS areaM2,
+           m.supply_area_m2 AS supplyAreaM2,
+           r.display_name AS regionName
+    FROM transactions t
+    JOIN complexes c ON t.complex_id = c.id
+    JOIN regions r ON c.lawd_code = r.lawd_code
+    LEFT JOIN complex_area_mappings m ON t.complex_id = m.complex_id AND t.area_key = m.area_key
+    WHERE t.cancel_date IS NULL
+  `;
+  const params: (string | number)[] = [];
+
+  if (filter.lawdCodes && filter.lawdCodes.length > 0) {
+    const placeholders = filter.lawdCodes.map(() => "?").join(",");
+    queryStr += ` AND t.lawd_code IN (${placeholders})`;
+    params.push(...filter.lawdCodes);
+  } else if (filter.lawdCode) {
+    queryStr += " AND t.lawd_code LIKE ? || '%'";
+    params.push(filter.lawdCode);
+  }
+
+  if (filter.startDate) {
+    const startVal = filter.startDate.length === 7 ? `${filter.startDate}-01` : filter.startDate;
+    queryStr += " AND t.deal_date >= ?";
+    params.push(startVal);
+  }
+  if (filter.endDate) {
+    const endVal = filter.endDate.length === 7 ? `${filter.endDate}-31` : filter.endDate;
+    queryStr += " AND t.deal_date <= ?";
+    params.push(endVal);
+  }
+
+  if (filter.minHouseholds !== undefined && filter.minHouseholds > 0) {
+    queryStr += " AND c.total_households >= ?";
+    params.push(filter.minHouseholds);
+  }
+  if (filter.minTotalParking !== undefined && filter.minTotalParking > 0) {
+    queryStr += " AND c.total_parking >= ?";
+    params.push(filter.minTotalParking);
+  }
+  if (filter.minParkingPerHousehold !== undefined && filter.minParkingPerHousehold > 0) {
+    queryStr += " AND c.parking_per_household >= ?";
+    params.push(filter.minParkingPerHousehold);
+  }
+  if (filter.minBuildYear !== undefined && filter.minBuildYear > 0) {
+    queryStr += " AND CAST(substr(c.use_approval_date, 1, 4) AS INTEGER) >= ?";
+    params.push(filter.minBuildYear);
+  }
+  if (filter.maxBuildYear !== undefined && filter.maxBuildYear > 0) {
+    queryStr += " AND CAST(substr(c.use_approval_date, 1, 4) AS INTEGER) <= ?";
+    params.push(filter.maxBuildYear);
+  }
+
+  queryStr += " ORDER BY month ASC, t.deal_date ASC";
+
+  const rows = db.prepare(queryStr).all(...params) as Array<{
+    month: string;
+    priceEok: number;
+    areaM2: number;
+    supplyAreaM2: number | null;
+    regionName: string;
+  }>;
+
+  const monthlyDataMap = new Map<string, { count: number; prices: number[] }>();
+
+  let startMonthStr = filter.startDate ? filter.startDate.substring(0, 7) : undefined;
+  let endMonthStr = filter.endDate ? filter.endDate.substring(0, 7) : undefined;
+
+  if (!startMonthStr || !endMonthStr) {
+    rows.forEach((d) => {
+      if (!startMonthStr || d.month < startMonthStr) startMonthStr = d.month;
+      if (!endMonthStr || d.month > endMonthStr) endMonthStr = d.month;
+    });
+  }
+
+  if (startMonthStr && endMonthStr && startMonthStr <= endMonthStr) {
+    const [sY, sM] = startMonthStr.split("-").map(Number);
+    const [eY, eM] = endMonthStr.split("-").map(Number);
+    let curY = sY;
+    let curM = sM;
+    while (curY < eY || (curY === eY && curM <= eM)) {
+      const mStr = `${curY}-${String(curM).padStart(2, "0")}`;
+      monthlyDataMap.set(mStr, { count: 0, prices: [] });
+      curM++;
+      if (curM > 12) {
+        curM = 1;
+        curY++;
+      }
+    }
+  }
+
+  const selectedRegion = filter.selectedRegion;
+  const sizeFilter = filter.sizeFilter;
+  const areaType = filter.areaType || "supply";
+
+  for (const row of rows) {
+    if (selectedRegion && selectedRegion !== "all") {
+      const rName = row.regionName ? row.regionName.split(" ").slice(-1)[0] : "기타";
+      if (rName !== selectedRegion) continue;
+    }
+
+    if (sizeFilter && sizeFilter !== "all") {
+      const areaVal = areaType === "dedicated"
+        ? (row.areaM2 || 0)
+        : (row.supplyAreaM2 || (row.areaM2 ? row.areaM2 / 0.78 : 0));
+      const pyeong = areaVal / 3.3058;
+
+      if (sizeFilter === "under20" && pyeong >= 20.5) continue;
+      if (sizeFilter === "20s" && (pyeong < 20.5 || pyeong >= 30.5)) continue;
+      if (sizeFilter === "30s" && (pyeong < 30.5 || pyeong >= 40.5)) continue;
+      if (sizeFilter === "40s" && (pyeong < 40.5 || pyeong >= 50.5)) continue;
+      if (sizeFilter === "over50" && pyeong < 50.5) continue;
+    }
+
+    const current = monthlyDataMap.get(row.month) || { count: 0, prices: [] };
+    current.count += 1;
+    current.prices.push(row.priceEok);
+    monthlyDataMap.set(row.month, current);
+  }
+
+  return Array.from(monthlyDataMap.entries())
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([month, val]) => {
+      const count = val.count;
+      if (count === 0) {
+        return {
+          name: month,
+          volume: 0,
+          min: null,
+          q1: null,
+          median: null,
+          q3: null,
+          max: null,
+          avg: null,
+          whiskerRange: null,
+          boxRange: null,
+        };
+      }
+      const stats = calculateBoxPlot(val.prices, 1);
+      return {
+        name: month,
+        volume: count,
+        min: stats.min,
+        q1: stats.q1,
+        median: stats.median,
+        q3: stats.q3,
+        max: stats.max,
+        avg: stats.mean,
+        whiskerRange: [stats.min, stats.max] as [number, number],
+        boxRange: [stats.q1, stats.q3] as [number, number],
+      };
+    });
 }

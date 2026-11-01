@@ -251,6 +251,7 @@ export default function GraphDashboard({
                 locale={locale}
                 startDate={filter.startDate}
                 endDate={filter.endDate}
+                filter={filter}
               />
             )}
           </>

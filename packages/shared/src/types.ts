@@ -72,6 +72,34 @@ export interface ComplexMetaFilter {
   maxBuildYear?: number;
 }
 
+export interface OverviewMonthlyItem {
+  name: string;
+  volume: number;
+  min: number | null;
+  q1: number | null;
+  median: number | null;
+  q3: number | null;
+  max: number | null;
+  avg: number | null;
+  whiskerRange: [number, number] | null;
+  boxRange: [number, number] | null;
+}
+
+export interface OverviewMonthlyFilter {
+  lawdCode?: string;
+  lawdCodes?: string[];
+  startDate?: string;
+  endDate?: string;
+  sizeFilter?: "all" | "under20" | "20s" | "30s" | "40s" | "over50";
+  selectedRegion?: string;
+  areaType?: "supply" | "dedicated";
+  minHouseholds?: number;
+  minTotalParking?: number;
+  minParkingPerHousehold?: number;
+  minBuildYear?: number;
+  maxBuildYear?: number;
+}
+
 export type GraphPreset = {
   id: string;
   name: string;

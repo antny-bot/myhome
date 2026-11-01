@@ -1,3 +1,5 @@
+import type { GraphFilter } from "@myhome/shared";
+
 export interface OverviewTabProps {
   data: any[]; // searchTransactions 결과
   onSelectComplex?: (complexName: string, lawdCode?: string) => void;
@@ -6,6 +8,7 @@ export interface OverviewTabProps {
   locale?: "ko" | "en";
   startDate?: string;
   endDate?: string;
+  filter?: GraphFilter;
 }
 
 export interface KpiSummary {

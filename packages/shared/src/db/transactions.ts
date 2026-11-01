@@ -265,7 +265,8 @@ export function searchTransactions(filter: GraphFilter): SearchTransactionsResul
     params.push(filter.cursorDate, filter.cursorDate, filter.cursorDedupeKey);
   }
 
-  const limit = Math.min(Math.max(filter.limit || 10000, 1), 10000);
+  const maxAllowedLimit = 50000;
+  const limit = Math.min(Math.max(filter.limit || 10000, 1), maxAllowedLimit);
   queryStr += ` ORDER BY t.deal_date DESC, t.dedupe_key DESC LIMIT ${limit + 1}`;
 
   const rows = db.prepare(queryStr).all(...params);
