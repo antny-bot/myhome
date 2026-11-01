@@ -314,7 +314,7 @@ export async function getComplexDetail(
            m.supply_area_m2 AS supplyAreaM2,
            t.floor AS floor,
            t.apt_dong AS aptDong,
-           t.deal_type AS dealType,
+           t.dealing_type AS dealType,
            t.cancel_date AS cancelDate,
            t.dedupe_key AS dedupeKey
     FROM transactions t
