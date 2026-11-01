@@ -12,12 +12,14 @@ interface ComplexRecentTradesTableProps {
     totalCount: number;
   } | null;
   areaUnit: "pyeong" | "m2";
+  areaType?: "supply" | "dedicated";
 }
 
 export function ComplexRecentTradesTable({
   groupedTx,
   recentTxStats,
   areaUnit,
+  areaType = "supply",
 }: ComplexRecentTradesTableProps) {
   const { t } = useLocale();
 
@@ -35,19 +37,24 @@ export function ComplexRecentTradesTable({
       <div className="overflow-x-auto scrollbar-thin">
         <table className="w-full text-left text-xs">
           <thead>
-            <tr className="border-b border-normal text-neutral font-semibold">
+            <tr className="border-b border-normal/50 text-neutral font-semibold">
               <th className="py-2.5 px-3">계약일</th>
-              <th className="py-2.5 px-3">면적</th>
+              <th className="py-2.5 px-3">
+                {areaType === "supply" ? (t.areaLabel || "분양면적") : (t.exclusiveArea || "전용면적")}
+              </th>
               <th className="py-2.5 px-3">층</th>
               <th className="py-2.5 px-3">거래금액</th>
               <th className="py-2.5 px-3">동</th>
               <th className="py-2.5 px-3">거래구분</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-normal/50 text-strong font-medium">
+          <tbody className="divide-y divide-normal/30 text-strong font-medium">
             {groupedTx.map((group) =>
               group.items.map((tx: any, idx: number) => {
-                const pyeong = Math.round((tx.areaM2 || 0) / 3.305785);
+                const targetArea = areaType === "supply"
+                  ? (tx.supplyAreaM2 || (tx.areaM2 ? Number((tx.areaM2 / 0.78).toFixed(1)) : 0))
+                  : (tx.areaM2 || 0);
+                const pyeong = Math.round(targetArea / 3.305785);
                 const isCancel = !!tx.cancelDate;
                 const isDirect = tx.dealType === "직거래";
 
@@ -63,8 +70,8 @@ export function ComplexRecentTradesTable({
                     </td>
                     <td className="py-2.5 px-3 whitespace-nowrap">
                       {areaUnit === "pyeong"
-                        ? `${pyeong}평 (${Math.round(tx.areaM2)}㎡)`
-                        : `${tx.areaM2}㎡`}
+                        ? `${pyeong}평 (${Math.round(targetArea)}㎡)`
+                        : `${Math.round(targetArea)}㎡`}
                     </td>
                     <td className="py-2.5 px-3 whitespace-nowrap">{tx.floor}층</td>
                     <td className="py-2.5 px-3 whitespace-nowrap font-mono font-bold text-primary">

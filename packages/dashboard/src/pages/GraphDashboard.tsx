@@ -189,7 +189,7 @@ export default function GraphDashboard({
                     : "text-neutral hover:text-strong"
                 )}
               >
-                공급
+                분양
               </button>
               <button
                 type="button"

@@ -143,12 +143,12 @@ export function ComplexChartsSection({
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
             <StatCard
               icon={DollarSign}
-              label={`${t.recentAvgPrice} (${kpiData.latestMonth})`}
+              label={kpiData.latestMonth ? `${t.recentAvgPrice} (${kpiData.latestMonth})` : t.recentAvgPrice}
               value={`${kpiData.latestAvg.toFixed(2)}${t.eokUnit}`}
             />
             <StatCard
               icon={ArrowUpDown}
-              label={`${t.yoyChange} (${kpiData.yoyMonthStr})`}
+              label={kpiData.yoyMonthStr ? `${t.yoyChange} (${kpiData.yoyMonthStr})` : t.yoyChange}
               value={
                 kpiData.hasYoy
                   ? `${kpiData.yoyDiff >= 0 ? "+" : ""}${kpiData.yoyDiff.toFixed(2)}${t.eokUnit} (${kpiData.yoyDiff >= 0 ? "+" : ""}${kpiData.yoyPercent.toFixed(1)}%)`
@@ -171,8 +171,8 @@ export function ComplexChartsSection({
             />
             <StatCard
               icon={TrendingUp}
-              label={`${t.allTimeHigh} (${kpiData.maxMonth})`}
-              value={`${kpiData.maxPrice.toFixed(2)}${t.eokUnit}`}
+              label={kpiData.maxMonth ? `${t.allTimeHigh} (${kpiData.maxMonth})` : t.allTimeHigh}
+              value={`${(kpiData.maxPrice || 0).toFixed(2)}${t.eokUnit}`}
             />
           </div>
         )}

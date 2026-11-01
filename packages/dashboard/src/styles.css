@@ -225,7 +225,25 @@ textarea {
 .text-strong { color: var(--color-semantic-label-strong); }
 .text-neutral { color: var(--color-semantic-label-neutral); }
 .text-assistive { color: var(--color-semantic-label-assistive); }
+/* Line & Divider semantic tokens */
 .border-normal { border-color: var(--color-semantic-line-normal-normal); }
+.divide-normal > :not([hidden]) ~ :not([hidden]) { border-color: var(--color-semantic-line-normal-normal); }
+
+/* Opacity modifier support for semantic borders */
+.border-normal\/10 { border-color: color-mix(in srgb, var(--color-semantic-line-normal-normal) 10%, transparent); }
+.border-normal\/15 { border-color: color-mix(in srgb, var(--color-semantic-line-normal-normal) 15%, transparent); }
+.border-normal\/20 { border-color: color-mix(in srgb, var(--color-semantic-line-normal-normal) 20%, transparent); }
+.border-normal\/30 { border-color: color-mix(in srgb, var(--color-semantic-line-normal-normal) 30%, transparent); }
+.border-normal\/40 { border-color: color-mix(in srgb, var(--color-semantic-line-normal-normal) 40%, transparent); }
+.border-normal\/50 { border-color: color-mix(in srgb, var(--color-semantic-line-normal-normal) 50%, transparent); }
+.border-normal\/60 { border-color: color-mix(in srgb, var(--color-semantic-line-normal-normal) 60%, transparent); }
+
+/* Opacity modifier support for semantic dividers */
+.divide-normal\/20 > :not([hidden]) ~ :not([hidden]) { border-color: color-mix(in srgb, var(--color-semantic-line-normal-normal) 20%, transparent); }
+.divide-normal\/30 > :not([hidden]) ~ :not([hidden]) { border-color: color-mix(in srgb, var(--color-semantic-line-normal-normal) 30%, transparent); }
+.divide-normal\/40 > :not([hidden]) ~ :not([hidden]) { border-color: color-mix(in srgb, var(--color-semantic-line-normal-normal) 40%, transparent); }
+.divide-normal\/50 > :not([hidden]) ~ :not([hidden]) { border-color: color-mix(in srgb, var(--color-semantic-line-normal-normal) 50%, transparent); }
+.divide-normal\/60 > :not([hidden]) ~ :not([hidden]) { border-color: color-mix(in srgb, var(--color-semantic-line-normal-normal) 60%, transparent); }
 .text-primary { color: var(--color-semantic-primary-normal); }
 .bg-primary { background-color: var(--color-semantic-primary-normal); }
 .text-signal { color: var(--color-semantic-status-positive); }

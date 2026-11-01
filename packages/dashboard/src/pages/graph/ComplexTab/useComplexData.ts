@@ -22,14 +22,28 @@ export function useComplexData({
     const num = parseFloat(sizeStr);
     if (isNaN(num)) return sizeStr;
 
-    if (areaType === "supply" && detailData?.areaBreakdown) {
-      const found = detailData.areaBreakdown.find(
-        (b: any) => Math.abs(parseFloat(b.area) - num) < 0.5
-      );
-      if (found && found.supplyAreaPyeong) {
-        if (unit === "pyeong") return `${found.supplyAreaPyeong}평`;
-        return `${Math.round(found.supplyAreaPyeong * 3.305785)}㎡`;
+    if (areaType === "supply") {
+      if (detailData?.areaBreakdown) {
+        const found = detailData.areaBreakdown.find(
+          (b: any) => Math.abs(parseFloat(b.area) - num) < 0.5
+        );
+        if (found) {
+          if (found.supplyAreaPyeong) {
+            if (unit === "pyeong") return `${found.supplyAreaPyeong}평`;
+            return `${Math.round(found.supplyAreaM2 || found.supplyAreaPyeong * 3.305785)}㎡`;
+          }
+          if (found.supplyAreaM2) {
+            if (unit === "pyeong") return `${Math.round(found.supplyAreaM2 / 3.305785)}평`;
+            return `${Math.round(found.supplyAreaM2)}㎡`;
+          }
+        }
       }
+      // fallback: 전용률 78% 추정
+      const fallbackSupplyM2 = num / 0.78;
+      if (unit === "pyeong") {
+        return `${Math.round(fallbackSupplyM2 / 3.305785)}평`;
+      }
+      return `${Math.round(fallbackSupplyM2)}㎡`;
     }
 
     if (unit === "pyeong") {
@@ -84,6 +98,11 @@ export function useComplexData({
   }, [initialComplexName, selectedArea, lawdCode, startDate, endDate]);
 
   const kpiData = useMemo(() => {
+    // 1. 백엔드에서 전수 계산된 단지 KPI가 제공되면 최우선 사용
+    if (detailData?.kpi) {
+      return detailData.kpi;
+    }
+
     if (!detailData?.trend || detailData.trend.length === 0) return null;
     const trend = detailData.trend;
     const latest = trend[trend.length - 1];
@@ -99,13 +118,12 @@ export function useComplexData({
 
     if (latestMonth) {
       const [year, month] = latestMonth.split("-").map(Number);
-      const prevYearStr = `${year - 1}-${String(month).padStart(2, "0")}`;
-      const prevYearData = trend.find((d: any) => d.month === prevYearStr);
+      yoyMonthStr = `${year - 1}-${String(month).padStart(2, "0")}`;
+      const prevYearData = trend.find((d: any) => d.month === yoyMonthStr);
       if (prevYearData && prevYearData.평균가) {
-        yoyDiff = latestAvg - prevYearData.평균가;
-        yoyPercent = (yoyDiff / prevYearData.평균가) * 100;
+        yoyDiff = Number((latestAvg - prevYearData.평균가).toFixed(2));
+        yoyPercent = Number(((yoyDiff / prevYearData.평균가) * 100).toFixed(1));
         hasYoy = true;
-        yoyMonthStr = prevYearStr;
       }
     }
 
@@ -127,8 +145,9 @@ export function useComplexData({
     let maxPrice = 0;
     let maxMonth = "";
     trend.forEach((d: any) => {
-      if (d.최고가 && d.최고가 > maxPrice) {
-        maxPrice = d.최고가;
+      const price = d.최고가 || d.최대가 || d.max || d.평균가 || 0;
+      if (price > maxPrice) {
+        maxPrice = price;
         maxMonth = d.month;
       }
     });
@@ -144,7 +163,7 @@ export function useComplexData({
       maxPrice,
       maxMonth,
     };
-  }, [detailData?.trend]);
+  }, [detailData?.trend, detailData?.kpi]);
 
   const groupedTx = useMemo(() => {
     if (!detailData?.recentTx || detailData.recentTx.length === 0) return [];

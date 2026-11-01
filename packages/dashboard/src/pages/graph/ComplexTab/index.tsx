@@ -93,6 +93,7 @@ export function ComplexTab(props: ComplexTabProps) {
             groupedTx={groupedTx}
             recentTxStats={recentTxStats}
             areaUnit={props.areaUnit || "pyeong"}
+            areaType={props.areaType || "supply"}
           />
         </>
       ) : (

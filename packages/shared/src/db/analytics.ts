@@ -311,10 +311,15 @@ export async function getComplexDetail(
     SELECT t.deal_date AS dealDate,
            t.price_eok AS priceEok,
            t.area_m2 AS areaM2,
+           m.supply_area_m2 AS supplyAreaM2,
            t.floor AS floor,
+           t.apt_dong AS aptDong,
+           t.deal_type AS dealType,
+           t.cancel_date AS cancelDate,
            t.dedupe_key AS dedupeKey
     FROM transactions t
     JOIN complexes c ON t.complex_id = c.id
+    LEFT JOIN complex_area_mappings m ON t.complex_id = m.complex_id AND t.area_key = m.area_key
     WHERE c.name = ? AND t.cancel_date IS NULL
   `;
   const params: (string | number)[] = [resolvedName];
@@ -338,29 +343,49 @@ export async function getComplexDetail(
   }
   sql += " ORDER BY t.deal_date DESC";
 
-  const allRows = db.prepare(sql).all(...params) as { dealDate: string; priceEok: number; areaM2: number; floor: number | null; dedupeKey: string }[];
+  const allRows = db.prepare(sql).all(...params) as {
+    dealDate: string;
+    priceEok: number;
+    areaM2: number;
+    supplyAreaM2: number | null;
+    floor: number | null;
+    aptDong: string | null;
+    dealType: string | null;
+    cancelDate: string | null;
+    dedupeKey: string;
+  }[];
 
   const recentTx = allRows.slice(0, 10).map((r) => ({
     apartmentName: resolvedName,
     dealDate: r.dealDate,
     priceEok: r.priceEok,
     areaM2: r.areaM2,
+    supplyAreaM2: r.supplyAreaM2 || Number((r.areaM2 / 0.78).toFixed(2)),
     floor: r.floor,
+    aptDong: r.aptDong,
+    dealType: r.dealType,
+    cancelDate: r.cancelDate,
     dedupeKey: r.dedupeKey
   }));
 
-  const areaGroups = new Map<string, number[]>();
+  interface AreaStatAccumulator {
+    prices: number[];
+    supplyM2List: number[];
+  }
+  const areaGroups = new Map<string, AreaStatAccumulator>();
   const floorGroups = new Map<number, number[]>();
   const monthlyMap = new Map<string, number[]>();
 
   for (const row of allRows) {
     const areaKey = `${Math.round(row.areaM2)}㎡`;
-    let aList = areaGroups.get(areaKey);
-    if (!aList) {
-      aList = [];
-      areaGroups.set(areaKey, aList);
+    let aGroup = areaGroups.get(areaKey);
+    if (!aGroup) {
+      aGroup = { prices: [], supplyM2List: [] };
+      areaGroups.set(areaKey, aGroup);
     }
-    aList.push(row.priceEok);
+    aGroup.prices.push(row.priceEok);
+    const effectiveSupplyM2 = row.supplyAreaM2 || Number((row.areaM2 / 0.78).toFixed(2));
+    aGroup.supplyM2List.push(effectiveSupplyM2);
 
     if (row.floor !== null && row.floor !== undefined) {
       let fList = floorGroups.get(row.floor);
@@ -380,11 +405,17 @@ export async function getComplexDetail(
     mList.push(row.priceEok);
   }
 
-  const areaBreakdown = Array.from(areaGroups.entries()).map(([areaName, prices]) => {
-    const stats = calculateBoxPlot(prices);
+  const areaBreakdown = Array.from(areaGroups.entries()).map(([areaName, group]) => {
+    const stats = calculateBoxPlot(group.prices);
+    const avgSupplyM2 = group.supplyM2List.length > 0
+      ? Number((group.supplyM2List.reduce((sum, v) => sum + v, 0) / group.supplyM2List.length).toFixed(1))
+      : Number((parseFloat(areaName) / 0.78).toFixed(1));
+    const supplyAreaPyeong = Math.round(avgSupplyM2 / 3.305785);
     return {
       area: areaName,
-      count: prices.length,
+      count: group.prices.length,
+      supplyAreaM2: avgSupplyM2,
+      supplyAreaPyeong,
       ...stats
     };
   }).sort((a, b) => b.count - a.count);
@@ -404,6 +435,7 @@ export async function getComplexDetail(
       month,
       거래량: prices.length,
       최대가: Number(stats.max.toFixed(2)),
+      최고가: Number(stats.max.toFixed(2)),
       최소가: Number(stats.min.toFixed(2)),
       평균가: Number(stats.mean.toFixed(2)),
       중위값: Number(stats.median.toFixed(2)),
@@ -411,11 +443,109 @@ export async function getComplexDetail(
     };
   }).sort((a, b) => a.month.localeCompare(b.month));
 
+  // --- 단지 전용 KPI 산출 (기간 필터 독립적인 역대 최고가 및 정확한 전년동월비) ---
+  const latestMonthItem = trend.length > 0 ? trend[trend.length - 1] : null;
+  const latestMonth = latestMonthItem ? latestMonthItem.month : "";
+  const latestAvg = latestMonthItem ? latestMonthItem.평균가 : 0;
+
+  // 1) 역대 최고가 및 발생월 (전체 기간 쿼리)
+  let athSql = `
+    SELECT t.price_eok AS maxPrice,
+           substr(t.deal_date, 1, 7) AS maxMonth
+    FROM transactions t
+    JOIN complexes c ON t.complex_id = c.id
+    WHERE c.name = ? AND t.cancel_date IS NULL
+  `;
+  const athParams: (string | number)[] = [resolvedName];
+  if (lawdCode) {
+    athSql += " AND c.lawd_code = ?";
+    athParams.push(lawdCode);
+  }
+  if (area !== undefined && area !== null) {
+    athSql += " AND CAST(ROUND(t.area_m2) AS INTEGER) = ?";
+    athParams.push(area);
+  }
+  athSql += " ORDER BY t.price_eok DESC, t.deal_date DESC LIMIT 1";
+
+  const athRow = db.prepare(athSql).get(...athParams) as { maxPrice: number; maxMonth: string } | undefined;
+  const maxPrice = athRow ? Number(athRow.maxPrice.toFixed(2)) : (latestMonthItem?.최대가 || 0);
+  const maxMonth = athRow ? athRow.maxMonth : (latestMonthItem?.month || "");
+
+  // 2) 전년동월비 (YoY) 산출
+  let yoyDiff = 0;
+  let yoyPercent = 0;
+  let hasYoy = false;
+  let yoyMonthStr = "";
+
+  if (latestMonth) {
+    const [year, month] = latestMonth.split("-").map(Number);
+    yoyMonthStr = `${year - 1}-${String(month).padStart(2, "0")}`;
+
+    const trendPrev = trend.find((d) => d.month === yoyMonthStr);
+    if (trendPrev && trendPrev.평균가) {
+      yoyDiff = Number((latestAvg - trendPrev.평균가).toFixed(2));
+      yoyPercent = Number(((yoyDiff / trendPrev.평균가) * 100).toFixed(1));
+      hasYoy = true;
+    } else {
+      let yoySql = `
+        SELECT AVG(t.price_eok) AS prevAvg
+        FROM transactions t
+        JOIN complexes c ON t.complex_id = c.id
+        WHERE c.name = ? AND substr(t.deal_date, 1, 7) = ? AND t.cancel_date IS NULL
+      `;
+      const yoyParams: (string | number)[] = [resolvedName, yoyMonthStr];
+      if (lawdCode) {
+        yoySql += " AND c.lawd_code = ?";
+        yoyParams.push(lawdCode);
+      }
+      if (area !== undefined && area !== null) {
+        yoySql += " AND CAST(ROUND(t.area_m2) AS INTEGER) = ?";
+        yoyParams.push(area);
+      }
+      const yoyRow = db.prepare(yoySql).get(...yoyParams) as { prevAvg: number | null } | undefined;
+      if (yoyRow && yoyRow.prevAvg !== null && yoyRow.prevAvg > 0) {
+        const prevAvg = Number(yoyRow.prevAvg.toFixed(2));
+        yoyDiff = Number((latestAvg - prevAvg).toFixed(2));
+        yoyPercent = Number(((yoyDiff / prevAvg) * 100).toFixed(1));
+        hasYoy = true;
+      }
+    }
+  }
+
+  // 3) 최근 1년 거래량 산출
+  let pastYearVolume = 0;
+  if (latestMonth) {
+    const [year, month] = latestMonth.split("-").map(Number);
+    let startYear = year;
+    let startMonth = month - 11;
+    if (startMonth <= 0) {
+      startYear -= 1;
+      startMonth += 12;
+    }
+    const startMonthStr = `${startYear}-${String(startMonth).padStart(2, "0")}`;
+    pastYearVolume = trend
+      .filter((d) => d.month >= startMonthStr && d.month <= latestMonth)
+      .reduce((sum, d) => sum + (d.거래량 || 0), 0);
+  }
+
+  const kpi = {
+    latestAvg,
+    latestMonth,
+    hasYoy,
+    yoyDiff,
+    yoyPercent,
+    yoyMonthStr,
+    pastYearVolume,
+    maxPrice,
+    maxMonth,
+  };
+
   return {
     trend,
     areaBreakdown,
     floorDist,
-    recentTx
+    recentTx,
+    kpi
   };
 }
 

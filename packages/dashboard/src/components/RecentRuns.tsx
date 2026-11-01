@@ -46,7 +46,7 @@ export function RecentRuns({
         right={
           <button
             onClick={onToggle}
-            className="flex items-center justify-center p-1.5 rounded-lg border border-normal bg-normal text-neutral hover:text-strong hover:bg-alternative transition-all"
+            className="flex items-center justify-center p-1.5 rounded-lg border border-normal/60 bg-elevated text-neutral hover:text-strong hover:bg-alternative transition-all"
             title={isOpen ? "접기" : "펼치기"}
           >
             {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
@@ -56,7 +56,7 @@ export function RecentRuns({
         {isOpen ? (
           <div className="space-y-4 animate-in fade-in duration-200">
             {runs.slice(0, 5).map((run) => (
-              <div key={run.id} className="group flex flex-col gap-2 p-3 rounded-xl border border-normal/50 bg-normal/30 hover:border-primary/30 transition-all">
+              <div key={run.id} className="group flex flex-col gap-2 p-3 rounded-xl border border-normal/40 bg-alternative/40 hover:border-primary/40 transition-all">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-[14px] font-bold text-strong group-hover:text-primary transition-colors truncate">{run.ruleName}</p>
@@ -84,7 +84,7 @@ export function RecentRuns({
                     {expandedId === run.id && (
                       <div className="mt-2 space-y-2 animate-in fade-in slide-in-from-top-1 duration-200">
                         {run.matches.map((m, idx) => (
-                          <div key={idx} className="bg-elevated p-2 rounded-lg border border-normal text-[11px] flex justify-between items-center">
+                          <div key={idx} className="bg-elevated/70 p-2 rounded-lg border border-normal/40 text-[11px] flex justify-between items-center">
                             <div>
                               <span className="font-bold text-strong">{m.apartmentName}</span>
                               <span className="ml-2 text-neutral">{m.floor ? `${m.floor}층` : ""} | {m.areaM2 ? `${m.areaM2}㎡` : ""}</span>
