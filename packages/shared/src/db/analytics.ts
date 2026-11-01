@@ -763,10 +763,10 @@ function getOverviewSizeCategory(areaM2: number, areaUnit: "pyeong" | "m2", area
 function getOverviewFloorCategory(floorNum: number | null | undefined): string {
   if (floorNum === null || floorNum === undefined || isNaN(Number(floorNum))) return "기타";
   const num = Number(floorNum);
-  if (num <= 5) return "저층 (1~5층)";
+  if (num <= 5) return "저층 (5층 이하)";
   if (num <= 15) return "중층 (6~15층)";
   if (num <= 25) return "고층 (16~25층)";
-  return "초고층 (26층+)";
+  return "초고층 (26층 이상)";
 }
 
 function getOverviewSizeCategories(areaUnit: "pyeong" | "m2", areaType: "supply" | "dedicated"): string[] {
@@ -967,7 +967,7 @@ export async function getOverviewPivot(
     .map(([name]) => name);
 
   const sizeCategories = getOverviewSizeCategories(areaUnit, areaType);
-  const floorCategories = ["저층 (1~5층)", "중층 (6~15층)", "고층 (16~25층)", "초고층 (26층+)"];
+  const floorCategories = ["저층 (5층 이하)", "중층 (6~15층)", "고층 (16~25층)", "초고층 (26층 이상)"];
 
   const cellMap = new Map<string, { prices: number[]; complexes: Set<string> }>();
   const floorCellMap = new Map<string, { prices: number[]; complexes: Set<string> }>();

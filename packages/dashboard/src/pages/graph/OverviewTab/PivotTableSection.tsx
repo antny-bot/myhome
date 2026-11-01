@@ -16,6 +16,38 @@ interface PivotTableSectionProps {
   };
 }
 
+function getFloorCell(
+  cells: Record<string, any>,
+  sizeCat: string,
+  floorCat: string,
+  regionKey: string
+) {
+  const directKey = `${sizeCat}|${floorCat}|${regionKey}`;
+  if (cells[directKey]) return cells[directKey];
+
+  const floorAliases: Record<string, string[]> = {
+    low: ["저층 (5층 이하)", "저층 (1~5층)", "Low (5F or below)"],
+    mid: ["중층 (6~15층)", "Mid (6~15F)", "Mid (6-15F)"],
+    high: ["고층 (16~25층)", "High (16~25F)", "High (16-25F)"],
+    super: ["초고층 (26층 이상)", "초고층 (26층+)", "Super High (26F+)"],
+  };
+
+  for (const aliases of Object.values(floorAliases)) {
+    if (
+      aliases.some(
+        (alias) => floorCat.includes(alias) || alias.includes(floorCat) || floorCat === alias
+      )
+    ) {
+      for (const candidate of aliases) {
+        const candidateKey = `${sizeCat}|${candidate}|${regionKey}`;
+        if (cells[candidateKey]) return cells[candidateKey];
+      }
+    }
+  }
+
+  return undefined;
+}
+
 export function PivotTableSection({
   sizeCategories,
   floorCategories,
@@ -194,7 +226,7 @@ export function PivotTableSection({
 
                         {sizeCategories.map((sizeCat) => {
                           const cellKey = `${sizeCat}|${floorCat}|${regionKey}`;
-                          const cell = cells[cellKey];
+                          const cell = getFloorCell(cells, sizeCat, floorCat, regionKey);
                           const isEmpty = !cell || cell.count === 0;
                           const tooltipLabel = `${regionKey} (${floorCat}) - ${sizeCat}`;
 

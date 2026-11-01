@@ -138,4 +138,14 @@ test("getOverviewPivot: 지역x평형대별 요약 매트릭스 피벗 정상 �
   assert.equal(cell30s.count, 3);
   assert.ok(cell30s.avg > 0);
   assert.ok(cell30s.complexesSummary.includes("시범단지한양"));
+
+  // 층수별 키 검증: 5층(저층 (5층 이하)), 10/12/15층(중층 (6~15층))
+  const lowFloorCell = pivot.data["21~25평|저층 (5층 이하)|분당구"];
+  assert.ok(lowFloorCell, "저층 (5층 이하) 키가 정상 존재해야 함");
+  assert.equal(lowFloorCell.count, 1);
+  assert.equal(lowFloorCell.avg, 11);
+
+  const midFloorCell = pivot.data["31~35평|중층 (6~15층)|분당구"];
+  assert.ok(midFloorCell, "중층 (6~15층) 키가 정상 존재해야 함");
+  assert.equal(midFloorCell.count, 3);
 });
