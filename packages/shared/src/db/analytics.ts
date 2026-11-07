@@ -130,17 +130,20 @@ export async function getComplexTrend(
   const trend: Record<string, any>[] = [];
   for (const [month, data] of monthlyGroups.entries()) {
     const prices = data.prices;
+    const stats = calculateBoxPlot(prices);
     const count = prices.length;
-    const maxVal = Math.max(...prices);
-    const minVal = Math.min(...prices);
-    const sumVal = prices.reduce((sum, p) => sum + p, 0);
-    const avgVal = sumVal / count;
-    const medVal = getMedian(prices);
+    const maxVal = stats.max;
+    const minVal = stats.min;
+    const avgVal = stats.mean;
+    const medVal = stats.median;
 
     const point: Record<string, any> = {
       month,
+      count,
+      ...stats,
       거래량: count,
       최대가: Number(maxVal.toFixed(2)),
+      최고가: Number(maxVal.toFixed(2)),
       최소가: Number(minVal.toFixed(2)),
       평균가: Number(avgVal.toFixed(2)),
       중위값: Number(medVal.toFixed(2)),
@@ -433,6 +436,8 @@ export async function getComplexDetail(
     const stats = calculateBoxPlot(prices);
     return {
       month,
+      count: prices.length,
+      ...stats,
       거래량: prices.length,
       최대가: Number(stats.max.toFixed(2)),
       최고가: Number(stats.max.toFixed(2)),

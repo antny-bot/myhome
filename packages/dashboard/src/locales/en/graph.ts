@@ -84,7 +84,7 @@ export const graph = {
   "noComplexData": "No transaction data matches the selected area filter.",
   "complexDetailReport": "Complex Analysis Report",
   "allAreaFilter": "All Areas",
-  "monthlyTrendTitle": "Monthly Average Price Trend (Eok)",
+  "monthlyTrendTitle": "Monthly Average Price Trend",
   "overallAvg": "Overall Avg",
   "complexOverallAvg": "Complex Avg",
   "areaAnalysisTitle": "Trading Analysis by Area (Price and Volume)",

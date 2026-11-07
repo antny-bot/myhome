@@ -84,7 +84,7 @@ export const graph = {
   "noComplexData": "선택한 면적대 조건의 실거래 데이터가 없습니다.",
   "complexDetailReport": "단지 전용 분석 리포트",
   "allAreaFilter": "전체",
-  "monthlyTrendTitle": "월별 평균 가격 추이 (평균 억)",
+  "monthlyTrendTitle": "월별 평균 가격 추이",
   "overallAvg": "전체 평균",
   "complexOverallAvg": "단지 전체 평균",
   "areaAnalysisTitle": "평형별 거래 분석 (평균가 및 거래량)",

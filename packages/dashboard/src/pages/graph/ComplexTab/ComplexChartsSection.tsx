@@ -65,14 +65,24 @@ export function ComplexChartsSection({
         ? areaUnit === "pyeong"
           ? `${Math.round(parseFloat(label) / 3.305785)}평 (${Math.round(parseFloat(label))}㎡)`
           : `${Math.round(parseFloat(label))}㎡`
+        : type === "month"
+        ? label
         : `${label}층`;
+
+    const count = data.count ?? data.거래량 ?? 0;
+    const max = data.max ?? data.최고가 ?? data.최대가 ?? 0;
+    const min = data.min ?? data.최저가 ?? data.최소가 ?? 0;
+    const mean = data.mean ?? data.평균가 ?? 0;
+    const median = data.median ?? data.중위값 ?? 0;
+    const q1 = data.q1 ?? min;
+    const q3 = data.q3 ?? max;
 
     return (
       <div className="bg-elevated border border-normal rounded-xl p-3 shadow-lg min-w-[190px] text-xs space-y-2 backdrop-blur-md bg-opacity-95">
         <div className="font-bold text-strong pb-1 border-b border-normal flex justify-between items-center">
           <span>{title}</span>
           <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-semibold">
-            {data.count || 0}
+            {count}
             {t.countUnit}
           </span>
         </div>
@@ -80,42 +90,42 @@ export function ComplexChartsSection({
           <div className="flex items-center gap-1.5 justify-between">
             <span className="text-assistive">{t.maxPrice}:</span>
             <span className="font-mono font-bold" style={{ color: CHART_THEME.max }}>
-              {(data.max || 0).toFixed(2)}
+              {max.toFixed(2)}
               {t.eokUnit}
             </span>
           </div>
           <div className="flex items-center gap-1.5 justify-between">
             <span className="text-assistive">{t.q3Price} (75%):</span>
             <span className="font-mono text-strong">
-              {(data.q3 || 0).toFixed(2)}
+              {q3.toFixed(2)}
               {t.eokUnit}
             </span>
           </div>
           <div className="flex items-center gap-1.5 justify-between">
             <span className="text-assistive">{t.avgPrice}:</span>
             <span className="font-mono font-bold" style={{ color: CHART_THEME.accent }}>
-              {(data.mean || 0).toFixed(2)}
+              {mean.toFixed(2)}
               {t.eokUnit}
             </span>
           </div>
           <div className="flex items-center gap-1.5 justify-between">
             <span className="text-assistive">{t.medianPrice}:</span>
             <span className="font-mono font-semibold" style={{ color: CHART_THEME.median }}>
-              {(data.median || 0).toFixed(2)}
+              {median.toFixed(2)}
               {t.eokUnit}
             </span>
           </div>
           <div className="flex items-center gap-1.5 justify-between">
             <span className="text-assistive">{t.q1Price} (25%):</span>
             <span className="font-mono text-strong">
-              {(data.q1 || 0).toFixed(2)}
+              {q1.toFixed(2)}
               {t.eokUnit}
             </span>
           </div>
           <div className="flex items-center gap-1.5 justify-between">
             <span className="text-assistive">{t.minPrice}:</span>
             <span className="font-mono font-bold" style={{ color: CHART_THEME.min }}>
-              {(data.min || 0).toFixed(2)}
+              {min.toFixed(2)}
               {t.eokUnit}
             </span>
           </div>
