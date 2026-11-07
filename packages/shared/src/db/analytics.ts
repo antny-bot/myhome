@@ -929,9 +929,7 @@ export async function getOverviewTopComplexes(
            c.lawd_code AS lawdCode,
            r.display_name AS regionName,
            COUNT(*) AS txCount,
-           ROUND(AVG(t.price_eok), 1) AS avgPriceEok,
-           ROUND(MAX(t.price_eok), 1) AS maxPriceEok,
-           ROUND(MIN(t.price_eok), 1) AS minPriceEok
+           GROUP_CONCAT(t.price_eok) AS allPrices
     FROM transactions t
     JOIN complexes c ON t.complex_id = c.id
     JOIN regions r ON c.lawd_code = r.lawd_code
@@ -995,20 +993,40 @@ export async function getOverviewTopComplexes(
     lawdCode: string;
     regionName: string;
     txCount: number;
-    avgPriceEok: number;
-    maxPriceEok: number;
-    minPriceEok: number;
+    allPrices: string | null;
   }>;
 
-  return rows.map((r) => ({
-    name: r.name,
-    거래수: r.txCount,
-    평균가: r.avgPriceEok,
-    최고가: r.maxPriceEok,
-    최저가: r.minPriceEok,
-    지역: r.regionName ? r.regionName.split(" ").slice(-1)[0] : "기타",
-    lawdCode: r.lawdCode,
-  }));
+  return rows.map((r) => {
+    const prices = r.allPrices
+      ? r.allPrices
+          .split(",")
+          .map(Number)
+          .filter((n) => !isNaN(n))
+      : [];
+    const stats = prices.length > 0 ? calculateBoxPlot(prices, 1) : null;
+    const avg = stats ? stats.mean : 0;
+    const max = stats ? stats.max : 0;
+    const min = stats ? stats.min : 0;
+
+    return {
+      name: r.name,
+      거래수: r.txCount,
+      평균가: avg,
+      최고가: max,
+      최저가: min,
+      지역: r.regionName ? r.regionName.split(" ").slice(-1)[0] : "기타",
+      lawdCode: r.lawdCode,
+      volume: r.txCount,
+      min: stats ? stats.min : null,
+      q1: stats ? stats.q1 : null,
+      median: stats ? stats.median : null,
+      q3: stats ? stats.q3 : null,
+      max: stats ? stats.max : null,
+      avg: stats ? stats.mean : null,
+      whiskerRange: stats ? ([stats.min, stats.max] as [number, number]) : null,
+      boxRange: stats ? ([stats.q1, stats.q3] as [number, number]) : null,
+    };
+  });
 }
 
 /**

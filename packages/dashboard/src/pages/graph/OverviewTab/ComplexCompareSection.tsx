@@ -2,16 +2,17 @@ import React from "react";
 import {
   ResponsiveContainer,
   ComposedChart,
+  Area,
   Bar,
   Line,
   XAxis,
   YAxis,
   Tooltip,
   CartesianGrid,
-  Cell,
 } from "recharts";
 import { SectionCard } from "../../../components/SectionCard.js";
 import {
+  BoxPlotShape,
   CHART_THEME,
   chartGridProps,
   chartXAxisProps,
@@ -20,8 +21,9 @@ import {
 } from "../../../components/charts/index.js";
 import { useBreakpoint } from "../../../useBreakpoint.js";
 import { useLocale } from "../../../lib/i18n.js";
-import { ComplexBarTooltip } from "./TooltipComponents.js";
+import { BoxPlotTooltip } from "./TooltipComponents.js";
 import { fetchOverviewTopComplexes } from "../../../api/index.js";
+import { calculateBoxPlot } from "../../../lib/stats.js";
 import type { OverviewTopComplexItem, GraphFilter } from "@myhome/shared";
 
 interface ComplexCompareSectionProps {
@@ -30,6 +32,14 @@ interface ComplexCompareSectionProps {
   onSelectComplex?: (complexName: string, lawdCode?: string) => void;
   filter?: GraphFilter;
 }
+
+type BoxVisible = {
+  volume: boolean;
+  whisker: boolean;
+  box: boolean;
+  median: boolean;
+  avg: boolean;
+};
 
 export function ComplexCompareSection({
   filteredData,
@@ -41,13 +51,19 @@ export function ComplexCompareSection({
   const { isNarrow } = useBreakpoint();
 
   const [activeRegionFilter, setActiveRegionFilter] = React.useState<string>("all");
-  const [complexSeriesVisible, setComplexSeriesVisible] = React.useState({
-    거래수: true,
-    평균가: true,
+  const [complexVisible, setComplexVisible] = React.useState<BoxVisible>({
+    volume: true,
+    whisker: false,
+    box: true,
+    median: false,
+    avg: true,
   });
   const [complexLimit, setComplexLimit] = React.useState<number>(10);
 
   const [serverTopComplexes, setServerTopComplexes] = React.useState<OverviewTopComplexItem[] | null>(null);
+
+  const toggleComplex = (key: keyof BoxVisible) =>
+    setComplexVisible((prev) => ({ ...prev, [key]: !prev[key] }));
 
   React.useEffect(() => {
     let isMounted = true;
@@ -133,18 +149,24 @@ export function ComplexCompareSection({
       .slice(0, complexLimit)
       .map(([key, stat]) => {
         const name = key.split("|")[0];
-        const prices = stat.prices;
-        const avg = prices.reduce((a, b) => a + b, 0) / prices.length;
-        const max = Math.max(...prices);
-        const min = Math.min(...prices);
+        const stats = calculateBoxPlot(stat.prices, 1);
         return {
           name,
           거래수: stat.count,
-          평균가: Number(avg.toFixed(1)),
-          최고가: Number(max.toFixed(1)),
-          최저가: Number(min.toFixed(1)),
+          평균가: stats.mean,
+          최고가: stats.max,
+          최저가: stats.min,
           지역: stat.region,
           lawdCode: stat.lawdCode,
+          volume: stat.count,
+          min: stats.min,
+          q1: stats.q1,
+          median: stats.median,
+          q3: stats.q3,
+          max: stats.max,
+          avg: stats.mean,
+          whiskerRange: [stats.min, stats.max] as [number, number],
+          boxRange: [stats.q1, stats.q3] as [number, number],
         };
       });
   }, [filteredData, activeRegionFilter, complexLimit]);
@@ -156,29 +178,72 @@ export function ComplexCompareSection({
     return localComplexChartData;
   }, [serverTopComplexes, localComplexChartData]);
 
-  const CHART_COLORS = React.useMemo(
-    () => [
-      "var(--color-chart-primary)",
-      "var(--color-chart-min)",
-      "var(--color-chart-accent)",
-      "var(--color-chart-floor)",
-      "var(--color-chart-max)",
-      "var(--color-chart-median)",
-    ],
-    []
-  );
-
-  const uniqueRegionsInChart = React.useMemo(() => {
-    return Array.from(new Set<string>(complexChartData.map((d) => d.지역)));
-  }, [complexChartData]);
-
-  const regionColorMap = React.useMemo(() => {
-    const map: Record<string, string> = {};
-    uniqueRegionsInChart.forEach((region, idx) => {
-      map[region] = CHART_COLORS[idx % CHART_COLORS.length];
-    });
-    return map;
-  }, [uniqueRegionsInChart, CHART_COLORS]);
+  const legendItems = [
+    {
+      key: "volume" as const,
+      label: t.boxPlotVolume,
+      icon: (
+        <div
+          className="relative w-3.5 h-2.5 border-t border-x border-dashed rounded-t-sm"
+          style={{
+            backgroundColor: "var(--color-chart-primary)",
+            borderColor: "var(--color-chart-primary)",
+            opacity: 0.3,
+          }}
+        />
+      ),
+    },
+    {
+      key: "whisker" as const,
+      label: t.boxPlotWhisker,
+      icon: (
+        <div className="relative w-3.5 h-2.5 flex items-center justify-center">
+          <div
+            className="w-full h-[1px] absolute"
+            style={{ backgroundColor: "var(--color-chart-median)" }}
+          />
+          <div
+            className="w-[1px] h-full"
+            style={{ backgroundColor: "var(--color-chart-median)" }}
+          />
+        </div>
+      ),
+    },
+    {
+      key: "box" as const,
+      label: t.boxPlotBox,
+      icon: (
+        <div
+          className="w-3.5 h-2.5 rounded-sm border"
+          style={{
+            backgroundColor: "var(--color-chart-primary)",
+            borderColor: "var(--color-chart-primary)",
+            opacity: 0.7,
+          }}
+        />
+      ),
+    },
+    {
+      key: "median" as const,
+      label: t.boxPlotMedian,
+      icon: (
+        <div
+          className="w-3.5 h-1 rounded-full"
+          style={{ backgroundColor: "var(--color-chart-median)" }}
+        />
+      ),
+    },
+    {
+      key: "avg" as const,
+      label: t.boxPlotAvg,
+      icon: (
+        <div
+          className="w-3.5 h-0.5 rounded-full"
+          style={{ backgroundColor: "var(--color-chart-accent)" }}
+        />
+      ),
+    },
+  ];
 
   return (
     <SectionCard
@@ -220,68 +285,21 @@ export function ComplexCompareSection({
       <div className="mt-2">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3 select-none">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-            <button
-              type="button"
-              onClick={() =>
-                setComplexSeriesVisible((prev) => ({ ...prev, 평균가: !prev.평균가 }))
-              }
-              className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md transition-all text-[10px] ${
-                complexSeriesVisible.평균가
-                  ? "bg-slate-100 dark:bg-slate-800 text-strong font-bold"
-                  : "opacity-35 text-neutral"
-              }`}
-            >
-              <div className="relative flex items-center justify-center w-5 h-2.5">
-                <span
-                  className="absolute w-full h-0.5"
-                  style={{ backgroundColor: CHART_THEME.accent }}
-                />
-                <span
-                  className="absolute w-1.5 h-1.5 rotate-45 shrink-0"
-                  style={{
-                    backgroundColor: CHART_THEME.accent,
-                    border: "1px solid var(--color-semantic-background-elevated-normal)",
-                  }}
-                />
-              </div>
-              <span>{t.legendAvgPrice || "평균가"}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() =>
-                setComplexSeriesVisible((prev) => ({ ...prev, 거래수: !prev.거래수 }))
-              }
-              className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md transition-all text-[10px] ${
-                complexSeriesVisible.거래수
-                  ? "bg-slate-100 dark:bg-slate-800 text-strong font-bold"
-                  : "opacity-35 text-neutral"
-              }`}
-            >
-              <span
-                className="inline-block w-3 h-2 rounded-xs border"
-                style={{
-                  backgroundColor: CHART_THEME.volume,
-                  borderColor: CHART_THEME.volume,
-                  opacity: 0.5,
-                }}
-              />
-              <span>{t.legendVolume || "거래수"}</span>
-            </button>
-
-            {complexSeriesVisible.거래수 &&
-              uniqueRegionsInChart.map((region) => (
-                <div
-                  key={region}
-                  className="flex items-center gap-1.5 px-1 py-0.5 text-[10px] text-neutral font-semibold select-none"
-                >
-                  <span
-                    className="inline-block w-2 h-2 rounded-full"
-                    style={{ backgroundColor: regionColorMap[region] }}
-                  />
-                  <span>{region}</span>
-                </div>
-              ))}
+            {legendItems.map(({ key, label, icon }) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => toggleComplex(key)}
+                className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md transition-all text-[10px] ${
+                  complexVisible[key]
+                    ? "bg-elevated border border-normal text-strong font-bold"
+                    : "opacity-40 hover:opacity-70 text-neutral line-through"
+                }`}
+              >
+                {icon}
+                <span>{label}</span>
+              </button>
+            ))}
           </div>
 
           <div className="flex items-center gap-2.5">
@@ -318,7 +336,11 @@ export function ComplexCompareSection({
             <div className="h-[360px] flex items-center justify-center text-assistive text-xs">
               {t.noActiveComplexData}
             </div>
-          ) : !complexSeriesVisible.거래수 && !complexSeriesVisible.평균가 ? (
+          ) : !complexVisible.volume &&
+            !complexVisible.box &&
+            !complexVisible.whisker &&
+            !complexVisible.median &&
+            !complexVisible.avg ? (
             <div className="h-[360px] flex items-center justify-center text-assistive text-xs">
               {t.noActiveChartData}
             </div>
@@ -379,65 +401,123 @@ export function ComplexCompareSection({
                       (dataMin: number) => Math.max(0, Math.floor(dataMin * 0.88)),
                       (dataMax: number) => Math.ceil(dataMax * 1.05),
                     ]}
-                    hide={!complexSeriesVisible.평균가}
                   />
                   <YAxis
                     yAxisId="right"
                     {...chartSecondaryYAxisProps}
                     tickFormatter={(v) => `${v}건`}
                     domain={[0, (dataMax: number) => Math.ceil(dataMax * 1.3)]}
-                    hide={!complexSeriesVisible.거래수}
+                    hide={!complexVisible.volume}
                   />
-                  <Tooltip content={<ComplexBarTooltip />} />
-                  <Bar
+                  <Tooltip content={<BoxPlotTooltip />} />
+
+                  {/* 1. 거래량 Area (가장 아래 깔아서 표시) */}
+                  <Area
                     yAxisId="right"
-                    dataKey="거래수"
-                    barSize={complexLimit === 10 ? 32 : complexLimit === 20 ? 18 : 10}
-                    radius={[4, 4, 0, 0]}
-                    cursor="pointer"
-                    fillOpacity={0.3}
+                    type="monotone"
+                    dataKey="volume"
+                    name={t.boxPlotVolume || "거래량"}
+                    fill={CHART_THEME.volume}
+                    fillOpacity={0.08}
+                    stroke={CHART_THEME.volume}
+                    strokeOpacity={0.18}
                     strokeWidth={1.5}
-                    hide={!complexSeriesVisible.거래수}
+                    hide={!complexVisible.volume}
+                  />
+
+                  {/* 2. Left Y축 domain 보정용 Line (Whisker / Box / Avg) */}
+                  {complexVisible.whisker ? (
+                    <>
+                      <Line
+                        yAxisId="left"
+                        dataKey="max"
+                        stroke="none"
+                        dot={false}
+                        activeDot={false}
+                        legendType="none"
+                      />
+                      <Line
+                        yAxisId="left"
+                        dataKey="min"
+                        stroke="none"
+                        dot={false}
+                        activeDot={false}
+                        legendType="none"
+                      />
+                    </>
+                  ) : complexVisible.box ? (
+                    <>
+                      <Line
+                        yAxisId="left"
+                        dataKey="q3"
+                        stroke="none"
+                        dot={false}
+                        activeDot={false}
+                        legendType="none"
+                      />
+                      <Line
+                        yAxisId="left"
+                        dataKey="q1"
+                        stroke="none"
+                        dot={false}
+                        activeDot={false}
+                        legendType="none"
+                      />
+                    </>
+                  ) : (
+                    <Line
+                      yAxisId="left"
+                      dataKey="avg"
+                      stroke="none"
+                      dot={false}
+                      activeDot={false}
+                      legendType="none"
+                    />
+                  )}
+
+                  {/* 3. BoxPlot 바 (Q1~Q3, Whisker, Median) */}
+                  <Bar
+                    yAxisId="left"
+                    dataKey="avg"
+                    name={(t as Record<string, string>).averagePrice || "평균가"}
+                    shape={(barProps: any) => (
+                      <BoxPlotShape
+                        {...barProps}
+                        showWhiskers={complexVisible.whisker}
+                        showBox={complexVisible.box}
+                        showMedian={complexVisible.median}
+                        showMean={false}
+                      />
+                    )}
                     onClick={(data: any) => {
                       const target = data?.payload || data;
                       if (target && target.name && onSelectComplex) {
                         onSelectComplex(target.name, target.lawdCode);
                       }
                     }}
-                  >
-                    {complexChartData.map((entry, index) => {
-                      const color = regionColorMap[entry.지역] || CHART_THEME.volume;
-                      return <Cell key={`cell-${index}`} fill={color} stroke={color} />;
-                    })}
-                  </Bar>
-                  <Line
-                    yAxisId="left"
-                    type="monotone"
-                    dataKey="평균가"
-                    stroke={CHART_THEME.accent}
-                    strokeWidth={2.5}
-                    dot={{
-                      cursor: "pointer",
-                      r: 3,
-                      fill: "var(--color-semantic-background-elevated-normal)",
-                      stroke: CHART_THEME.accent,
-                      strokeWidth: 2,
-                    }}
-                    activeDot={{
-                      r: 5,
-                      fill: "var(--color-semantic-background-elevated-normal)",
-                      stroke: CHART_THEME.accent,
-                      strokeWidth: 2.5,
-                    }}
-                    hide={!complexSeriesVisible.평균가}
-                    onClick={(data: any) => {
-                      const target = data?.payload || data;
-                      const name = target?.name || data?.activeLabel;
-                      if (name && onSelectComplex) {
-                        onSelectComplex(name, target?.lawdCode);
-                      }
-                    }}
                   />
+
+                  {/* 4. 평균 거래금액 Line */}
+                  {complexVisible.avg && (
+                    <Line
+                      yAxisId="left"
+                      type="monotone"
+                      dataKey="avg"
+                      name={(t as Record<string, string>).averagePrice || "평균가"}
+                      stroke={CHART_THEME.accent}
+                      strokeWidth={2.5}
+                      dot={{ r: 3, cursor: "pointer" }}
+                      activeDot={{ r: 5 }}
+                      connectNulls={true}
+                      onClick={(data: any) => {
+                        const target = data?.payload || data;
+                        const name = target?.name || data?.activeLabel;
+                        if (name && onSelectComplex) {
+                          onSelectComplex(name, target?.lawdCode);
+                        }
+                      }}
+                    />
+                  )}
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
