@@ -8,6 +8,7 @@ interface CreateMarkerOptions {
   isAdmin: boolean;
   onRegionClick: (lawdCode: string, regionName: string) => void;
   onCollectClick: (lawdCode: string, regionName: string, existingRegion: RegionSummary) => void;
+  onDeleteClick?: (lawdCode: string, regionName: string) => void;
 }
 
 export function createRegionMarkerElement({
@@ -17,6 +18,7 @@ export function createRegionMarkerElement({
   isAdmin,
   onRegionClick,
   onCollectClick,
+  onDeleteClick,
 }: CreateMarkerOptions) {
   const content = document.createElement("div");
   content.style.pointerEvents = "auto";
@@ -72,6 +74,20 @@ export function createRegionMarkerElement({
         onCollectClick(region.lawdCode, region.displayName, region);
       };
       titleEl.appendChild(collectIconContainer);
+
+      if (onDeleteClick) {
+        const deleteIconContainer = document.createElement("span");
+        deleteIconContainer.className =
+          "inline-flex items-center justify-center p-0.5 rounded hover:bg-rose-500/10 text-neutral hover:text-rose-600 transition cursor-pointer shrink-0 ml-0.5";
+        deleteIconContainer.style.pointerEvents = "auto";
+        deleteIconContainer.title = "수집 중지 및 지역 삭제";
+        deleteIconContainer.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trash-2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>`;
+        deleteIconContainer.onclick = (e) => {
+          e.stopPropagation();
+          onDeleteClick(region.lawdCode, region.displayName);
+        };
+        titleEl.appendChild(deleteIconContainer);
+      }
     } else {
       titleEl.innerHTML = `<span>${shortName}</span><span class="text-primary font-extrabold text-[10.5px]">${countText}</span>`;
     }

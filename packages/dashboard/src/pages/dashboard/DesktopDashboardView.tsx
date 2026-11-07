@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { AlertCircle, HelpCircle, RefreshCw, X } from "lucide-react";
+import { AlertCircle, Database, HelpCircle, RefreshCw, X } from "lucide-react";
 import { RecentRuns } from "../../components/RecentRuns.js";
 import { RegionSearchInput } from "../../components/RegionSearchInput.js";
 import { classNames } from "../../lib/format.js";
@@ -22,6 +22,9 @@ interface DesktopDashboardViewProps {
   setUiFeedback: (val: { message: string; type: "success" | "error" } | null) => void;
   onChanged?: () => void;
   onNavigate?: (view: any) => void;
+  dbRegionsCount?: number;
+  onOpenRegionManager?: () => void;
+  isAdmin?: boolean;
 }
 
 export function DesktopDashboardView({
@@ -37,6 +40,9 @@ export function DesktopDashboardView({
   setUiFeedback,
   onChanged,
   onNavigate,
+  dbRegionsCount = 0,
+  onOpenRegionManager,
+  isAdmin = false,
 }: DesktopDashboardViewProps) {
   const { t } = useLocale();
   const [recentRunsOpen, setRecentRunsOpen] = useState(true);
@@ -87,10 +93,31 @@ export function DesktopDashboardView({
           </div>
         )}
 
+        {mapLoaded && !mapError && onOpenRegionManager && (
+          <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onOpenRegionManager}
+              className="px-3 py-2 rounded-xl border border-normal bg-white/90 dark:bg-slate-900/90 backdrop-blur-md text-xs font-bold text-strong hover:border-primary hover:text-primary transition-all flex items-center gap-1.5 shadow-lg group cursor-pointer"
+              title="수집 중인 지역 목록 확인 및 추가 수집 / 수집 중지·삭제 관리"
+            >
+              <Database size={13} className="text-primary group-hover:scale-110 transition-transform" />
+              <span>수집 지역 관리</span>
+              <span className="px-1.5 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-black border border-primary/20">
+                {dbRegionsCount}
+              </span>
+            </button>
+          </div>
+        )}
+
         {mapLoaded && !mapError && (
           <div className="absolute bottom-4 left-4 z-10 bg-white/60 dark:bg-slate-900/60 backdrop-blur-lg border border-normal rounded-lg px-3 py-2 text-[10px] font-bold text-neutral flex items-center gap-1.5 shadow-md max-w-[360px]">
             <HelpCircle className="h-3.5 w-3.5 text-primary shrink-0" />
-            <span>지역 추가는 관리자에게 문의하세요</span>
+            <span>
+              {isAdmin
+                ? "상단 '수집 지역 관리'를 눌러 지역별 추가 수집이나 삭제를 관리할 수 있습니다."
+                : "지역 추가 및 수집 설정은 관리자에게 문의하세요"}
+            </span>
           </div>
         )}
       </div>

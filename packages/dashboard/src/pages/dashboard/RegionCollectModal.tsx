@@ -76,10 +76,17 @@ export function RegionCollectModal({
       <div className="w-full max-w-md bg-elevated border border-normal rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* 모달 헤더 */}
         <div className="px-5 py-4 border-b border-normal bg-alternative/35 flex items-center justify-between">
-          <h3 className="text-sm font-black text-strong flex items-center gap-2">
-            <Database className="h-4.5 w-4.5 text-primary" />
-            {modalData.isExisting ? "실거래 추가 집계 (기간 연장)" : "신규 지역 실거래 집계"}
-          </h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-black text-strong flex items-center gap-1.5">
+              <Database className="h-4.5 w-4.5 text-primary" />
+              {modalData.isExisting ? "실거래 추가 집계 (기간 연장)" : "신규 지역 실거래 집계"}
+            </h3>
+            {modalData.isExisting && (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 dark:text-emerald-400">
+                수집 등록됨
+              </span>
+            )}
+          </div>
           <button
             type="button"
             onClick={onClose}
@@ -260,10 +267,11 @@ export function RegionCollectModal({
               type="button"
               onClick={onDelete}
               disabled={loadingCollect}
-              className="px-3.5 py-2 rounded-xl text-rose-600 border border-rose-200 bg-rose-50 hover:bg-rose-100 font-bold transition-colors flex items-center gap-1 disabled:opacity-50 dark:bg-rose-950/10 dark:border-rose-900/30 dark:text-rose-400"
+              className="px-3.5 py-2 rounded-xl text-xs text-rose-600 border border-rose-300 bg-rose-50 hover:bg-rose-600 hover:text-white font-bold transition-all flex items-center gap-1.5 shadow-xs disabled:opacity-50 dark:bg-rose-950/20 dark:border-rose-900/40 dark:text-rose-400 dark:hover:bg-rose-700 dark:hover:text-white"
+              title="이 지역의 자동 수집을 중지하고 적재된 실거래 데이터를 삭제합니다."
             >
-              <Trash2 size={13} />
-              <span>집계 해제</span>
+              <Trash2 size={14} className="shrink-0" />
+              <span>수집 중지 및 지역 삭제</span>
             </button>
           ) : (
             <div />

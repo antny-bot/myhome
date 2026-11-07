@@ -5,6 +5,7 @@ import {
   Building2,
   ChevronDown,
   ChevronUp,
+  Database,
   LayoutDashboard,
   MapPin,
   RefreshCw,
@@ -33,6 +34,9 @@ interface MobileDashboardViewProps {
   setUiFeedback: (val: { message: string; type: "success" | "error" } | null) => void;
   onChanged?: () => void;
   onNavigate?: (view: any) => void;
+  dbRegionsCount?: number;
+  onOpenRegionManager?: () => void;
+  isAdmin?: boolean;
 }
 
 export function MobileDashboardView({
@@ -48,6 +52,9 @@ export function MobileDashboardView({
   setUiFeedback,
   onChanged,
   onNavigate,
+  dbRegionsCount = 0,
+  onOpenRegionManager,
+  isAdmin = false,
 }: MobileDashboardViewProps) {
   const { t } = useLocale();
   const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
@@ -122,7 +129,7 @@ export function MobileDashboardView({
           )}
 
           {mapLoaded && !mapError && (
-            <div className="absolute top-3 left-3 z-10 w-[220px] max-w-[calc(100vw-32px)]">
+            <div className="absolute top-3 left-3 z-10 w-[180px] sm:w-[220px] max-w-[calc(100vw-130px)]">
               <RegionSearchInput
                 value={searchRegionName}
                 onChange={setSearchRegionName}
@@ -130,6 +137,23 @@ export function MobileDashboardView({
                 placeholder={t.regionPlaceholder}
                 className="w-full rounded-lg border border-normal bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm px-2.5 py-1.5 text-xs text-strong focus:border-primary outline-none shadow-lg"
               />
+            </div>
+          )}
+
+          {mapLoaded && !mapError && onOpenRegionManager && (
+            <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={onOpenRegionManager}
+                className="px-2.5 py-1.5 rounded-lg border border-normal bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm text-xs font-bold text-strong hover:text-primary transition-all flex items-center gap-1 shadow-md cursor-pointer"
+                title="수집 지역 관리"
+              >
+                <Database size={12} className="text-primary" />
+                <span className="text-[11px]">지역 관리</span>
+                <span className="px-1 py-0.2 rounded-full bg-primary/10 text-primary text-[9px] font-black border border-primary/20">
+                  {dbRegionsCount}
+                </span>
+              </button>
             </div>
           )}
         </div>

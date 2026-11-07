@@ -24,6 +24,7 @@ export function useRegionCollector({ isAdmin = false, onChanged }: UseRegionColl
 
   // 수집 설정 모달 상태
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isManagerModalOpen, setIsManagerModalOpen] = useState(false);
   const [modalData, setModalData] = useState<{
     lawdCode: string;
     regionName: string;
@@ -49,11 +50,20 @@ export function useRegionCollector({ isAdmin = false, onChanged }: UseRegionColl
   };
 
   const openCollectModal = (lawdCode: string, regionName: string, existingRegion?: RegionSummary) => {
-    const isExisting = !!existingRegion || dbRegions.some((r) => r.lawdCode === lawdCode);
-    const resolvedExistingRegion = existingRegion || dbRegions.find((r) => r.lawdCode === lawdCode);
+    const code5 = lawdCode.length >= 5 ? lawdCode.substring(0, 5) : lawdCode;
+    const resolvedExistingRegion =
+      existingRegion ||
+      dbRegions.find(
+        (r) =>
+          r.lawdCode === lawdCode ||
+          r.lawdCode === code5 ||
+          (lawdCode.length > 5 && lawdCode.startsWith(r.lawdCode))
+      );
+    const isExisting = !!resolvedExistingRegion;
+    const finalLawdCode = resolvedExistingRegion ? resolvedExistingRegion.lawdCode : code5;
 
     setModalData({
-      lawdCode,
+      lawdCode: finalLawdCode,
       regionName,
       isExisting,
       existingRegion: resolvedExistingRegion,
@@ -223,10 +233,14 @@ export function useRegionCollector({ isAdmin = false, onChanged }: UseRegionColl
     }
   };
 
-  const handleRegionDelete = async () => {
+  const handleRegionDelete = async (target?: { lawdCode: string; regionName: string }) => {
+    const targetData = target || (modalData ? { lawdCode: modalData.lawdCode, regionName: modalData.regionName } : null);
+    if (!targetData) return;
+
     if (
-      !modalData ||
-      !window.confirm(`${modalData.regionName} 지역의 모든 수집 설정 및 SQLite 실거래 적재 내역을 완전히 제거하시겠습니까?`)
+      !window.confirm(
+        `${targetData.regionName} (${targetData.lawdCode}) 지역의 수집을 중단하고 적재된 실거래 데이터를 모두 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.`
+      )
     ) {
       return;
     }
@@ -236,17 +250,19 @@ export function useRegionCollector({ isAdmin = false, onChanged }: UseRegionColl
     setUiFeedback(null);
 
     try {
-      await deleteDbRegion(modalData.lawdCode);
-      void logActivity("region_delete", `수집 지역 삭제 및 DB 초기화: ${modalData.regionName} (${modalData.lawdCode})`, {
-        lawdCode: modalData.lawdCode,
-        displayName: modalData.regionName,
+      await deleteDbRegion(targetData.lawdCode);
+      void logActivity("region_delete", `수집 지역 삭제 및 DB 초기화: ${targetData.regionName} (${targetData.lawdCode})`, {
+        lawdCode: targetData.lawdCode,
+        displayName: targetData.regionName,
       });
 
       setUiFeedback({
-        message: `${modalData.regionName} 지역 및 관련 실거래 데이터를 일괄 제거하였습니다.`,
+        message: `${targetData.regionName} 지역의 수집을 중지하고 관련 실거래 데이터를 일괄 제거하였습니다.`,
         type: "success",
       });
-      setIsModalOpen(false);
+      if (modalData?.lawdCode === targetData.lawdCode) {
+        setIsModalOpen(false);
+      }
       void loadRegions();
       if (onChanged) onChanged();
     } catch (err: any) {
@@ -267,6 +283,8 @@ export function useRegionCollector({ isAdmin = false, onChanged }: UseRegionColl
     setUiFeedback,
     isModalOpen,
     setIsModalOpen,
+    isManagerModalOpen,
+    setIsManagerModalOpen,
     modalData,
     startMonth,
     setStartMonth,

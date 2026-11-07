@@ -4,6 +4,7 @@ import type { DashboardState } from "../../types.js";
 import { DesktopDashboardView } from "./DesktopDashboardView.js";
 import { MobileDashboardView } from "./MobileDashboardView.js";
 import { RegionCollectModal } from "./RegionCollectModal.js";
+import { RegionManagerModal } from "./RegionManagerModal.js";
 import { useDashboardMap } from "./useDashboardMap.js";
 import { useRegionCollector } from "./useRegionCollector.js";
 
@@ -27,6 +28,8 @@ export function DashboardPage({ state, onChanged, onNavigate, isAdmin = false }:
     setUiFeedback,
     isModalOpen,
     setIsModalOpen,
+    isManagerModalOpen,
+    setIsManagerModalOpen,
     modalData,
     startMonth,
     setStartMonth,
@@ -49,6 +52,7 @@ export function DashboardPage({ state, onChanged, onNavigate, isAdmin = false }:
     isAdmin,
     onNavigate,
     openCollectModal,
+    onDeleteRegion: handleRegionDelete,
     setUiFeedback,
   });
 
@@ -124,11 +128,24 @@ export function DashboardPage({ state, onChanged, onNavigate, isAdmin = false }:
     setUiFeedback,
     onChanged,
     onNavigate,
+    dbRegionsCount: dbRegions.length,
+    onOpenRegionManager: () => setIsManagerModalOpen(true),
+    isAdmin,
   };
 
   return (
     <div className="space-y-6">
       {isMobile ? <MobileDashboardView {...commonProps} /> : <DesktopDashboardView {...commonProps} />}
+
+      <RegionManagerModal
+        isOpen={isManagerModalOpen}
+        onClose={() => setIsManagerModalOpen(false)}
+        dbRegions={dbRegions}
+        isAdmin={isAdmin}
+        onOpenCollectModal={openCollectModal}
+        onDeleteRegion={handleRegionDelete}
+        loadingCollect={loadingCollect}
+      />
 
       <RegionCollectModal
         isOpen={isModalOpen}
@@ -154,5 +171,6 @@ export function DashboardPage({ state, onChanged, onNavigate, isAdmin = false }:
 export * from "./AlertHistorySection.js";
 export * from "./DashboardStatCards.js";
 export * from "./RegionCollectModal.js";
+export * from "./RegionManagerModal.js";
 export * from "./useDashboardMap.js";
 export * from "./useRegionCollector.js";

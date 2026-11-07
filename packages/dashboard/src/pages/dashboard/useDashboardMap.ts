@@ -9,6 +9,7 @@ interface UseDashboardMapProps {
   isAdmin: boolean;
   onNavigate?: (view: any) => void;
   openCollectModal: (lawdCode: string, regionName: string, existingRegion?: RegionSummary) => void;
+  onDeleteRegion?: (target: { lawdCode: string; regionName: string }) => Promise<void>;
   setUiFeedback: (feedback: { message: string; type: "success" | "error" } | null) => void;
 }
 
@@ -17,6 +18,7 @@ export function useDashboardMap({
   isAdmin,
   onNavigate,
   openCollectModal,
+  onDeleteRegion,
   setUiFeedback,
 }: UseDashboardMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -176,6 +178,11 @@ export function useDashboardMap({
         isAdmin,
         onRegionClick: handleRegionClick,
         onCollectClick: openCollectModal,
+        onDeleteClick: (lawdCode, regionName) => {
+          if (onDeleteRegion) {
+            void onDeleteRegion({ lawdCode, regionName });
+          }
+        },
       });
 
       const overlay = new kakao.maps.CustomOverlay({
