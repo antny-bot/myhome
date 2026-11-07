@@ -38,7 +38,9 @@ export type View =
   | "collect"
   | "dbAdmin"
   | "allowedAccounts"
-  | "activityLog";
+  | "activityLog"
+  | "privacy"
+  | "terms";
 
 interface NavItemMeta {
   key: View;
@@ -67,9 +69,12 @@ function writeDefaultPage(v: string | null) {
   } catch {}
 }
 
-/** 뷰 정규화 (하위 호환 뷰를 5대 핵심 뷰로 매핑) */
-export function normalizeView(view: View): "home" | "map" | "analytics" | "alerts" | "admin" | "settings" {
-  if (view === "dashboard" || view === "home") return "home";
+/** 뷰 정규화 (하위 호환 뷰를 핵심 뷰로 매핑) */
+export function normalizeView(view: View): "dashboard" | "home" | "map" | "analytics" | "alerts" | "admin" | "settings" | "privacy" | "terms" {
+  if (view === "privacy") return "privacy";
+  if (view === "terms") return "terms";
+  if (view === "home") return "home";
+  if (view === "dashboard") return "dashboard";
   if (view === "regionMap" || view === "map") return "map";
   if (view === "complexAnalysis" || view === "nearby" || view === "analytics") return "analytics";
   if (view === "rules" || view === "alerts") return "alerts";
@@ -226,7 +231,7 @@ export function Layout({
 
   // 5대 핵심 메뉴 정의 (Plan 12)
   const navItems: NavItemMeta[] = useMemo(() => [
-    { key: "home", label: t.navDashboard || "홈 / 대시보드", compactLabel: "홈", adminOnly: false, Icon: Home },
+    { key: "dashboard", label: t.navDashboard || "대시보드", compactLabel: "대시보드", adminOnly: false, Icon: Home },
     { key: "map", label: t.navRegionMap || "지도 탐색", compactLabel: "지도", adminOnly: false, Icon: Map },
     { key: "analytics", label: t.navAnalytics || "실거래 분석", compactLabel: "분석", adminOnly: false, Icon: BarChart3 },
     { key: "alerts", label: t.navRules || "알림 및 관심", compactLabel: "알림", adminOnly: false, Icon: Bell },
@@ -242,7 +247,7 @@ export function Layout({
   // 모바일 하단 탭바 아이템 (최대 5개 고정)
   const mobileBottomItems = useMemo(() => {
     const list: NavItemMeta[] = [
-      { key: "home", label: "홈", compactLabel: "홈", adminOnly: false, Icon: Home },
+      { key: "dashboard", label: "대시보드", compactLabel: "대시보드", adminOnly: false, Icon: Home },
       { key: "map", label: "지도", compactLabel: "지도", adminOnly: false, Icon: Map },
       { key: "analytics", label: "분석", compactLabel: "분석", adminOnly: false, Icon: BarChart3 },
       { key: "alerts", label: "알림", compactLabel: "알림", adminOnly: false, Icon: Bell },
@@ -276,9 +281,7 @@ export function Layout({
                 onClick={() => onNavigate("map")}
                 className="flex items-center gap-2 font-bold text-strong min-w-0 flex-1 text-left"
               >
-                <div className="shrink-0 rounded-lg bg-primary p-1.5">
-                  <Home size={14} className="text-white" />
-                </div>
+                <img src="/logo.svg" alt="MyHome" className="h-6 w-6 rounded-lg shrink-0 shadow-xs" />
                 <span className="text-app-body-sm font-black whitespace-nowrap truncate uppercase tracking-tight">MY HOME</span>
               </button>
             )}
@@ -331,6 +334,39 @@ export function Layout({
                 >
                   <Settings size={15} />
                   <span>{t.navSettings || "환경 설정"}</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    onNavigate("home");
+                    setMenuOpen(false);
+                  }}
+                  className="w-full flex items-center gap-2.5 rounded-xl px-3 py-2 text-neutral hover:bg-alternative hover:text-strong transition-colors"
+                >
+                  <Home size={15} />
+                  <span>{t.navHome || "홈페이지 (소개)"}</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    onNavigate("privacy");
+                    setMenuOpen(false);
+                  }}
+                  className="w-full flex items-center gap-2.5 rounded-xl px-3 py-2 text-neutral hover:bg-alternative hover:text-strong transition-colors"
+                >
+                  <ShieldCheck size={15} />
+                  <span>{t.navPrivacy || "개인정보처리방침"}</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    onNavigate("terms");
+                    setMenuOpen(false);
+                  }}
+                  className="w-full flex items-center gap-2.5 rounded-xl px-3 py-2 text-neutral hover:bg-alternative hover:text-strong transition-colors"
+                >
+                  <Star size={15} />
+                  <span>{t.navTerms || "이용약관"}</span>
                 </button>
 
                 <div className="my-1 border-t border-normal" />
@@ -429,9 +465,7 @@ export function Layout({
                 onClick={() => onNavigate("map")}
                 className="flex items-center gap-2 font-bold text-strong"
               >
-                <div className="rounded-lg bg-primary p-1.5">
-                  <Home size={14} className="text-white" />
-                </div>
+                <img src="/logo.svg" alt="MyHome" className="h-6 w-6 rounded-lg shrink-0 shadow-xs" />
                 <span className="text-app-body-sm font-black uppercase tracking-tight">MY HOME</span>
               </button>
 

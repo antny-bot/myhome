@@ -1,0 +1,7 @@
+# robots.txt for MyHome
+User-agent: *
+Allow: /
+Allow: /home
+Allow: /privacy
+Allow: /terms
+Disallow: /api/

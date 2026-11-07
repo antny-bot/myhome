@@ -71,7 +71,11 @@ function readQueryErrorMessage(search: string) {
   return null;
 }
 
-export function LoginPage() {
+export interface LoginPageProps {
+  onNavigate?: (route: "home" | "privacy" | "terms") => void;
+}
+
+export function LoginPage({ onNavigate }: LoginPageProps = {}) {
   const [email, setEmail] = useState(() => localStorage.getItem(SAVE_EMAIL_KEY) || "");
   const [password, setPassword] = useState("");
   const [rememberEmail, setRememberEmail] = useState(() => localStorage.getItem(REMEMBER_KEY) === "true");
@@ -160,11 +164,13 @@ export function LoginPage() {
       </button>
 
       <div className="w-full max-w-sm relative z-10">
-        {/* 서비스 타이틀 */}
+        {/* 서비스 타이틀 & 로고 */}
         <div className="mb-8 flex animate-fade-in-up flex-col items-center text-center">
-          <div className="mb-4 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 p-3 shadow-lg shadow-blue-500/30 dark:from-blue-500 dark:to-indigo-500">
-            <Home size={28} className="text-white" />
-          </div>
+          <img
+            src="/logo.svg"
+            alt="MyHome Logo"
+            className="mb-4 h-16 w-16 rounded-2xl shadow-xl shadow-blue-500/25 ring-2 ring-white/20 dark:ring-slate-800"
+          />
           <h1 className="text-3xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-300 drop-shadow-sm">
             {t.title}
           </h1>
@@ -319,6 +325,33 @@ export function LoginPage() {
               </button>
             </form>
           )}
+        </div>
+
+        {/* 법적 고지 및 공개 링크 (홈, 개인정보, 이용약관) */}
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs text-slate-500 dark:text-slate-400 animate-fade-in-up" style={{ animationDelay: "120ms" }}>
+          <button
+            type="button"
+            onClick={() => onNavigate ? onNavigate("home") : (window.location.href = "/home")}
+            className="hover:text-blue-600 dark:hover:text-blue-400 hover:underline transition-colors font-medium"
+          >
+            {locale === "ko" ? "홈페이지" : "Home"}
+          </button>
+          <span>•</span>
+          <button
+            type="button"
+            onClick={() => onNavigate ? onNavigate("privacy") : (window.location.href = "/privacy")}
+            className="hover:text-blue-600 dark:hover:text-blue-400 hover:underline transition-colors font-medium"
+          >
+            {locale === "ko" ? "개인정보처리방침" : "Privacy Policy"}
+          </button>
+          <span>•</span>
+          <button
+            type="button"
+            onClick={() => onNavigate ? onNavigate("terms") : (window.location.href = "/terms")}
+            className="hover:text-blue-600 dark:hover:text-blue-400 hover:underline transition-colors font-medium"
+          >
+            {locale === "ko" ? "이용약관" : "Terms"}
+          </button>
         </div>
       </div>
     </div>

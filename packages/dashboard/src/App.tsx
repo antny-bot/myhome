@@ -13,34 +13,84 @@ const ComplexAnalysisPage = lazy(() => import("./pages/ComplexAnalysisPage"));
 const NearbyStationTab = lazy(() => import("./pages/graph/NearbyStationTab"));
 const RegionMapPage = lazy(() => import("./pages/RegionMapPage").then(m => ({ default: m.RegionMapPage })));
 const AdminPage = lazy(() => import("./pages/AdminPage").then(m => ({ default: m.AdminPage })));
+const HomePage = lazy(() => import("./pages/public/HomePage"));
+const PrivacyPage = lazy(() => import("./pages/public/PrivacyPage"));
+const TermsPage = lazy(() => import("./pages/public/TermsPage"));
+
 import { TempPasswordResetModal } from "./components/TempPasswordResetModal";
 import type { DashboardState } from "./types";
 import { useLocale } from "./lib/i18n";
+
+const validViews: View[] = [
+  "home", "map", "analytics", "alerts", "admin", "settings",
+  "dashboard", "regionMap", "rules", "complexAnalysis",
+  "dbAdmin", "collect", "nearby", "allowedAccounts", "activityLog",
+  "privacy", "terms"
+];
+
+function resolveInitialView(): View {
+  if (typeof window === "undefined") return "map";
+  const pathname = window.location.pathname.replace(/\/+$/, "") || "/";
+  if (pathname === "/privacy") return "privacy";
+  if (pathname === "/terms") return "terms";
+  if (pathname === "/home") return "home";
+
+  const params = new URLSearchParams(window.location.search);
+  const viewParam = params.get("view") as View;
+  return validViews.includes(viewParam) ? viewParam : "map";
+}
 
 function App() {
   const { t } = useLocale();
   const [auth, setAuth] = useState<{ isAuthenticated: boolean; email?: string; isAdmin?: boolean; isTemporaryPassword?: boolean } | null>(null);
   const [state, setState] = useState<DashboardState | undefined>();
   const [error, setError] = useState("");
-  const [view, setView] = useState<View>(() => {
-    const params = new URLSearchParams(window.location.search);
-    const viewParam = params.get("view") as View;
-    const validViews: View[] = [
-      "home", "map", "analytics", "alerts", "admin", "settings",
-      "dashboard", "regionMap", "rules", "complexAnalysis",
-      "dbAdmin", "collect", "nearby", "allowedAccounts", "activityLog"
-    ];
-    return validViews.includes(viewParam) ? viewParam : "map";
-  });
+  const [view, setView] = useState<View>(resolveInitialView);
   const [rulesInitData, setRulesInitData] = useState<{ regionName: string; regionCode?: string; apartmentKeywords: string[] } | null>(null);
   const [complexAnalysisInitData, setComplexAnalysisInitData] = useState<{ complexName: string; lawdCode?: string } | null>(null);
   const [drilldownFromOverview, setDrilldownFromOverview] = useState(false);
 
   const adminViews: View[] = ["admin", "dashboard", "collect", "activityLog", "dbAdmin", "allowedAccounts"];
-  
+
+  const handleNavigate = (nextView: View | "login" | "dashboard") => {
+    if (nextView === "login") {
+      setView("map");
+      if (window.location.pathname !== "/") {
+        window.history.pushState({ view: "map" }, "", "/");
+      }
+      return;
+    }
+    const target: View = nextView === "dashboard" ? "dashboard" : nextView;
+    setView(target);
+
+    if (target === "privacy") {
+      if (window.location.pathname !== "/privacy") {
+        window.history.pushState({ view: "privacy" }, "", "/privacy");
+      }
+    } else if (target === "terms") {
+      if (window.location.pathname !== "/terms") {
+        window.history.pushState({ view: "terms" }, "", "/terms");
+      }
+    } else if (target === "home") {
+      if (window.location.pathname !== "/home") {
+        window.history.pushState({ view: "home" }, "", "/home");
+      }
+    } else {
+      const url = target === "map" && !window.location.search ? "/" : `?view=${target}`;
+      if (window.location.pathname !== "/" || window.location.search !== (target === "map" ? "" : `?view=${target}`)) {
+        window.history.pushState({ view: target }, "", url);
+      }
+    }
+  };
+
   // 뒤로가기 / 앞으로가기 (popstate) 이벤트 감지 및 처리
   useEffect(() => {
     const handlePopState = (event: PopStateEvent) => {
+      const pathname = window.location.pathname.replace(/\/+$/, "") || "/";
+      if (pathname === "/privacy") { setView("privacy"); return; }
+      if (pathname === "/terms") { setView("terms"); return; }
+      if (pathname === "/home") { setView("home"); return; }
+
       if (event.state && typeof event.state === "object" && "view" in event.state) {
         const targetView = event.state.view as View;
         if (!auth?.isAdmin && adminViews.includes(targetView)) {
@@ -51,11 +101,6 @@ function App() {
       } else {
         const params = new URLSearchParams(window.location.search);
         const viewParam = params.get("view") as View;
-        const validViews: View[] = [
-          "home", "map", "analytics", "alerts", "admin", "settings",
-          "dashboard", "regionMap", "rules", "complexAnalysis",
-          "dbAdmin", "collect", "nearby", "allowedAccounts", "activityLog"
-        ];
         if (validViews.includes(viewParam)) {
           if (!auth?.isAdmin && adminViews.includes(viewParam)) {
             setView("map");
@@ -63,7 +108,7 @@ function App() {
             setView(viewParam);
           }
         } else {
-          setView(auth?.isAdmin ? "home" : "map");
+          setView(auth?.isAdmin ? "dashboard" : "map");
         }
       }
     };
@@ -75,7 +120,20 @@ function App() {
 
   // view 상태 변경 시 브라우저 히스토리(history state) 동기화
   useEffect(() => {
-    if (auth?.isAuthenticated) {
+    const pathname = window.location.pathname.replace(/\/+$/, "") || "/";
+    if (view === "privacy") {
+      if (pathname !== "/privacy") {
+        window.history.replaceState({ view: "privacy" }, "", "/privacy");
+      }
+    } else if (view === "terms") {
+      if (pathname !== "/terms") {
+        window.history.replaceState({ view: "terms" }, "", "/terms");
+      }
+    } else if (view === "home") {
+      if (pathname !== "/home") {
+        window.history.replaceState({ view: "home" }, "", "/home");
+      }
+    } else if (auth?.isAuthenticated) {
       const currentState = window.history.state;
       const url = `?view=${view}`;
       
@@ -109,14 +167,15 @@ function App() {
         setAuth(res);
         if (res.isAuthenticated) {
           void refresh();
+          const pathname = window.location.pathname.replace(/\/+$/, "") || "/";
           const params = new URLSearchParams(window.location.search);
           const viewParam = params.get("view") as View;
-          if (!viewParam) {
+          if (!viewParam && pathname === "/") {
             const defaultPg = localStorage.getItem("myhome_default_page") as View | null;
             if (defaultPg && (!adminViews.includes(defaultPg) || res.isAdmin)) {
               setView(defaultPg);
             } else {
-              setView(res.isAdmin ? "home" : "map");
+              setView(res.isAdmin ? "dashboard" : "map");
             }
           }
         }
@@ -129,13 +188,15 @@ function App() {
 
   useEffect(() => {
     if (auth?.isAuthenticated && view) {
-      const viewNames: Record<View, string> = {
-        home: "홈 대시보드",
+      const viewNames: Record<string, string> = {
+        home: "서비스 소개 홈",
+        privacy: "개인정보처리방침",
+        terms: "이용약관",
         map: "지도 탐색",
         analytics: t.analyticsTitle || "실거래 분석",
         alerts: "알림 및 관심",
         admin: "관리자 센터",
-        dashboard: t.dashboardTitle,
+        dashboard: t.dashboardTitle || "대시보드",
         regionMap: t.regionMapTitle || "지역별 단지 지도",
         rules: t.rulesTitle,
         settings: t.settingsTitle,
@@ -174,6 +235,32 @@ function App() {
     setView("complexAnalysis");
   };
 
+  // 1. 공용 공개 페이지 (개인정보처리방침, 서비스 이용약관, 서비스 소개 홈페이지)
+  if (view === "privacy") {
+    return (
+      <Suspense fallback={<div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center"><LoadingSpinner /></div>}>
+        <PrivacyPage onNavigate={handleNavigate} isAuthenticated={auth?.isAuthenticated} />
+      </Suspense>
+    );
+  }
+
+  if (view === "terms") {
+    return (
+      <Suspense fallback={<div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center"><LoadingSpinner /></div>}>
+        <TermsPage onNavigate={handleNavigate} isAuthenticated={auth?.isAuthenticated} />
+      </Suspense>
+    );
+  }
+
+  if (view === "home") {
+    return (
+      <Suspense fallback={<div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center"><LoadingSpinner /></div>}>
+        <HomePage onNavigate={handleNavigate} isAuthenticated={auth?.isAuthenticated} />
+      </Suspense>
+    );
+  }
+
+  // 2. 인증 상태 로딩 중 (보호된 라우트 접근 시)
   if (auth === null) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-alternative text-neutral">
@@ -182,10 +269,16 @@ function App() {
     );
   }
 
+  // 3. 비로그인 상태일 때 -> 로그인 페이지
   if (!auth.isAuthenticated) {
-    return <Suspense fallback={<div className="min-h-screen bg-normal" />}><LoginPage /></Suspense>;
+    return (
+      <Suspense fallback={<div className="min-h-screen bg-normal" />}>
+        <LoginPage onNavigate={handleNavigate} />
+      </Suspense>
+    );
   }
 
+  // 4. 임시 비밀번호 재설정 모달
   if (auth.isTemporaryPassword && auth.email) {
     return (
       <TempPasswordResetModal
@@ -210,13 +303,13 @@ function App() {
   };
 
   return (
-    <Layout view={view} onNavigate={setView} onLogout={handleLogout} isAdmin={auth?.isAdmin} userEmail={auth?.email}>
+    <Layout view={view} onNavigate={handleNavigate} onLogout={handleLogout} isAdmin={auth?.isAdmin} userEmail={auth?.email}>
       <Suspense fallback={<LoadingSpinner message={t.loading || "페이지를 불러오는 중..."} className="py-24" />}>
         {error && <p className="mb-4 text-sm text-red-500 font-medium">{error}</p>}
 
-        {/* 1. 홈 / 대시보드 */}
-        {(view === "home" || view === "dashboard") && (
-          <DashboardPage state={state} onChanged={() => void refresh()} onNavigate={setView} isAdmin={auth?.isAdmin} />
+        {/* 1. 홈 대시보드 */}
+        {view === "dashboard" && (
+          <DashboardPage state={state} onChanged={() => void refresh()} onNavigate={handleNavigate} isAdmin={auth?.isAdmin} />
         )}
 
         {/* 2. 지도 탐색 */}
@@ -234,7 +327,7 @@ function App() {
             onChanged={() => void refresh()}
             initData={rulesInitData}
             clearInitData={() => setRulesInitData(null)}
-            onNavigate={setView}
+            onNavigate={handleNavigate}
             isAdmin={auth?.isAdmin}
           />
         )}

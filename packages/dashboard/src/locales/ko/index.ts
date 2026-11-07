@@ -4,6 +4,7 @@ import { graph } from "./graph.js";
 import { map } from "./map.js";
 import { admin } from "./admin.js";
 import { rules } from "./rules.js";
+import { legal } from "./legal.js";
 
 export const ko = {
   ...common,
@@ -12,6 +13,7 @@ export const ko = {
   ...map,
   ...admin,
   ...rules,
+  ...legal,
 } as const;
 
 export default ko;
