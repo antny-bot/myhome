@@ -108,6 +108,15 @@ export interface OverviewTopComplexItem {
   최저가: number;
   지역: string;
   lawdCode: string;
+  volume: number;
+  min: number | null;
+  q1: number | null;
+  median: number | null;
+  q3: number | null;
+  max: number | null;
+  avg: number | null;
+  whiskerRange: [number, number] | null;
+  boxRange: [number, number] | null;
 }
 
 export interface OverviewTopComplexesFilter {

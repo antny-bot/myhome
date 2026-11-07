@@ -117,6 +117,13 @@ test("getOverviewTopComplexes: 거래량 상위 단지 집계 정상 산출", as
   assert.equal(hanyang.최고가, 18);
   assert.equal(hanyang.최저가, 11);
   assert.equal(hanyang.지역, "분당구");
+  assert.equal(hanyang.volume, 4);
+  assert.ok(hanyang.q1 !== null && hanyang.q1 > 0);
+  assert.ok(hanyang.median !== null && hanyang.median > 0);
+  assert.ok(hanyang.q3 !== null && hanyang.q3 > 0);
+  assert.ok(hanyang.avg !== null && hanyang.avg > 0);
+  assert.ok(hanyang.boxRange !== null);
+  assert.ok(hanyang.whiskerRange !== null);
 });
 
 test("getOverviewPivot: 지역x평형대별 요약 매트릭스 피벗 정상 산출", async () => {

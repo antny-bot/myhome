@@ -21,11 +21,16 @@ export function BoxPlotTooltip({ active, payload, label }: BoxPlotTooltipProps) 
         <p className="font-black text-strong border-b border-normal pb-1.5 mb-1.5 text-[13px]">
           {metaRecord.name || label}
         </p>
+        {metaRecord.지역 && (
+          <p className="text-[10px] text-assistive font-bold -mt-1 pb-1">
+            {t?.region || "지역"}: {metaRecord.지역}
+          </p>
+        )}
 
         <div className="space-y-1.5">
           <p className="text-neutral flex justify-between gap-4">
             <span>{t?.recordCount || "거래 건수"}:</span>
-            <span className="font-bold text-strong">{volume} 건</span>
+            <span className="font-bold text-strong">{(volume ?? metaRecord.거래수 ?? 0)} 건</span>
           </p>
           <p
             className="flex justify-between gap-4"
