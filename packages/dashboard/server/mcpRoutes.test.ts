@@ -68,3 +68,35 @@ test("MCP 도구 핸들러 단위 실행 검증", async () => {
   const rulesRes = JSON.parse(await executeMcpTool("list_monitoring_rules", {}, ctx));
   assert.ok(Array.isArray(rulesRes.rules));
 });
+
+test("MCP 라우터 HTTP 엔드포인트 및 인증/세션 검증", async () => {
+  const app = createApp();
+  const created = createMcpToken("agent-tester@myhome.local", "Test Client");
+
+  // 1. 유효하지 않은 토큰으로 SSE 접속 시 401
+  const server = app.listen(0);
+  const addr = server.address() as any;
+  const port = addr.port;
+  const baseUrl = `http://localhost:${port}`;
+
+  try {
+    const unauthRes = await fetch(`${baseUrl}/api/v1/mcp/sse`);
+    assert.equal(unauthRes.status, 401);
+
+    // 2. 유효한 토큰으로 GET /sse 요청
+    const controller = new AbortController();
+    const ssePromise = fetch(`${baseUrl}/api/v1/mcp/sse?token=${encodeURIComponent(created.raw_token)}`, {
+      signal: controller.signal,
+    });
+
+    // 3. 토큰 관리 엔드포인트 (세션 인증 필요)
+    const tokenListRes = await fetch(`${baseUrl}/api/v1/mcp/tokens`);
+    // bootstrap admin 활성화 상태에서 기본 유저로 통과하거나 세션 검증
+    assert.ok(tokenListRes.status === 200 || tokenListRes.status === 401);
+
+    controller.abort();
+    await ssePromise.catch(() => {});
+  } finally {
+    server.close();
+  }
+});

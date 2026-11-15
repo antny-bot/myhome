@@ -69,8 +69,13 @@ export async function handleGetComplexDetail(args: any): Promise<string> {
       SELECT c.*, r.display_name AS region_name
       FROM complexes c
       LEFT JOIN regions r ON c.lawd_code = r.lawd_code
+      LEFT JOIN (
+        SELECT complex_id, COUNT(*) AS tx_cnt
+        FROM transactions
+        GROUP BY complex_id
+      ) tc ON tc.complex_id = c.id
       WHERE c.name = ? ${lawdCode ? "AND c.lawd_code = ?" : ""}
-      ORDER BY (SELECT COUNT(*) FROM transactions t WHERE t.complex_id = c.id) DESC
+      ORDER BY COALESCE(tc.tx_cnt, 0) DESC
       LIMIT 1
     `;
     row = lawdCode ? db.prepare(query).get(complexName, lawdCode) : db.prepare(query).get(complexName);
@@ -95,7 +100,7 @@ export async function handleGetComplexDetail(args: any): Promise<string> {
     )
     .all(row.id) as any[];
 
-  // 최근 실거래 요약
+  // 최근 실거래 요약 (취소 거래 제외)
   const txSummary = db
     .prepare(
       `
@@ -104,7 +109,7 @@ export async function handleGetComplexDetail(args: any): Promise<string> {
              MIN(price_eok) AS all_time_min_price,
              MAX(price_eok) AS all_time_max_price
       FROM transactions
-      WHERE complex_id = ?
+      WHERE complex_id = ? AND (cancel_date IS NULL OR cancel_date = '')
     `
     )
     .get(row.id) as any;
@@ -160,8 +165,9 @@ export async function handleGetRecentTransactions(args: any): Promise<string> {
   const params: any[] = [];
 
   if (complexName) {
-    whereClauses.push("c.name = ?");
-    params.push(complexName);
+    // 완전 일치 우선, 부분 일치 지원
+    whereClauses.push("(c.name = ? OR c.name LIKE ?)");
+    params.push(complexName, `%${complexName}%`);
   }
 
   if (lawdCode) {
@@ -243,10 +249,17 @@ export async function handleGetTransactionStats(args: any): Promise<string> {
   d.setMonth(d.getMonth() - months);
   const cutoffDate = d.toISOString().slice(0, 10).replace(/-/g, "");
 
-  // 단지 조회
+  // 단지 조회 (거래량 많은 단지 우선 정렬)
   const complexSql = `
-    SELECT id, name, lawd_code FROM complexes
-    WHERE name = ? ${lawdCode ? "AND lawd_code = ?" : ""}
+    SELECT c.id, c.name, c.lawd_code
+    FROM complexes c
+    LEFT JOIN (
+      SELECT complex_id, COUNT(*) AS tx_cnt
+      FROM transactions
+      GROUP BY complex_id
+    ) tc ON tc.complex_id = c.id
+    WHERE c.name = ? ${lawdCode ? "AND c.lawd_code = ?" : ""}
+    ORDER BY COALESCE(tc.tx_cnt, 0) DESC
     LIMIT 1
   `;
   const complex = (lawdCode ? db.prepare(complexSql).get(complexName, lawdCode) : db.prepare(complexSql).get(complexName)) as any;

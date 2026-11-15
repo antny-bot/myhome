@@ -96,14 +96,19 @@ export function deleteMcpToken(tokenId: string, userEmail: string): boolean {
   return (result.changes ?? 0) > 0;
 }
 
+export interface AuthenticateMcpTokenResult {
+  userEmail: string;
+  tokenId: string;
+}
+
 /**
  * 요청 헤더(Authorization: Bearer <token>) 또는 쿼리 파라미터(?token=.../?apiKey=...)에서
- * 토큰을 추출하여 검증하고, 유효한 경우 사용자 이메일을 반환하며 last_used_at을 갱신합니다.
+ * 토큰을 추출하여 검증하고, 유효한 경우 사용자 이메일과 tokenId를 반환하며 last_used_at을 갱신합니다.
  */
-export function authenticateMcpToken(
+export function authenticateMcpTokenWithMeta(
   authHeader?: string | null,
   queryToken?: string | null
-): string | null {
+): AuthenticateMcpTokenResult | null {
   let token: string | null = null;
 
   if (authHeader && typeof authHeader === "string") {
@@ -156,7 +161,18 @@ export function authenticateMcpToken(
     // 갱신 실패는 인증 실패로 처리하지 않음
   }
 
-  return row.user_email;
+  return { userEmail: row.user_email, tokenId: row.id };
+}
+
+/**
+ * 하위 호환용 인증 함수 (사용자 이메일만 반환)
+ */
+export function authenticateMcpToken(
+  authHeader?: string | null,
+  queryToken?: string | null
+): string | null {
+  const res = authenticateMcpTokenWithMeta(authHeader, queryToken);
+  return res ? res.userEmail : null;
 }
 
 /**
@@ -195,12 +211,24 @@ export function dequeueMcpSseMessages(
 
 /**
  * 처리 완료된 SSE 메시지를 정리하거나 세션 종료 시 삭제합니다.
+ * maxAgeMinutes가 지정되면 해당 시간 이상 지난 오래된 메시지도 함께 정리합니다.
  */
-export function cleanupMcpSseMessages(sessionId: string, upToId?: number): void {
+export function cleanupMcpSseMessages(sessionId?: string, upToId?: number, maxAgeMinutes = 60): void {
   const db = getDb();
-  if (upToId !== undefined) {
-    db.prepare(`DELETE FROM mcp_sse_messages WHERE session_id = ? AND id <= ?`).run(sessionId, upToId);
-  } else {
-    db.prepare(`DELETE FROM mcp_sse_messages WHERE session_id = ?`).run(sessionId);
+  if (sessionId) {
+    if (upToId !== undefined) {
+      db.prepare(`DELETE FROM mcp_sse_messages WHERE session_id = ? AND id <= ?`).run(sessionId, upToId);
+    } else {
+      db.prepare(`DELETE FROM mcp_sse_messages WHERE session_id = ?`).run(sessionId);
+    }
+  }
+
+  // 생성된 지 maxAgeMinutes 지난 고아 메시지 자동 정리
+  try {
+    db.prepare(
+      `DELETE FROM mcp_sse_messages WHERE created_at < datetime('now', '-' || ? || ' minutes')`
+    ).run(maxAgeMinutes);
+  } catch {
+    // 무시
   }
 }

@@ -65,7 +65,7 @@ export function SettingsMcpSection({ t }: SettingsMcpSectionProps) {
       const data = await getMcpTokens();
       setTokens(data);
     } catch (err: any) {
-      setErrorMsg(err.message || "MCP 토큰 목록을 불러오지 못했습니다.");
+      setErrorMsg(err.message || t.mcpFetchTokensFailed || "MCP 토큰 목록을 불러오지 못했습니다.");
     } finally {
       setLoading(false);
     }
@@ -84,7 +84,7 @@ export function SettingsMcpSection({ t }: SettingsMcpSectionProps) {
       setNewTokenName("");
       await loadTokens();
     } catch (err: any) {
-      setErrorMsg(err.message || "토큰 발급에 실패했습니다.");
+      setErrorMsg(err.message || t.mcpIssueTokenFailed || "토큰 발급에 실패했습니다.");
     } finally {
       setIsSubmitting(false);
     }
@@ -102,11 +102,11 @@ export function SettingsMcpSection({ t }: SettingsMcpSectionProps) {
       if (issuedToken?.id === id) {
         setIssuedToken(null);
       }
-      setSuccessMsg("토큰이 성공적으로 폐기되었습니다.");
+      setSuccessMsg(t.mcpDeleteTokenSuccess || "토큰이 성공적으로 폐기되었습니다.");
       setTimeout(() => setSuccessMsg(""), 3000);
       await loadTokens();
     } catch (err: any) {
-      setErrorMsg(err.message || "토큰 폐기에 실패했습니다.");
+      setErrorMsg(err.message || t.mcpDeleteTokenFailed || "토큰 폐기에 실패했습니다.");
     }
   };
 
@@ -124,7 +124,7 @@ export function SettingsMcpSection({ t }: SettingsMcpSectionProps) {
         setTimeout(() => setCopiedConfig(false), 2000);
       }
     } catch {
-      alert("클립보드 복사에 실패했습니다.");
+      alert(t.mcpClipboardCopyFailed || "클립보드 복사에 실패했습니다.");
     }
   };
 
@@ -342,7 +342,7 @@ export function SettingsMcpSection({ t }: SettingsMcpSectionProps) {
               className="text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 flex items-center gap-1 transition-colors"
             >
               <RefreshCw className={classNames("w-3.5 h-3.5", loading && "animate-spin")} />
-              <span>새로고침</span>
+              <span>{t.mcpRefresh || "새로고침"}</span>
             </button>
           </div>
 
@@ -359,7 +359,7 @@ export function SettingsMcpSection({ t }: SettingsMcpSectionProps) {
                     <th className="py-2.5 px-3 font-medium">{t.mcpThPrefix}</th>
                     <th className="py-2.5 px-3 font-medium hidden md:table-cell">{t.mcpThCreatedAt}</th>
                     <th className="py-2.5 px-3 font-medium hidden sm:table-cell">{t.mcpThLastUsedAt}</th>
-                    <th className="py-2.5 px-3 font-medium text-right">삭제</th>
+                    <th className="py-2.5 px-3 font-medium text-right">{t.mcpThDelete || "삭제"}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
@@ -435,20 +435,13 @@ export function SettingsMcpSection({ t }: SettingsMcpSectionProps) {
         {/* 탭별 파일 경로 힌트 */}
         <div className="text-xs text-slate-500 dark:text-slate-400 mb-2">
           {clientTab === "claude" && (
-            <span>
-              💡 설정 파일 경로: <code>%APPDATA%\Claude\claude_desktop_config.json</code> (Windows) 또는{" "}
-              <code>~/Library/Application Support/Claude/claude_desktop_config.json</code> (macOS)
-            </span>
+            <span>{t.mcpHintClaude}</span>
           )}
           {clientTab === "cursor" && (
-            <span>
-              💡 프로젝트 루트의 <code>.cursor/mcp.json</code> 파일 또는 Cursor Settings &gt; Features &gt; MCP
-            </span>
+            <span>{t.mcpHintCursor}</span>
           )}
           {clientTab === "antigravity" && (
-            <span>
-              💡 프로젝트 또는 사용자 전용 <code>mcp_config.json</code>의 <code>mcpServers</code> 항목
-            </span>
+            <span>{t.mcpHintAntigravity}</span>
           )}
         </div>
 

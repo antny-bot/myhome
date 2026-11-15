@@ -2,6 +2,7 @@ import express from "express";
 import crypto from "node:crypto";
 import {
   authenticateMcpToken,
+  authenticateMcpTokenWithMeta,
   listMcpTokens,
   createMcpToken,
   deleteMcpToken,
@@ -14,6 +15,7 @@ import { executeMcpTool } from "../mcp/handlers.js";
 
 interface SseSession {
   userEmail: string;
+  tokenId: string;
   res: express.Response;
   createdAt: number;
 }
@@ -23,7 +25,8 @@ const _SSE_SESSIONS = new Map<string, SseSession>();
 
 /**
  * SSE 메시지를 세션으로 전송합니다.
- * (인메모리 세션 연결에 직접 쓰고, 프로세스 간 공유를 위해 DB 큐에도 기록)
+ * (인메모리 세션이 활성화되어 있으면 직접 전송하고,
+ *  인메모리에 없을 때만 프로세스 간 공유를 위해 DB 큐에 인큐)
  */
 function dispatchSseMessage(sessionId: string, message: any): void {
   const session = _SSE_SESSIONS.get(sessionId);
@@ -31,13 +34,35 @@ function dispatchSseMessage(sessionId: string, message: any): void {
 
   if (session && !session.res.writableEnded) {
     session.res.write(`event: message\ndata: ${jsonStr}\n\n`);
+  } else {
+    // 인메모리 세션이 없는 경우에만 DB 큐로 인큐 (타 프로세스/워커 전달용)
+    try {
+      enqueueMcpSseMessage(sessionId, message);
+    } catch {
+      // DB 큐 기록 오류 무시
+    }
   }
+}
 
-  try {
-    enqueueMcpSseMessage(sessionId, message);
-  } catch {
-    // DB 큐 기록 오류는 로컬 세션 실패로 전파하지 않음
+/**
+ * 특정 토큰 ID와 연결된 활성 SSE 세션을 즉시 종료합니다.
+ */
+export function terminateSessionsByTokenId(tokenId: string): number {
+  let terminatedCount = 0;
+  for (const [sessionId, session] of _SSE_SESSIONS.entries()) {
+    if (session.tokenId === tokenId) {
+      try {
+        session.res.write(`event: error\ndata: ${JSON.stringify({ error: "API 토큰이 폐기되어 세션이 종료되었습니다." })}\n\n`);
+        session.res.end();
+      } catch {
+        // 이미 닫힌 경우 무시
+      }
+      _SSE_SESSIONS.delete(sessionId);
+      cleanupMcpSseMessages(sessionId);
+      terminatedCount++;
+    }
   }
+  return terminatedCount;
 }
 
 export function createMcpRouter(): express.Router {
@@ -50,11 +75,12 @@ export function createMcpRouter(): express.Router {
     const authHeader = req.headers["authorization"] as string | undefined;
     const queryToken = (req.query.token || req.query.apiKey || req.query.api_key) as string | undefined;
 
-    const userEmail = authenticateMcpToken(authHeader, queryToken);
-    if (!userEmail) {
+    const authMeta = authenticateMcpTokenWithMeta(authHeader, queryToken);
+    if (!authMeta) {
       res.status(401).json({ error: "유효하지 않거나 인증되지 않은 MCP 토큰입니다." });
       return;
     }
+    const { userEmail, tokenId } = authMeta;
 
     const sessionId = crypto.randomUUID();
 
@@ -68,13 +94,16 @@ export function createMcpRouter(): express.Router {
 
     _SSE_SESSIONS.set(sessionId, {
       userEmail,
+      tokenId,
       res,
       createdAt: Date.now(),
     });
 
     // 1-1. SSE 핸드셰이크: 메시지 수신 엔드포인트 이벤트 전송
-    const scheme = req.headers["x-forwarded-proto"] || req.protocol || "http";
-    const host = req.headers["x-forwarded-host"] || req.headers.host;
+    const rawProto = (req.headers["x-forwarded-proto"] as string) || req.protocol || "http";
+    const scheme = rawProto.split(",")[0].trim();
+    const rawHost = (req.headers["x-forwarded-host"] as string) || req.get("host") || req.headers.host || "localhost";
+    const host = rawHost.split(",")[0].trim();
     const baseUrl = `${scheme}://${host}`;
     const tokenParam = queryToken ? `&token=${encodeURIComponent(queryToken)}` : "";
     // baseUrl 뒤의 path는 app.mountApi 경로(/api/v1/mcp 또는 /api/mcp)에 맞춤
@@ -172,8 +201,8 @@ export function createMcpRouter(): express.Router {
             instructions: "myhome 국토부 아파트 실거래가 및 단지 분석 MCP 서버입니다.",
           };
           dispatchSseMessage(sessionId, { jsonrpc: "2.0", id: msgId, result });
-        } else if (method === "notifications/initialized") {
-          // 알림 수신: 응답 불필요
+        } else if (method.startsWith("notifications/")) {
+          // 알림 수신: 응답 불필요 (notifications/initialized, notifications/cancelled 등)
         } else if (method === "ping") {
           if (msgId !== undefined) {
             dispatchSseMessage(sessionId, { jsonrpc: "2.0", id: msgId, result: {} });
@@ -287,6 +316,10 @@ export function createMcpRouter(): express.Router {
       res.status(404).json({ error: "토큰을 찾을 수 없거나 이미 삭제되었습니다." });
       return;
     }
+
+    // 폐기된 토큰으로 연결된 활성 SSE 세션 즉시 연결 종료
+    terminateSessionsByTokenId(tokenId);
+
     res.json({ ok: true });
   });
 
