@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Database, Settings, ShieldAlert, CheckCircle, Save, Sliders, Globe, Building2, HelpCircle } from "lucide-react";
+import { Database, Settings, ShieldAlert, CheckCircle, Save, Sliders, Globe, Building2, HelpCircle, Bot } from "lucide-react";
 import { useBreakpoint } from "../useBreakpoint";
 import { SectionCard } from "../components/SectionCard";
 import { PageHeader } from "../components/PageHeader";
@@ -10,11 +10,12 @@ import { loadSystemConfig, saveSystemConfig, loadUserConfig, saveUserConfig, upd
 import { copy } from "../locales/ko";
 import { readDisplayPreferences, saveDisplayPreferences, resetDisplayPreferences, DISPLAY_FONT_OPTIONS, DISPLAY_ACCENT_OPTIONS } from "../lib/displayPreferences";
 import { TelegramGuideModal } from "../components/TelegramGuideModal";
+import { SettingsMcpSection } from "../components/SettingsMcpSection";
 
 const locale = "ko";
 const t = copy[locale];
 
-type SettingsTab = "api" | "display" | "account";
+type SettingsTab = "api" | "display" | "account" | "mcp";
 
 export function SettingsPage({ state, onChanged, isAdmin = false, userEmail }: { state: DashboardState | undefined; onChanged?: () => void; isAdmin?: boolean; userEmail?: string }) {
   const { isMobile } = useBreakpoint();
@@ -209,6 +210,18 @@ export function SettingsPage({ state, onChanged, isAdmin = false, userEmail }: {
             <ShieldAlert size={16} />
             <span>계정 설정</span>
           </button>
+          <button
+            onClick={() => setActiveTab("mcp")}
+            className={classNames(
+              "px-5 py-3 text-sm font-semibold border-b-2 -mb-px transition-colors flex items-center gap-2",
+              activeTab === "mcp"
+                ? "border-primary-600 text-primary-600 dark:border-primary-400 dark:text-primary-400"
+                : "border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
+            )}
+          >
+            <Bot size={16} />
+            <span>{t.mcpTabTitle}</span>
+          </button>
         </div>
 
         {/* Mobile Pill-like Tabs */}
@@ -248,6 +261,18 @@ export function SettingsPage({ state, onChanged, isAdmin = false, userEmail }: {
           >
             <ShieldAlert size={14} />
             <span>계정 설정</span>
+          </button>
+          <button
+            onClick={() => setActiveTab("mcp")}
+            className={classNames(
+              "snap-start shrink-0 px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5",
+              activeTab === "mcp"
+                ? "bg-primary-600 text-white dark:bg-primary-500"
+                : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+            )}
+          >
+            <Bot size={14} />
+            <span>{t.mcpTabTitle}</span>
           </button>
         </div>
       </div>
@@ -714,6 +739,10 @@ export function SettingsPage({ state, onChanged, isAdmin = false, userEmail }: {
             </button>
           </div>
         </div>
+      )}
+
+      {activeTab === "mcp" && (
+        <SettingsMcpSection t={t} userEmail={userEmail} />
       )}
       <TelegramGuideModal
         isOpen={isTelegramGuideOpen}

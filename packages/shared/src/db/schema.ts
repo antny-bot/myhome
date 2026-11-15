@@ -204,6 +204,29 @@ export function initDb(): void {
       FOREIGN KEY (complex_id) REFERENCES complexes(id)
     );
     CREATE INDEX IF NOT EXISTS idx_complex_area_mappings_complex_id ON complex_area_mappings(complex_id);
+
+    CREATE TABLE IF NOT EXISTS mcp_api_tokens (
+      id TEXT PRIMARY KEY,
+      user_email TEXT NOT NULL,
+      name TEXT NOT NULL,
+      token_hash TEXT NOT NULL UNIQUE,
+      token_prefix TEXT NOT NULL,
+      is_active INTEGER DEFAULT 1,
+      last_used_at TEXT,
+      created_at TEXT NOT NULL,
+      expires_at TEXT,
+      FOREIGN KEY (user_email) REFERENCES user_settings(email) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_mcp_api_tokens_user_email ON mcp_api_tokens(user_email);
+    CREATE INDEX IF NOT EXISTS idx_mcp_api_tokens_token_hash ON mcp_api_tokens(token_hash);
+
+    CREATE TABLE IF NOT EXISTS mcp_sse_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id TEXT NOT NULL,
+      message_json TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_mcp_sse_session_id ON mcp_sse_messages (session_id, id);
   `);
 
   // -- complexes 테이블 주소·좌표 컬럼 마이그레이션 (기존 DB 호환)

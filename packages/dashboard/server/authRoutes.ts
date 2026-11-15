@@ -699,7 +699,9 @@ export function authMiddleware(req: express.Request, res: express.Response, next
     path === "/auth/google/callback" ||
     path === "/auth/me" ||
     path === "/auth/login-local" ||
-    path === "/config";
+    path === "/config" ||
+    path.startsWith("/mcp/sse") ||
+    path.startsWith("/mcp/messages");
 
   if (isWhiteListed) {
     return next();

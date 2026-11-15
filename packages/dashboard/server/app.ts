@@ -4,6 +4,7 @@ import { join, dirname } from "node:path";
 import { createRouter } from "./routes.js";
 import { createGraphRouter } from "./routes-graph.js";
 import { createAdminRouter } from "./routes-admin.js";
+import { createMcpRouter } from "./routes/mcpRoutes.js";
 import { createAuthRouter, authMiddleware, adminRequired, authRateLimiter } from "./authRoutes.js";
 import { globalErrorHandler } from "./middlewares/errorHandler.js";
 import { requestLogger } from "./middleware/requestLogger.js";
@@ -31,6 +32,7 @@ export function mountApi(app: express.Express, prefix: string, isDeprecated = fa
   router.use(createRouter());
   router.use("/graph", createGraphRouter());
   router.use("/admin", adminRequired, createAdminRouter());
+  router.use("/mcp", createMcpRouter());
 
   app.use(prefix, router);
 }

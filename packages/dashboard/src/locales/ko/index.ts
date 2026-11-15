@@ -5,6 +5,7 @@ import { map } from "./map.js";
 import { admin } from "./admin.js";
 import { rules } from "./rules.js";
 import { legal } from "./legal.js";
+import { mcp } from "./mcp.js";
 
 export const ko = {
   ...common,
@@ -14,6 +15,7 @@ export const ko = {
   ...admin,
   ...rules,
   ...legal,
+  ...mcp,
 } as const;
 
 export default ko;
