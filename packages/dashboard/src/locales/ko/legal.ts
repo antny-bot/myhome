@@ -26,6 +26,6 @@ export const legal = {
   "backToLogin": "로그인 화면으로 이동",
   "effectiveDate": "시행일자: 2026년 1월 1일 (최종 개정: 2026년 11월 7일)",
   "contactSupport": "고객 지원 및 문의",
-  "contactEmail": "heedo.dev@gmail.com",
+  "contactEmail": "macrolandkr@gmail.com",
   "allRightsReserved": "All rights reserved.",
 } as const;

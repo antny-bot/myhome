@@ -199,8 +199,8 @@ export function PrivacyPage({ onNavigate, isAuthenticated }: PrivacyPageProps) {
                 <p className="text-xs text-slate-600 dark:text-slate-400">책임자 / 개발팀: Heedo</p>
                 <p className="text-xs text-slate-600 dark:text-slate-400">
                   문의 이메일:{" "}
-                  <a href="mailto:heedo.dev@gmail.com" className="text-blue-600 dark:text-blue-400 underline">
-                    heedo.dev@gmail.com
+                  <a href={`mailto:${t.contactEmail || "macrolandkr@gmail.com"}`} className="text-blue-600 dark:text-blue-400 underline">
+                    {t.contactEmail || "macrolandkr@gmail.com"}
                   </a>
                 </p>
                 <p className="text-xs text-slate-500 dark:text-slate-400 pt-1">
@@ -284,8 +284,8 @@ export function PrivacyPage({ onNavigate, isAuthenticated }: PrivacyPageProps) {
                 </p>
                 <p className="text-xs text-slate-600 dark:text-slate-400">
                   Email:{" "}
-                  <a href="mailto:heedo.dev@gmail.com" className="text-blue-600 dark:text-blue-400 underline">
-                    heedo.dev@gmail.com
+                  <a href={`mailto:${t.contactEmail || "macrolandkr@gmail.com"}`} className="text-blue-600 dark:text-blue-400 underline">
+                    {t.contactEmail || "macrolandkr@gmail.com"}
                   </a>
                 </p>
               </div>

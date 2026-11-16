@@ -212,10 +212,10 @@ export function PublicLayout({ children, activePath, onNavigate, isAuthenticated
                 {t.navTerms || "서비스 이용약관"}
               </button>
               <a
-                href="mailto:heedo.dev@gmail.com"
+                href={`mailto:${t.contactEmail || "macrolandkr@gmail.com"}`}
                 className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
               >
-                {t.contactSupport || "문의"}: heedo.dev@gmail.com
+                {t.contactSupport || "문의"}: {t.contactEmail || "macrolandkr@gmail.com"}
               </a>
             </div>
           </div>

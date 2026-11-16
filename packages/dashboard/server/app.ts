@@ -8,6 +8,7 @@ import { createMcpRouter } from "./routes/mcpRoutes.js";
 import { createAuthRouter, authMiddleware, adminRequired, authRateLimiter } from "./authRoutes.js";
 import { globalErrorHandler } from "./middlewares/errorHandler.js";
 import { requestLogger } from "./middleware/requestLogger.js";
+import { apiAuditLogger } from "./middleware/apiAuditLogger.js";
 import { getLastSuccessCollectedDate } from "./scheduler.js";
 import { getDb } from "@myhome/shared";
 
@@ -28,6 +29,7 @@ export function mountApi(app: express.Express, prefix: string, isDeprecated = fa
   }
 
   router.use(authMiddleware);
+  router.use(apiAuditLogger);
   router.use("/auth", authRateLimiter, createAuthRouter());
   router.use(createRouter());
   router.use("/graph", createGraphRouter());

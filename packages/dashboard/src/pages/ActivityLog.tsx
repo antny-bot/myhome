@@ -148,9 +148,39 @@ export function ActivityLogPage() {
       rule_delete: t.activityType_rule_delete || "규칙 삭제",
       rule_test: t.activityType_rule_test || "규칙 테스트",
       preset_create: t.activityType_preset_create || "프리셋 추가",
-      preset_delete: t.activityType_preset_delete || "프리셋 삭제"
+      preset_delete: t.activityType_preset_delete || "프리셋 삭제",
+      api_call: t.activityType_api_call || "API 호출",
+      mcp_tool_call: t.activityType_mcp_tool_call || "MCP 도구 실행",
+      mcp_connect: t.activityType_mcp_connect || "MCP 세션 연결",
+      mcp_token_create: t.activityType_mcp_token_create || "MCP 토큰 발급",
+      mcp_token_delete: t.activityType_mcp_token_delete || "MCP 토큰 폐기",
     };
     return types[type] || type;
+  };
+
+  // 활동 유형별 뱃지 스타일
+  const getActivityTypeBadgeClass = (type: string) => {
+    switch (type) {
+      case "mcp_tool_call":
+      case "mcp_connect":
+      case "mcp_token_create":
+      case "mcp_token_delete":
+        return "bg-purple-100 text-purple-700 dark:bg-purple-950/70 dark:text-purple-300 border border-purple-200 dark:border-purple-800";
+      case "api_call":
+        return "bg-sky-100 text-sky-700 dark:bg-sky-950/70 dark:text-sky-300 border border-sky-200 dark:border-sky-800";
+      case "rule_create":
+      case "rule_update":
+      case "rule_delete":
+      case "rule_test":
+        return "bg-amber-100 text-amber-700 dark:bg-amber-950/70 dark:text-amber-300 border border-amber-200 dark:border-amber-800";
+      case "region_add":
+      case "region_delete":
+        return "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800";
+      case "search_transactions":
+        return "bg-indigo-100 text-indigo-700 dark:bg-indigo-950/70 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800";
+      default:
+        return "bg-primary/10 text-primary border border-primary/20";
+    }
   };
 
   const handleRefresh = () => {
@@ -511,6 +541,11 @@ export function ActivityLogPage() {
                 <option value="">{t.allTypes || "전체 유형"}</option>
                 <option value="page_view">{formatActivityType("page_view")}</option>
                 <option value="search_transactions">{formatActivityType("search_transactions")}</option>
+                <option value="api_call">{formatActivityType("api_call")}</option>
+                <option value="mcp_tool_call">{formatActivityType("mcp_tool_call")}</option>
+                <option value="mcp_connect">{formatActivityType("mcp_connect")}</option>
+                <option value="mcp_token_create">{formatActivityType("mcp_token_create")}</option>
+                <option value="mcp_token_delete">{formatActivityType("mcp_token_delete")}</option>
                 <option value="region_add">{formatActivityType("region_add")}</option>
                 <option value="region_delete">{formatActivityType("region_delete")}</option>
                 <option value="rule_create">{formatActivityType("rule_create")}</option>
@@ -577,7 +612,7 @@ export function ActivityLogPage() {
                   {logs.map((log) => (
                     <div key={log.id} className="p-4 space-y-2 text-xs">
                       <div className="flex justify-between items-start">
-                        <span className="font-bold text-[11px] px-2 py-0.5 rounded bg-primary/10 text-primary">
+                        <span className={`font-bold text-[11px] px-2 py-0.5 rounded ${getActivityTypeBadgeClass(log.activityType)}`}>
                           {formatActivityType(log.activityType)}
                         </span>
                         <span className="text-[10px] text-assistive font-mono">
@@ -631,7 +666,7 @@ export function ActivityLogPage() {
                             {log.userEmail}
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap">
-                            <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-primary/10 text-primary">
+                            <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${getActivityTypeBadgeClass(log.activityType)}`}>
                               {formatActivityType(log.activityType)}
                             </span>
                           </td>

@@ -26,6 +26,6 @@ export const legal = {
   "backToLogin": "Go to Sign In",
   "effectiveDate": "Effective Date: January 1, 2026 (Last Updated: November 7, 2026)",
   "contactSupport": "Customer Support & Contact",
-  "contactEmail": "heedo.dev@gmail.com",
+  "contactEmail": "macrolandkr@gmail.com",
   "allRightsReserved": "All rights reserved.",
 } as const;

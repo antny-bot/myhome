@@ -9,6 +9,7 @@ import {
   enqueueMcpSseMessage,
   dequeueMcpSseMessages,
   cleanupMcpSseMessages,
+  insertActivityLog,
 } from "@myhome/shared";
 import { getMcpToolsManifest } from "../mcp/manifest.js";
 import { executeMcpTool } from "../mcp/handlers.js";
@@ -98,6 +99,22 @@ export function createMcpRouter(): express.Router {
       res,
       createdAt: Date.now(),
     });
+
+    // 시스템 감사 로그 기록 (MCP SSE 연결)
+    try {
+      const ipAddress = (req.ip || (req.headers["x-forwarded-for"] as string) || req.socket.remoteAddress || undefined) as string | undefined;
+      const userAgent = (req.headers["user-agent"] || undefined) as string | undefined;
+      insertActivityLog({
+        userEmail,
+        activityType: "mcp_connect",
+        description: `MCP SSE 연결 수립 (세션: ${sessionId.slice(0, 8)}...)`,
+        payload: JSON.stringify({ sessionId, tokenId }),
+        ipAddress,
+        userAgent,
+      });
+    } catch {
+      // 로깅 실패가 SSE 연결을 중단하지 않도록 보호
+    }
 
     // 1-1. SSE 핸드셰이크: 메시지 수신 엔드포인트 이벤트 전송
     const rawProto = (req.headers["x-forwarded-proto"] as string) || req.protocol || "http";
@@ -217,8 +234,24 @@ export function createMcpRouter(): express.Router {
         } else if (method === "tools/call") {
           const toolName = params.name;
           const toolArgs = params.arguments || {};
+          const ipAddress = (req.ip || (req.headers["x-forwarded-for"] as string) || req.socket.remoteAddress || undefined) as string | undefined;
+          const userAgent = (req.headers["user-agent"] || undefined) as string | undefined;
+
           try {
             const outputText = await executeMcpTool(toolName, toolArgs, { userEmail });
+            try {
+              insertActivityLog({
+                userEmail,
+                activityType: "mcp_tool_call",
+                description: `MCP 도구 실행: ${toolName}`,
+                payload: JSON.stringify({ tool: toolName, args: toolArgs, success: true }),
+                ipAddress,
+                userAgent,
+              });
+            } catch {
+              // 로깅 오류 격리
+            }
+
             dispatchSseMessage(sessionId, {
               jsonrpc: "2.0",
               id: msgId,
@@ -232,6 +265,19 @@ export function createMcpRouter(): express.Router {
               },
             });
           } catch (toolErr: any) {
+            try {
+              insertActivityLog({
+                userEmail,
+                activityType: "mcp_tool_call",
+                description: `MCP 도구 실행 실패: ${toolName} (${toolErr.message || "오류"})`,
+                payload: JSON.stringify({ tool: toolName, args: toolArgs, error: toolErr.message || String(toolErr), success: false }),
+                ipAddress,
+                userAgent,
+              });
+            } catch {
+              // 로깅 오류 격리
+            }
+
             dispatchSseMessage(sessionId, {
               jsonrpc: "2.0",
               id: msgId,
@@ -300,6 +346,18 @@ export function createMcpRouter(): express.Router {
     }
     const { name } = req.body || {};
     const created = createMcpToken(userEmail, name || "MCP Client Token");
+
+    try {
+      insertActivityLog({
+        userEmail,
+        activityType: "mcp_token_create",
+        description: `MCP 토큰 발급: ${name || "MCP Client Token"}`,
+        payload: JSON.stringify({ tokenId: created.id, prefix: created.token_prefix }),
+        ipAddress: (req.ip || (req.headers["x-forwarded-for"] as string) || undefined) as string | undefined,
+        userAgent: (req.headers["user-agent"] || undefined) as string | undefined,
+      });
+    } catch {}
+
     res.json({ ok: true, token: created });
   });
 
@@ -319,6 +377,17 @@ export function createMcpRouter(): express.Router {
 
     // 폐기된 토큰으로 연결된 활성 SSE 세션 즉시 연결 종료
     terminateSessionsByTokenId(tokenId);
+
+    try {
+      insertActivityLog({
+        userEmail,
+        activityType: "mcp_token_delete",
+        description: `MCP 토큰 폐기 (${tokenId})`,
+        payload: JSON.stringify({ tokenId }),
+        ipAddress: (req.ip || (req.headers["x-forwarded-for"] as string) || undefined) as string | undefined,
+        userAgent: (req.headers["user-agent"] || undefined) as string | undefined,
+      });
+    } catch {}
 
     res.json({ ok: true });
   });
