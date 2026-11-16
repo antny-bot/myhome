@@ -1,7 +1,12 @@
+process.env.SQLITE_DB_PATH = ":memory:";
+
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { initDb, getActivityLogs } from "@myhome/shared";
 import { apiAuditLogger } from "./apiAuditLogger.js";
-import { getActivityLogs } from "@myhome/shared";
+
+// 테스트를 위한 인메모리 DB 스키마 초기화
+initDb();
 
 test("apiAuditLogger: OPTIONS 요청은 감사 로그에서 제외됨", () => {
   let nextCalled = false;
