@@ -1,4 +1,5 @@
 import { getDb, searchComplexNames } from "@myhome/shared";
+import { monthsAgoCutoff, normalizeDealDate } from "./dateUtils.js";
 
 interface ToolHandlerContext {
   userEmail: string;
@@ -156,8 +157,17 @@ export async function handleGetRecentTransactions(args: any): Promise<string> {
   const limit = Math.min(Math.max(Number(args.limit) || 30, 1), 200);
   const complexName = args.complex_name ? String(args.complex_name).trim() : undefined;
   const lawdCode = args.lawd_code ? String(args.lawd_code).trim() : undefined;
-  const startDate = args.start_date ? String(args.start_date).replace(/-/g, "") : undefined;
-  const endDate = args.end_date ? String(args.end_date).replace(/-/g, "") : undefined;
+  // DB(transactions.deal_date) 포맷은 'YYYY-MM-DD' → 입력도 동일 포맷으로 정규화
+  const startDate = normalizeDealDate(args.start_date, "start");
+  const endDate = normalizeDealDate(args.end_date, "end");
+
+  if (args.start_date && !startDate) {
+    return JSON.stringify({ error: "start_date 형식이 올바르지 않습니다. YYYY-MM-DD 또는 YYYYMMDD 로 입력해주세요." });
+  }
+  if (args.end_date && !endDate) {
+    return JSON.stringify({ error: "end_date 형식이 올바르지 않습니다. YYYY-MM-DD 또는 YYYYMMDD 로 입력해주세요." });
+  }
+
   const minPrice = args.min_price_eok !== undefined ? Number(args.min_price_eok) : undefined;
   const maxPrice = args.max_price_eok !== undefined ? Number(args.max_price_eok) : undefined;
 
@@ -244,10 +254,8 @@ export async function handleGetTransactionStats(args: any): Promise<string> {
     return JSON.stringify({ error: "complex_name은 필수 항목입니다." });
   }
 
-  // 기준 날짜 계산 (YYYYMMDD)
-  const d = new Date();
-  d.setMonth(d.getMonth() - months);
-  const cutoffDate = d.toISOString().slice(0, 10).replace(/-/g, "");
+  // 기준 날짜 계산 ('YYYY-MM-DD', DB 저장 포맷과 일치해야 기간 필터가 동작)
+  const cutoffDate = monthsAgoCutoff(months);
 
   // 단지 조회 (거래량 많은 단지 우선 정렬)
   const complexSql = `
