@@ -33,7 +33,7 @@ jobs:
         run: |
           git config user.name "wiki-sync-bot[bot]"
           git config user.email "wiki-sync-bot[bot]@users.noreply.github.com"
-          git add sources/
+          git add -f sources/
           if ! git diff --cached --quiet; then
             git commit -m "docs(${{ github.event.repository.name }}): sync docs from ${{ github.sha }}"
             git push
