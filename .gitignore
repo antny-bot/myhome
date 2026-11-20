@@ -25,3 +25,7 @@ app.yml
 # Logs & Test DBs
 *.log
 test_*.db*
+
+# Central LLM-Wiki Link
+.wiki/
+

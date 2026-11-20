@@ -1,0 +1,13 @@
+﻿{
+  "mcpServers": {
+    "llm-wiki": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "E:\\llm-wiki\\wiki",
+        "E:\\llm-wiki\\index.md"
+      ]
+    }
+  }
+}
