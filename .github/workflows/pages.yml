@@ -17,7 +17,7 @@ jobs:
         with:
           node-version: '22'
       - name: Build frontend
-        run: npm ci && npm run build:shared && npm run build:dashboard
+        run: npm ci && npm run build
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
