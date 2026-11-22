@@ -1,0 +1,496 @@
+import crypto from "node:crypto";
+import { promisify } from "node:util";
+import {
+  saveSession,
+  getSession,
+  deleteSession,
+  getUserPasswordHash,
+  updateUserCredentials,
+  isTemporaryPassword,
+  createOrResetTempUser,
+  createLogger,
+} from "@myhome/shared";
+import type express from "express";
+import { Config } from "../config.js";
+import { getSystemConfig, saveSystemConfig } from "../storage.js";
+
+const log = createLogger("AuthService");
+
+/**
+ * 세션 쿠키 문자열 생성 헬퍼 (HTTPS/프로덕션 환경 시 Secure 속성 자동 부착)
+ */
+export function buildSessionCookie(
+  sessionId: string,
+  maxAgeSeconds: number = 30 * 24 * 60 * 60,
+  req?: express.Request
+): string {
+  const isSecure =
+    process.env.NODE_ENV === "production" ||
+    req?.headers["x-forwarded-proto"] === "https";
+  const secureFlag = isSecure ? "; Secure" : "";
+  return `session_id=${sessionId}; Path=/; HttpOnly; Max-Age=${maxAgeSeconds}; SameSite=Lax${secureFlag}`;
+}
+
+/**
+ * OAuth CSRF 방어용 단기 State 쿠키 문자열 생성 (기본 10분)
+ */
+export function buildOAuthStateCookie(
+  state: string,
+  maxAgeSeconds: number = 600,
+  req?: express.Request
+): string {
+  const isSecure =
+    process.env.NODE_ENV === "production" ||
+    req?.headers["x-forwarded-proto"] === "https";
+  const secureFlag = isSecure ? "; Secure" : "";
+  return `oauth_state=${state}; Path=/; HttpOnly; Max-Age=${maxAgeSeconds}; SameSite=Lax${secureFlag}`;
+}
+
+/**
+ * 쿠키 삭제 문자열 생성 (Max-Age=0)
+ */
+export function buildClearCookie(name: string, req?: express.Request): string {
+  const isSecure =
+    process.env.NODE_ENV === "production" ||
+    req?.headers["x-forwarded-proto"] === "https";
+  const secureFlag = isSecure ? "; Secure" : "";
+  return `${name}=; Path=/; HttpOnly; Max-Age=0; SameSite=Lax${secureFlag}`;
+}
+
+export function getCookieValue(cookieHeader: string | undefined, name: string): string | null {
+  if (!cookieHeader) return null;
+  const cookies = cookieHeader.split(";").reduce((acc, current) => {
+    const parts = current.trim().split("=");
+    if (parts.length >= 2) {
+      const key = parts[0];
+      const value = parts.slice(1).join("=");
+      acc[key] = value;
+    }
+    return acc;
+  }, {} as Record<string, string>);
+  return cookies[name] || null;
+}
+
+export function getSessionIdFromCookies(cookieHeader: string | undefined): string | null {
+  return getCookieValue(cookieHeader, "session_id");
+}
+
+
+const scryptAsync = promisify(crypto.scrypt) as any;
+const pbkdf2Async = promisify(crypto.pbkdf2);
+
+/**
+ * 비밀번호 scrypt 해싱 (신규 포맷: scrypt$16384$8$1$salt$hash)
+ */
+export async function hashPasswordAsync(password: string): Promise<string> {
+  const salt = crypto.randomBytes(16).toString("hex");
+  const N = 16384;
+  const r = 8;
+  const p = 1;
+  const keylen = 64;
+  const derivedKey = (await scryptAsync(password, salt, keylen, { N, r, p })) as Buffer;
+  return `scrypt$${N}$${r}$${p}$${salt}$${derivedKey.toString("hex")}`;
+}
+
+/**
+ * 비밀번호 검증 (구버전 salt:hash 및 신규 scrypt 포맷 동시 지원, timingSafeEqual 적용)
+ */
+export async function verifyPasswordAsync(
+  password: string,
+  storedHash: string
+): Promise<{ valid: boolean; needsRehash: boolean }> {
+  if (!storedHash) return { valid: false, needsRehash: false };
+
+  // 1. 신규 scrypt 포맷: scrypt$N$r$p$salt$hash
+  if (storedHash.startsWith("scrypt$")) {
+    const parts = storedHash.split("$");
+    if (parts.length !== 6) return { valid: false, needsRehash: false };
+    const N = parseInt(parts[1], 10);
+    const r = parseInt(parts[2], 10);
+    const p = parseInt(parts[3], 10);
+    const salt = parts[4];
+    const originalHashHex = parts[5];
+
+    try {
+      const derivedKey = (await scryptAsync(password, salt, 64, { N, r, p })) as Buffer;
+      const targetBuf = Buffer.from(originalHashHex, "hex");
+      if (derivedKey.length !== targetBuf.length) {
+        return { valid: false, needsRehash: false };
+      }
+      const valid = crypto.timingSafeEqual(derivedKey, targetBuf);
+      return { valid, needsRehash: false };
+    } catch {
+      return { valid: false, needsRehash: false };
+    }
+  }
+
+  // 2. 구버전 PBKDF2 포맷: salt:hash
+  const parts = storedHash.split(":");
+  if (parts.length === 2) {
+    const [salt, originalHashHex] = parts;
+    try {
+      const derivedKey = (await pbkdf2Async(password, salt, 100000, 64, "sha512")) as Buffer;
+      const targetBuf = Buffer.from(originalHashHex, "hex");
+      if (derivedKey.length !== targetBuf.length) {
+        return { valid: false, needsRehash: false };
+      }
+      const valid = crypto.timingSafeEqual(derivedKey, targetBuf);
+      // 구버전 포맷으로 로그인 성공 시 신규 scrypt 포맷으로 점진 재해시 필요
+      return { valid, needsRehash: valid };
+    } catch {
+      return { valid: false, needsRehash: false };
+    }
+  }
+
+  return { valid: false, needsRehash: false };
+}
+
+// 하위 호환용 동기 함수 (timingSafeEqual 적용)
+export function hashPassword(password: string): string {
+  const salt = crypto.randomBytes(16).toString("hex");
+  const hash = crypto.pbkdf2Sync(password, salt, 100000, 64, "sha512").toString("hex");
+  return `${salt}:${hash}`;
+}
+
+export function verifyPassword(password: string, storedHash: string): boolean {
+  if (!storedHash) return false;
+  if (storedHash.startsWith("scrypt$")) {
+    // 동기 호출이 필요한 경우 PBKDF2 외 scryptSync로 처리
+    const parts = storedHash.split("$");
+    if (parts.length !== 6) return false;
+    const N = parseInt(parts[1], 10);
+    const r = parseInt(parts[2], 10);
+    const p = parseInt(parts[3], 10);
+    const salt = parts[4];
+    const originalHashHex = parts[5];
+    const derivedKey = crypto.scryptSync(password, salt, 64, { N, r, p });
+    const targetBuf = Buffer.from(originalHashHex, "hex");
+    if (derivedKey.length !== targetBuf.length) return false;
+    return crypto.timingSafeEqual(derivedKey, targetBuf);
+  }
+
+  const parts = storedHash.split(":");
+  if (parts.length !== 2) return false;
+  const [salt, hash] = parts;
+  const calcBuf = crypto.pbkdf2Sync(password, salt, 100000, 64, "sha512");
+  const targetBuf = Buffer.from(hash, "hex");
+  if (calcBuf.length !== targetBuf.length) return false;
+  return crypto.timingSafeEqual(calcBuf, targetBuf);
+}
+
+export function decodeJwtPayload(token: string) {
+  const parts = token.split(".");
+  if (parts.length !== 3) return null;
+  try {
+    const payloadJson = Buffer.from(parts[1], "base64url").toString("utf8");
+    return JSON.parse(payloadJson);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Google ID 토큰 페이로드 클레임 검증 (email_verified, aud, iss, exp 등)
+ */
+export function validateGoogleIdTokenPayload(
+  payload: any,
+  clientId: string
+): { valid: boolean; error?: string } {
+  if (!payload || typeof payload !== "object") {
+    return { valid: false, error: "유효하지 않은 토큰 페이로드 구조입니다." };
+  }
+
+  if (!payload.email || typeof payload.email !== "string") {
+    return { valid: false, error: "이메일 정보가 누락되었거나 올바르지 않습니다." };
+  }
+
+  const isEmailVerified = payload.email_verified === true || payload.email_verified === "true";
+  if (!isEmailVerified) {
+    return { valid: false, error: "인증되지 않은 구글 이메일입니다." };
+  }
+
+  if (payload.aud !== clientId) {
+    return { valid: false, error: `Audience가 일치하지 않습니다. (aud: ${payload.aud})` };
+  }
+
+  const validIssuers = ["https://accounts.google.com", "accounts.google.com"];
+  if (!validIssuers.includes(payload.iss)) {
+    return { valid: false, error: `발급자가 올바르지 않습니다. (iss: ${payload.iss})` };
+  }
+
+  const nowSec = Math.floor(Date.now() / 1000);
+  if (typeof payload.exp !== "number" || payload.exp <= nowSec) {
+    return { valid: false, error: "토큰 유효기간이 만료되었습니다." };
+  }
+
+  return { valid: true };
+}
+
+export function isUserAdmin(email: string, allowedEmailsStr: string, adminEmailsStr: string): boolean {
+  const lowerEmail = email.toLowerCase();
+  if (lowerEmail === "bootstrap-admin@myhome.local") {
+    return true;
+  }
+  const adminList = adminEmailsStr
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+
+  if (adminList.includes(lowerEmail)) {
+    return true;
+  }
+
+  if (adminList.length === 0) {
+    const allowedList = allowedEmailsStr
+      .split(",")
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean);
+    if (allowedList.length > 0 && allowedList[0] === lowerEmail) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+export function isEmailAllowed(email: string, allowedEmailsStr: string): boolean {
+  const lowerEmail = email.toLowerCase();
+  const allowedList = allowedEmailsStr
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  return allowedList.length > 0 && allowedList.includes(lowerEmail);
+}
+
+/**
+ * 세션 생성 및 DB 저장
+ */
+export function createSession(
+  email: string,
+  loginMethod: "google" | "local" = "local",
+  maxAgeSeconds: number = 30 * 24 * 60 * 60
+): { sessionId: string; expiresAt: number; maxAgeSeconds: number } {
+  const sessionId = crypto.randomUUID();
+  const expiresAt = Math.floor(Date.now() / 1000) + maxAgeSeconds;
+  saveSession(sessionId, email.toLowerCase(), expiresAt, loginMethod);
+  return { sessionId, expiresAt, maxAgeSeconds };
+}
+
+/**
+ * 세션 정보 확인
+ */
+export function verifySession(sessionId: string | null): {
+  isAuthenticated: boolean;
+  email?: string;
+  isAdmin?: boolean;
+  isTemporaryPassword?: boolean;
+} {
+  if (!sessionId) {
+    return { isAuthenticated: false };
+  }
+
+  const session = getSession(sessionId);
+  if (!session) {
+    return { isAuthenticated: false };
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  if (session.expiresAt < now) {
+    return { isAuthenticated: false };
+  }
+
+  const allowedEmailsEnv = Config.ALLOWED_EMAILS || "";
+  const adminEmailsEnv = Config.ADMIN_EMAILS || "";
+  const isAdmin = isUserAdmin(session.email, allowedEmailsEnv, adminEmailsEnv);
+  const isTemp = session.loginMethod === "local" && isTemporaryPassword(session.email);
+
+  return {
+    isAuthenticated: true,
+    email: session.email,
+    isAdmin,
+    isTemporaryPassword: isTemp,
+  };
+}
+
+/**
+ * 세션 삭제
+ */
+export function revokeSession(sessionId: string | null): void {
+  if (sessionId) {
+    deleteSession(sessionId);
+  }
+}
+
+/**
+ * Google OAuth 토큰 교환 및 유저 인증
+ */
+export async function authenticateGoogleCode(
+  code: string,
+  googleClientId: string,
+  googleClientSecret: string,
+  googleRedirectUri: string,
+  allowedEmailsEnv: string
+): Promise<{ success: true; email: string; sessionId: string; maxAgeSeconds: number } | { success: false; error: string; code?: string }> {
+  const tokenResp = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({
+      code,
+      client_id: googleClientId,
+      client_secret: googleClientSecret,
+      redirect_uri: googleRedirectUri,
+      grant_type: "authorization_code",
+    }).toString(),
+  });
+
+  if (!tokenResp.ok) {
+    const errText = await tokenResp.text();
+    log.error("❌ Google Token API Error:", errText);
+    return { success: false, error: "token_api_error" };
+  }
+
+  const tokenData = (await tokenResp.json()) as { id_token?: string };
+  if (!tokenData.id_token) {
+    log.error("❌ id_token missing in Google Token API response");
+    return { success: false, error: "missing_id_token" };
+  }
+
+  const payload = decodeJwtPayload(tokenData.id_token);
+  const validation = validateGoogleIdTokenPayload(payload, googleClientId);
+  if (!validation.valid) {
+    log.error("❌ Google ID token claim validation failed:", validation.error);
+    return { success: false, error: "token_validation_failed" };
+  }
+
+  const email = payload.email.toLowerCase();
+
+  if (!isEmailAllowed(email, allowedEmailsEnv)) {
+    log.warn(`⚠️ Access Blocked: ${email} is not in ALLOWED_EMAILS list or list is empty.`);
+    return { success: false, error: "no_access" };
+  }
+
+  const maxAgeSeconds = 30 * 24 * 60 * 60;
+  const { sessionId } = createSession(email, "google", maxAgeSeconds);
+
+  return { success: true, email, sessionId, maxAgeSeconds };
+}
+
+/**
+ * 로컬 이메일/비밀번호 로그인
+ */
+export async function authenticateLocalUser(
+  email: string,
+  password: string
+): Promise<{ success: true; email: string; sessionId: string; maxAgeSeconds: number; isTemp: boolean } | { success: false; error: string; code: string }> {
+  const lowerEmail = email.trim().toLowerCase();
+  const storedHash = getUserPasswordHash(lowerEmail);
+
+  if (!storedHash) {
+    return {
+      success: false,
+      error: "가입되지 않았거나 이메일/비밀번호가 다릅니다.",
+      code: "INVALID_CREDENTIALS",
+    };
+  }
+
+  const { valid, needsRehash } = await verifyPasswordAsync(password, storedHash);
+  if (!valid) {
+    return {
+      success: false,
+      error: "가입되지 않았거나 이메일/비밀번호가 다릅니다.",
+      code: "INVALID_CREDENTIALS",
+    };
+  }
+
+  if (needsRehash) {
+    try {
+      const newHash = await hashPasswordAsync(password);
+      updateUserCredentials(lowerEmail, lowerEmail, newHash);
+    } catch (rehashErr) {
+      log.warn("⚠️ 비밀번호 신규 포맷 재해싱 실패 (무시):", rehashErr);
+    }
+  }
+
+  const maxAgeSeconds = 30 * 24 * 60 * 60;
+  const { sessionId } = createSession(lowerEmail, "local", maxAgeSeconds);
+  const isTemp = isTemporaryPassword(lowerEmail);
+
+  return { success: true, email: lowerEmail, sessionId, maxAgeSeconds, isTemp };
+}
+
+/**
+ * 사용자 자격 증명 (이메일/비밀번호) 업데이트
+ */
+export async function updateCredentials(
+  sessionId: string,
+  newEmailRaw: string,
+  newPasswordRaw?: string
+): Promise<{ ok: true; email: string }> {
+  const session = getSession(sessionId);
+  if (!session) {
+    throw new Error("유효하지 않은 세션입니다.");
+  }
+
+  const currentEmail = session.email;
+  const newEmail = newEmailRaw.trim().toLowerCase();
+
+  let passwordHash: string | null = null;
+  if (newPasswordRaw && typeof newPasswordRaw === "string" && newPasswordRaw.trim().length > 0) {
+    passwordHash = await hashPasswordAsync(newPasswordRaw);
+  }
+
+  updateUserCredentials(currentEmail, newEmail, passwordHash);
+
+  const maxAgeSeconds = 30 * 24 * 60 * 60;
+  const expiresAt = Math.floor(Date.now() / 1000) + maxAgeSeconds;
+  saveSession(sessionId, newEmail, expiresAt, session.loginMethod || undefined);
+
+  return { ok: true, email: newEmail };
+}
+
+/**
+ * 신규 임시 사용자 생성
+ */
+export async function createUserWithTempPassword(
+  email: string,
+  isAdmin: boolean = false
+): Promise<{ ok: true; email: string; tempPassword: string; isAdmin: boolean }> {
+  const lowerEmail = email.trim().toLowerCase();
+  const tempPassword = crypto.randomBytes(9).toString("base64url");
+  const passwordHash = await hashPasswordAsync(tempPassword);
+
+  createOrResetTempUser(lowerEmail, passwordHash);
+
+  const config = await getSystemConfig();
+  const allowedEmailsEnv = config.allowedEmails || Config.ALLOWED_EMAILS || "";
+  let allowedList = allowedEmailsEnv
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+
+  if (!allowedList.includes(lowerEmail)) {
+    allowedList.push(lowerEmail);
+  }
+
+  let adminList = (config.adminEmails || Config.ADMIN_EMAILS || "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+
+  if (isAdmin) {
+    if (!adminList.includes(lowerEmail)) {
+      adminList.push(lowerEmail);
+    }
+  } else {
+    adminList = adminList.filter((e) => e !== lowerEmail);
+  }
+
+  await saveSystemConfig({
+    allowedEmails: allowedList.join(","),
+    adminEmails: adminList.join(","),
+  });
+
+  return { ok: true, email: lowerEmail, tempPassword, isAdmin };
+}
