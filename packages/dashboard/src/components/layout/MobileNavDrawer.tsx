@@ -2,6 +2,7 @@ import React, { useEffect } from "react";
 import { X, ShieldCheck, Star, Menu } from "lucide-react";
 import type { View, NavItemMeta } from "./types";
 import { useLocale } from "../../lib/i18n";
+import { APP_VERSION, COMMIT_HASH, BUILD_TIME, formatBuildDate } from "../../version";
 
 interface AllMenuDrawerProps {
   isAdmin: boolean;
@@ -113,6 +114,11 @@ export function AllMenuDrawer({
               );
             })}
           </ul>
+        </div>
+        <div className="px-4 py-2.5 text-center border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
+          <p className="text-[11px] font-mono text-slate-400 dark:text-slate-500">
+            v{APP_VERSION} ({COMMIT_HASH}) &middot; {formatBuildDate(BUILD_TIME)}
+          </p>
         </div>
         <div className="safe-bottom" />
       </div>

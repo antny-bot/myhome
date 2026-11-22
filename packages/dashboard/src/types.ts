@@ -97,6 +97,8 @@ export type AppConfig = {
   kakaoNativeAppConfigured?: boolean;
   dataSourceNotice: string;
   geminiConfigured?: boolean;
+  version?: string;
+  commitHash?: string;
 };
 
 export type RegionSearchResult = {
