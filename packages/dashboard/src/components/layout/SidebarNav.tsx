@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { classNames } from "../../lib/format";
 import type { View, NavItemMeta } from "./types";
+import { APP_VERSION, COMMIT_HASH, BUILD_TIME, formatBuildDate } from "../../version";
 
 interface SidebarNavProps {
   collapsed: boolean;
@@ -244,6 +245,15 @@ export function SidebarNav({
             </>
           )}
         </button>
+
+        {!collapsed && (
+          <div
+            className="mt-1.5 px-2 text-center text-[10px] font-mono text-neutral/50 truncate select-none hover:text-neutral transition-colors cursor-default"
+            title={`Build: ${formatBuildDate(BUILD_TIME)} (${COMMIT_HASH})`}
+          >
+            v{APP_VERSION} ({COMMIT_HASH})
+          </div>
+        )}
       </div>
     </aside>
   );

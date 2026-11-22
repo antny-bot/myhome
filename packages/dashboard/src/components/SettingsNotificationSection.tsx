@@ -3,7 +3,7 @@ import { Database, ShieldAlert, CheckCircle, Save, Building2, HelpCircle } from 
 import { SectionCard } from "./SectionCard";
 import { classNames } from "../lib/format";
 import type { DashboardState } from "../types";
-import packageJson from "../../package.json";
+import { APP_VERSION, COMMIT_HASH, BUILD_TIME, formatBuildDate } from "../version";
 import { loadSystemConfig, saveSystemConfig, loadUserConfig, saveUserConfig } from "../api";
 import { copy } from "../locales/ko";
 import { TelegramGuideModal } from "./TelegramGuideModal";
@@ -185,7 +185,16 @@ export function SettingsNotificationSection({
             </div>
             <div className="space-y-1">
               <p className="text-[10px] font-bold text-neutral uppercase">현재 버전</p>
-              <p className="text-xs font-bold text-strong">v{packageJson.version}</p>
+              <p className="text-xs font-bold text-strong flex items-center gap-1.5 flex-wrap">
+                <span>v{APP_VERSION}</span>
+                <span
+                  className="text-[10px] font-mono font-normal text-neutral bg-surface-2 px-1.5 py-0.5 rounded border border-normal"
+                  title={`빌드 일시: ${formatBuildDate(BUILD_TIME)}`}
+                >
+                  {COMMIT_HASH}
+                </span>
+              </p>
+              <p className="text-[10px] text-neutral/70 font-mono">{formatBuildDate(BUILD_TIME)}</p>
             </div>
           </div>
           <p className="text-[10px] text-assistive mt-4">

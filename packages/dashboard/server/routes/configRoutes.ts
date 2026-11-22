@@ -10,6 +10,7 @@ import { getUserSettings, saveUserSettings } from "@myhome/shared";
 import { adminRequired } from "../authRoutes.js";
 import { getAuthenticatedEmail } from "../utils/authUtils.js";
 import { maskSecret, getUpdatedSecret } from "../utils/maskUtils.js";
+import { SERVER_VERSION, SERVER_COMMIT_HASH } from "../version.js";
 
 export function createConfigRouter() {
   const router = express.Router();
@@ -34,7 +35,9 @@ export function createConfigRouter() {
         kakaoJavascriptKey: Config.KAKAO_JAVASCRIPT_KEY || "",
         kakaoNativeAppConfigured: Boolean(Config.KAKAO_NATIVE_APP_KEY),
         dataSourceNotice: getSourceLimitNotice(),
-        geminiConfigured: Boolean(config.geminiApiKey || Config.GEMINI_API_KEY || userGeminiConfigured)
+        geminiConfigured: Boolean(config.geminiApiKey || Config.GEMINI_API_KEY || userGeminiConfigured),
+        version: SERVER_VERSION,
+        commitHash: SERVER_COMMIT_HASH,
       });
     } catch (err) {
       next(err);

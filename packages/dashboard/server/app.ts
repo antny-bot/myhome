@@ -11,6 +11,7 @@ import { requestLogger } from "./middleware/requestLogger.js";
 import { apiAuditLogger } from "./middleware/apiAuditLogger.js";
 import { getLastSuccessCollectedDate } from "./scheduler.js";
 import { getDb } from "@myhome/shared";
+import { SERVER_VERSION, SERVER_COMMIT_HASH } from "./version.js";
 
 /**
  * API 라우트 마운트 헬퍼 (중복 제거 및 레거시 /api 엔드포인트 Deprecation 헤더 부착)
@@ -55,6 +56,8 @@ export function createApp(): express.Express {
       db.prepare("SELECT 1").get();
       res.json({
         status: "ok",
+        version: SERVER_VERSION,
+        commitHash: SERVER_COMMIT_HASH,
         db: "connected",
         uptimeSeconds: Math.floor(process.uptime()),
         lastCollectedDate: getLastSuccessCollectedDate() || null,
