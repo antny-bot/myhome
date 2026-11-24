@@ -13,6 +13,7 @@ import {
 import { classNames } from "../../lib/format";
 import type { View, NavItemMeta } from "./types";
 import { APP_VERSION, COMMIT_HASH, BUILD_TIME, formatBuildDate } from "../../version";
+import { PWAInstallButton } from "../common/PWAInstallButton";
 
 interface SidebarNavProps {
   collapsed: boolean;
@@ -210,6 +211,10 @@ export function SidebarNav({
             </div>
 
             <div className="my-1 border-t border-normal" />
+
+            <div className="px-1 py-0.5">
+              <PWAInstallButton variant="menuItem" />
+            </div>
 
             {onLogout && (
               <button

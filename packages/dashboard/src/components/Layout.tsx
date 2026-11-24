@@ -17,6 +17,7 @@ import {
 import { SidebarNav } from "./layout/SidebarNav";
 import { TopHeaderBar } from "./layout/TopHeaderBar";
 import { AllMenuDrawer, MobileBottomNav } from "./layout/MobileNavDrawer";
+import { PWAInstallBanner } from "./common/PWAInstallBanner";
 
 // 하위 호환성을 위해 타입 및 함수 re-export
 export { type View, normalizeView };
@@ -161,6 +162,9 @@ export function Layout({
           />,
           document.body
         )}
+
+      {/* PWA Standalone Install Banner */}
+      <PWAInstallBanner />
     </div>
   );
 }

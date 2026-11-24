@@ -122,3 +122,28 @@
 - **적용 현황**:
   - 홈 대시보드: 지도(lg 8열×2행) + KPI 2x2(4열×2행), 하단 이력 2종(6열씩).
   - 단지 분석 탭: 월별 트렌드(8열) + 층별 분포(4열).
+
+## 9. PWA (Progressive Web App) 및 단독 실행 (Standalone) 규격
+
+- **원칙**: 모바일 및 데스크톱 환경에서 브라우저 주소창 없이 네이티브 앱처럼 단독 실행(Standalone) 지원.
+- **Web App Manifest (`manifest.webmanifest`)**:
+  - `display`: `standalone`
+  - `display_override`: `["window-controls-overlay", "standalone", "minimal-ui"]`
+  - `theme_color`: `#0f172a`
+  - `background_color`: `#0f172a`
+  - `icons`: 192x192, 512x512 일반(any) 및 마스크 가능(maskable, safe zone 80% 패딩) 아이콘 제공.
+  - `shortcuts`: 단지 지도(`/?view=map`), 시세 통계(`/?view=analytics`), 알림 규칙(`/?view=alerts`).
+- **Service Worker (`vite-plugin-pwa`)**:
+  - `registerType: "autoUpdate"`: 최신 버전 자동 반영 및 캐시 갱신.
+  - 프리캐싱: HTML, JS, CSS, SVG, PNG, 폰트 자산 사전 캐싱.
+  - 런타임 캐싱: 구글 폰트(`CacheFirst`, 1년), API 엔드포인트(`NetworkFirst`, 10분).
+  - 서버 캐시 제어: `sw.js` 및 `manifest.webmanifest`는 `Cache-Control: no-cache` 보장.
+- **모바일 뷰포트 & 안전 영역 (Safe Area)**:
+  - `<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />`
+  - 노치/다이내믹 아일랜드 및 하단 제스처 바 대응: `.safe-top`, `.safe-bottom`, `.safe-x` CSS 유틸리티 제공.
+- **설치 UX**:
+  - `usePWA()` 훅: 단독 실행 상태(`isStandalone`), 설치 가능 여부(`isInstallable`), iOS 사파리 감지(`isIOS`).
+  - `PWAInstallBanner`: 첫 방문 사용자를 위한 세련된 카드형 설치 유도 배너 (7일간 닫기 기억).
+  - iOS 가이드 모달: 사파리 공유 버튼 → "홈 화면에 추가" 3단계 직관적 안내.
+  - `PWAInstallButton`: 사이드바 프로필 메뉴 및 전체 메뉴 드로어 내 상시 설치 및 실행 상태 배지 제공.
+

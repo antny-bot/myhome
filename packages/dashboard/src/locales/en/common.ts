@@ -106,5 +106,13 @@ export const common = {
   "themeLight": "Light Mode",
   "themeDark": "Dark Mode",
   "themeSystem": "System Mode",
-  "logoutBtn": "Logout"
+  "logoutBtn": "Logout",
+  "pwaInstallApp": "Install App",
+  "pwaInstallBannerTitle": "Install MyHome to Home Screen",
+  "pwaInstallBannerDesc": "Launch instantly as a standalone app for convenient real estate analysis.",
+  "pwaInstallPromptDismiss": "Later",
+  "pwaInstalledSuccess": "MyHome app has been installed successfully.",
+  "pwaIosGuideTitle": "Add to iOS Home Screen",
+  "pwaIosGuideDesc": "Tap the Share button and select 'Add to Home Screen'.",
+  "pwaRunningStandalone": "Running Standalone"
 } as const;

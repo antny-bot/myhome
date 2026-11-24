@@ -91,8 +91,11 @@ export function createApp(): express.Express {
         setHeaders: (res, path) => {
           if (path.includes("/assets/")) {
             res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-          } else if (path.endsWith("index.html")) {
+          } else if (path.endsWith("index.html") || path.endsWith("sw.js") || path.endsWith("manifest.webmanifest")) {
             res.setHeader("Cache-Control", "no-cache");
+            if (path.endsWith("manifest.webmanifest")) {
+              res.setHeader("Content-Type", "application/manifest+json; charset=utf-8");
+            }
           }
         },
       })

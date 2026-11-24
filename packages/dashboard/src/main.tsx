@@ -2,9 +2,23 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import "./styles.css";
+import { registerSW } from "virtual:pwa-register";
 import { applySavedDisplayPreferences } from "./lib/displayPreferences";
 import { LocaleProvider } from "./LocaleProvider";
 import { ToastProvider } from "./components/ui/Toast";
+
+// PWA Service Worker 등록 (단독 실행 및 백그라운드 캐싱/자동 업데이트 지원)
+if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+  registerSW({
+    immediate: true,
+    onNeedRefresh() {
+      console.log("[PWA] New version available");
+    },
+    onOfflineReady() {
+      console.log("[PWA] App is ready for standalone and offline use");
+    },
+  });
+}
 
 // 초기 화면 표시(폰트, 크기, 주조색) 환경 설정 적용
 applySavedDisplayPreferences();

@@ -106,5 +106,13 @@ export const common = {
   "themeLight": "라이트 모드",
   "themeDark": "다크 모드",
   "themeSystem": "시스템 모드",
-  "logoutBtn": "로그아웃"
+  "logoutBtn": "로그아웃",
+  "pwaInstallApp": "앱 설치",
+  "pwaInstallBannerTitle": "홈 화면에 MyHome 설치",
+  "pwaInstallBannerDesc": "단독 앱으로 빠르게 실행하고 실거래가 분석을 더 편리하게 이용하세요.",
+  "pwaInstallPromptDismiss": "나중에",
+  "pwaInstalledSuccess": "MyHome 앱이 성공적으로 설치되었습니다.",
+  "pwaIosGuideTitle": "iOS 홈 화면에 추가하기",
+  "pwaIosGuideDesc": "공유 버튼(사각형과 화살표)을 누른 후 '홈 화면에 추가'를 선택하세요.",
+  "pwaRunningStandalone": "단독 앱 실행 중"
 } as const;
