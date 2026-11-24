@@ -9,6 +9,7 @@ import {
   type View,
   type NavItemMeta,
   readCollapsed,
+  readCollapsedInitial,
   writeCollapsed,
   readDefaultPage,
   writeDefaultPage,
@@ -43,7 +44,7 @@ export function Layout({
   const { isMobile } = useBreakpoint();
   const { theme, setTheme } = useTheme();
 
-  const [collapsed, setCollapsed] = useState(readCollapsed);
+  const [collapsed, setCollapsed] = useState(readCollapsedInitial);
   const [showDrawer, setShowDrawer] = useState(false);
   const [defaultPage, setDefaultPage] = useState<string | null>(readDefaultPage);
 
