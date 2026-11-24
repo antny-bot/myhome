@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { AlertCircle, Database, HelpCircle, RefreshCw, X } from "lucide-react";
+import { AlertCircle, Database, RefreshCw, X } from "lucide-react";
 import { RecentRuns } from "../../components/RecentRuns.js";
 import { RegionSearchInput } from "../../components/RegionSearchInput.js";
 import { classNames } from "../../lib/format.js";
@@ -48,6 +48,11 @@ export function DesktopDashboardView({
   const [recentRunsOpen, setRecentRunsOpen] = useState(true);
   const [alertHistoryOpen, setAlertHistoryOpen] = useState(true);
 
+  // 지도 좌하단 도움말 배너를 없애고 관리 버튼 툴팁으로 안내를 흡수한다.
+  const regionManagerHint = isAdmin
+    ? "수집 중인 지역 목록을 확인하고 지역별 추가 수집·수집 중지·삭제를 관리합니다."
+    : "지역 추가 및 수집 설정은 관리자에게 문의하세요.";
+
   return (
     <>
       {uiFeedback && (
@@ -70,78 +75,68 @@ export function DesktopDashboardView({
       )}
 
       <BentoGrid>
-      <BentoItem md={6} lg={8} rows={2} className="min-h-[420px] lg:min-h-[500px]">
-      <div className="relative w-full h-full rounded-2xl overflow-hidden border border-normal shadow-sm bg-slate-100 dark:bg-slate-900">
-        {!mapLoaded ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-slate-50 dark:bg-slate-900 text-neutral">
-            <RefreshCw className="h-6 w-6 animate-spin text-primary" />
-            <p className="text-xs">{mapError ? t.mapLoadError : t.loadingMap}</p>
+        <BentoItem md={6} lg={8} rows={2} className="min-h-[380px] lg:min-h-[500px]">
+          <div className="relative w-full h-full rounded-2xl overflow-hidden border border-normal shadow-xs bg-alternative">
+            {!mapLoaded ? (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-alternative text-neutral">
+                <RefreshCw className="h-6 w-6 animate-spin text-primary" />
+                <p className="text-xs">{mapError ? t.mapLoadError : t.loadingMap}</p>
+              </div>
+            ) : (
+              <div ref={mapContainerRef} className="w-full h-full" />
+            )}
+
+            {mapLoaded && !mapError && (
+              <div className="absolute top-4 left-4 z-10 w-[240px] md:w-[280px] max-w-[calc(100vw-32px)]">
+                <RegionSearchInput
+                  value={searchRegionName}
+                  onChange={setSearchRegionName}
+                  onSelect={handleSearchSelect}
+                  placeholder={t.regionPlaceholder}
+                  className="w-full h-9 rounded-xl border border-normal bg-elevated/95 backdrop-blur-md px-3 text-xs text-strong shadow-lg focus:border-primary outline-none"
+                />
+              </div>
+            )}
+
+            {mapLoaded && !mapError && onOpenRegionManager && (
+              <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={onOpenRegionManager}
+                  className="h-9 px-3 rounded-xl border border-normal bg-elevated/95 backdrop-blur-md text-xs font-bold text-strong hover:border-primary hover:text-primary transition-colors flex items-center gap-1.5 shadow-lg group cursor-pointer"
+                  title={regionManagerHint}
+                  aria-label={regionManagerHint}
+                >
+                  <Database size={13} className="text-primary shrink-0" />
+                  <span>수집 지역 관리</span>
+                  <span className="px-1.5 py-0.5 rounded-full bg-primary-light text-primary text-[10px] font-black tabular-nums">
+                    {dbRegionsCount}
+                  </span>
+                </button>
+              </div>
+            )}
           </div>
-        ) : (
-          <div ref={mapContainerRef} className="w-full h-full" />
-        )}
+        </BentoItem>
 
-        {mapLoaded && !mapError && (
-          <div className="absolute top-4 left-4 z-10 w-[240px] md:w-[280px] max-w-[calc(100vw-32px)]">
-            <RegionSearchInput
-              value={searchRegionName}
-              onChange={setSearchRegionName}
-              onSelect={handleSearchSelect}
-              placeholder={t.regionPlaceholder}
-              className="w-full rounded-lg border border-normal bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm px-2.5 py-1.5 text-xs text-strong focus:border-primary outline-none shadow-lg"
-            />
-          </div>
-        )}
+        <BentoItem md={6} lg={4} rows={2}>
+          <DashboardStatCards state={state} stats={stats} onNavigate={onNavigate} isMobile={false} fill />
+        </BentoItem>
 
-        {mapLoaded && !mapError && onOpenRegionManager && (
-          <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onOpenRegionManager}
-              className="px-3 py-2 rounded-xl border border-normal bg-white/90 dark:bg-slate-900/90 backdrop-blur-md text-xs font-bold text-strong hover:border-primary hover:text-primary transition-all flex items-center gap-1.5 shadow-lg group cursor-pointer"
-              title="수집 중인 지역 목록 확인 및 추가 수집 / 수집 중지·삭제 관리"
-            >
-              <Database size={13} className="text-primary group-hover:scale-110 transition-transform" />
-              <span>수집 지역 관리</span>
-              <span className="px-1.5 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-black border border-primary/20">
-                {dbRegionsCount}
-              </span>
-            </button>
-          </div>
-        )}
-
-        {mapLoaded && !mapError && (
-          <div className="absolute bottom-4 left-4 z-10 bg-white/60 dark:bg-slate-900/60 backdrop-blur-lg border border-normal rounded-lg px-3 py-2 text-[10px] font-bold text-neutral flex items-center gap-1.5 shadow-md max-w-[360px]">
-            <HelpCircle className="h-3.5 w-3.5 text-primary shrink-0" />
-            <span>
-              {isAdmin
-                ? "상단 '수집 지역 관리'를 눌러 지역별 추가 수집이나 삭제를 관리할 수 있습니다."
-                : "지역 추가 및 수집 설정은 관리자에게 문의하세요"}
-            </span>
-          </div>
-        )}
-      </div>
-      </BentoItem>
-
-      <BentoItem md={6} lg={4} rows={2}>
-        <DashboardStatCards state={state} stats={stats} onNavigate={onNavigate} isMobile={false} fill />
-      </BentoItem>
-
-      <BentoItem md={3} lg={6}>
-        <RecentRuns
-          runs={state.checkRuns ?? []}
-          onChanged={onChanged}
-          isOpen={recentRunsOpen}
-          onToggle={() => setRecentRunsOpen(!recentRunsOpen)}
-        />
-      </BentoItem>
-      <BentoItem md={3} lg={6}>
-        <AlertHistorySection
-          notifications={state.notifications ?? []}
-          isOpen={alertHistoryOpen}
-          onToggle={() => setAlertHistoryOpen(!alertHistoryOpen)}
-        />
-      </BentoItem>
+        <BentoItem md={6} lg={6}>
+          <RecentRuns
+            runs={state.checkRuns ?? []}
+            onChanged={onChanged}
+            isOpen={recentRunsOpen}
+            onToggle={() => setRecentRunsOpen(!recentRunsOpen)}
+          />
+        </BentoItem>
+        <BentoItem md={6} lg={6}>
+          <AlertHistorySection
+            notifications={state.notifications ?? []}
+            isOpen={alertHistoryOpen}
+            onToggle={() => setAlertHistoryOpen(!alertHistoryOpen)}
+          />
+        </BentoItem>
       </BentoGrid>
     </>
   );

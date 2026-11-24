@@ -48,17 +48,17 @@ export function AllMenuDrawer({
         className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm transition-opacity"
         onClick={onClose}
       />
-      <div className="fixed inset-x-0 bottom-0 z-[60] rounded-t-2xl bg-white dark:bg-slate-900 shadow-2xl max-h-[80vh] flex flex-col transition-transform transform translate-y-0 duration-200">
-        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 px-4 py-3 shrink-0">
-          <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+      <div className="fixed inset-x-0 bottom-0 z-[55] rounded-t-2xl bg-elevated shadow-2xl max-h-[80vh] flex flex-col transition-transform transform translate-y-0 duration-200 border-t border-normal">
+        <div className="flex items-center justify-between border-b border-normal px-4 py-3 shrink-0">
+          <h2 className="text-sm font-semibold text-strong">
             {t.allMenuDrawerTitle || "전체 메뉴"}
           </h2>
-          <p className="text-xs text-slate-400 dark:text-slate-500 flex-1 text-center">
+          <p className="text-xs text-assistive flex-1 text-center">
             {t.defaultPageHint || "★ 터치 시 기본 시작 페이지 설정"}
           </p>
           <button
             onClick={onClose}
-            className="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+            className="rounded-lg p-1.5 text-assistive hover:text-strong transition-colors"
           >
             <X size={18} />
           </button>
@@ -71,7 +71,7 @@ export function AllMenuDrawer({
               return (
                 <li
                   key={item.key}
-                  className="flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                  className="flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-alternative"
                 >
                   <button
                     onClick={() => {
@@ -80,14 +80,12 @@ export function AllMenuDrawer({
                     }}
                     className="flex flex-1 items-center gap-3 min-w-0"
                   >
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800">
-                      <item.Icon size={18} className="text-slate-600 dark:text-slate-300" />
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-alternative">
+                      <item.Icon size={18} className="text-neutral" />
                     </div>
-                    <span className="text-app-body-sm font-medium text-slate-800 dark:text-slate-200 truncate flex items-center gap-1">
+                    <span className="text-app-body-sm font-medium text-strong truncate flex items-center gap-1">
                       {item.label}
-                      {item.adminOnly && (
-                        <ShieldCheck size={12} className="text-slate-400 dark:text-slate-500" />
-                      )}
+                      {item.adminOnly && <ShieldCheck size={12} className="text-assistive" />}
                     </span>
                   </button>
 
@@ -101,7 +99,7 @@ export function AllMenuDrawer({
                     className={`shrink-0 rounded-lg p-1.5 transition-colors ${
                       isDefault
                         ? "text-amber-400 dark:text-amber-300"
-                        : "text-slate-300 dark:text-slate-600 hover:text-amber-400"
+                        : "text-assistive/60 hover:text-amber-400"
                     }`}
                     title={
                       isDefault
@@ -116,11 +114,11 @@ export function AllMenuDrawer({
             })}
           </ul>
         </div>
-        <div className="px-4 py-2 border-t border-slate-100 dark:border-slate-800 flex justify-center">
+        <div className="px-4 py-2 border-t border-normal flex justify-center">
           <PWAInstallButton variant="menuItem" />
         </div>
-        <div className="px-4 py-2.5 text-center border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
-          <p className="text-[11px] font-mono text-slate-400 dark:text-slate-500">
+        <div className="px-4 py-2.5 text-center border-t border-normal bg-alternative/50">
+          <p className="text-[11px] font-mono text-assistive">
             v{APP_VERSION} ({COMMIT_HASH}) &middot; {formatBuildDate(BUILD_TIME)}
           </p>
         </div>
@@ -146,7 +144,7 @@ export function MobileBottomNav({
   allMenuLabel,
 }: MobileBottomNavProps) {
   return (
-    <nav className="safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-normal bg-elevated/90 backdrop-blur md:hidden">
+    <nav className="safe-bottom fixed inset-x-0 bottom-0 z-30 border-t border-normal bg-elevated/90 backdrop-blur md:hidden">
       <div className="flex">
         {items.map((item) => {
           const isActive = currentView === item.key;

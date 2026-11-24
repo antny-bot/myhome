@@ -1,4 +1,5 @@
 import React from "react";
+import { useBreakpoint } from "../../useBreakpoint.js";
 
 /**
  * myhome 차트 통합 디자인 토큰 테마
@@ -76,6 +77,41 @@ export const tooltipContentStyle: React.CSSProperties = {
   boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1)",
   backdropFilter: "blur(8px)",
 };
+
+export type ChartTier = "mobile" | "tablet" | "desktop";
+
+/**
+ * 반응형 차트 높이 규격 (모바일 240 / 태블릿 280 / 데스크톱 320)
+ */
+export const chartHeightClassName = "h-[240px] md:h-[280px] lg:h-[320px]";
+
+/**
+ * 화면 폭에 따른 차트 축/높이 규격을 한 번에 돌려주는 훅.
+ * 390px 모바일에서도 플롯 영역이 좁아지지 않도록 Y축 여백을 줄이고,
+ * X축 틱은 시작/끝을 보존하는 간격으로 정돈한다.
+ */
+export function useChartResponsive() {
+  const { windowWidth } = useBreakpoint();
+  const tier: ChartTier = windowWidth < 768 ? "mobile" : windowWidth < 1024 ? "tablet" : "desktop";
+
+  return {
+    tier,
+    chartHeightClassName,
+    xAxisProps: {
+      ...chartXAxisProps,
+      interval: "preserveStartEnd" as const,
+      minTickGap: tier === "mobile" ? 28 : tier === "tablet" ? 20 : 12,
+    },
+    yAxisProps: {
+      ...chartYAxisProps,
+      width: tier === "mobile" ? 42 : tier === "tablet" ? 46 : 52,
+    },
+    secondaryYAxisProps: {
+      ...chartSecondaryYAxisProps,
+      width: tier === "mobile" ? 34 : tier === "tablet" ? 37 : 40,
+    },
+  };
+}
 
 export const lineColors = [
   CHART_THEME.min,

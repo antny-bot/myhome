@@ -1,47 +1,20 @@
 import React from "react";
-import { ResponsiveContainer, ComposedChart, Area, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend } from "recharts";
+import {
+  ComposedChart, Area, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  PieChart, Pie, Cell,
+} from "recharts";
 import { Calendar, X } from "lucide-react";
-import { SectionCard } from "../SectionCard";
 import type { ActivityStats } from "../../types";
 import { formatActivityType } from "./activityUtils";
 import {
   CHART_THEME,
+  ChartFrame,
+  ChartLegendSummary,
+  ChartTooltip,
   chartGridProps,
-  chartXAxisProps,
-  chartYAxisProps,
-  chartSecondaryYAxisProps,
-  tooltipContentStyle,
   lineColors,
+  useChartResponsive,
 } from "../charts/index.js";
-
-const CustomLegend = (props: any) => {
-  const { payload } = props;
-  if (!payload) return null;
-
-  const leftItem = payload.find((item: any) => item.dataKey === "logCount");
-  const rightItem = payload.find((item: any) => item.dataKey === "userCount");
-
-  return (
-    <div className="flex justify-between items-center w-full px-1 pb-3">
-      {leftItem && (
-        <div className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: leftItem.color }} />
-          <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">
-            {leftItem.value}
-          </span>
-        </div>
-      )}
-      {rightItem && (
-        <div className="flex items-center gap-1.5">
-          <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">
-            {rightItem.value}
-          </span>
-          <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: rightItem.color }} />
-        </div>
-      )}
-    </div>
-  );
-};
 
 const COLORS = lineColors;
 
@@ -62,6 +35,8 @@ export function ActivityLogCharts({
   onClearDateFilter,
   t,
 }: ActivityLogChartsProps) {
+  const { xAxisProps, yAxisProps, secondaryYAxisProps } = useChartResponsive();
+
   const pieChartData =
     stats?.activityByType.map((item) => ({
       name: formatActivityType(item.activityType, t),
@@ -109,184 +84,178 @@ export function ActivityLogCharts({
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
       {/* 최근 활동 추이 그래프 */}
-      <div className="lg:col-span-2">
-        <SectionCard title={t.activityTrends || "최근 활동 추이 (14일)"}>
-          {loadingStats ? (
-            <div className="flex justify-center items-center h-64">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      <div className="xl:col-span-2 min-w-0">
+        <ChartFrame
+          title={t.activityTrends || "최근 활동 추이 (14일)"}
+          loading={loadingStats}
+          loadingMessage={t.loadingShort || "불러오는 중..."}
+          empty={areaChartData.length === 0}
+          emptyMessage={t.activityChartEmpty || "활동 내역 데이터가 충분하지 않습니다."}
+          legend={
+            <ChartLegendSummary
+              items={[
+                {
+                  key: "logCount",
+                  label: t.activityVolume || "활동량 (로그 수)",
+                  color: CHART_THEME.primary,
+                },
+                {
+                  key: "userCount",
+                  label: t.activeUsers || "액티브 사용자 (명)",
+                  color: CHART_THEME.accent,
+                },
+              ]}
+            />
+          }
+          footer={
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-neutral">
+                💡 {t.activityChartClickHint || "그래프의 일자를 클릭하면 해당 일자의 상세 활동 로그만 필터링됩니다."}
+              </span>
+              {filterDate && (
+                <button
+                  onClick={onClearDateFilter}
+                  className="inline-flex items-center gap-1 rounded bg-primary-light px-2 py-0.5 text-[11px] font-bold text-primary transition-colors hover:opacity-90"
+                  title={t.clearDateFilter || "일자 필터 초기화"}
+                >
+                  <Calendar size={11} />
+                  <span className="tabular-nums">{filterDate}</span>
+                  <X size={12} className="ml-0.5" />
+                </button>
+              )}
             </div>
-          ) : areaChartData.length === 0 ? (
-            <div className="flex justify-center items-center h-64 text-xs text-neutral">
-              활동 내역 데이터가 충분하지 않습니다.
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-neutral px-1">
-                <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                  💡 {t.activityChartClickHint || "그래프의 일자를 클릭하면 해당 일자의 상세 활동 로그만 필터링됩니다."}
-                </span>
-                {filterDate && (
-                  <button
-                    onClick={onClearDateFilter}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-primary/10 text-primary hover:bg-primary/20 text-[11px] font-bold transition-colors"
-                    title={t.clearDateFilter || "일자 필터 초기화"}
-                  >
-                    <Calendar size={11} />
-                    <span>{filterDate}</span>
-                    <X size={12} className="ml-0.5" />
-                  </button>
-                )}
-              </div>
-
-              <div className="h-64 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart
-                    data={areaChartData}
-                    margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
-                    onClick={handleChartClick}
-                    className="cursor-pointer select-none"
-                  >
-                    <defs>
-                      <linearGradient id="colorLogCount" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="var(--color-chart-primary)" stopOpacity={0.2} />
-                        <stop offset="95%" stopColor="var(--color-chart-primary)" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid {...chartGridProps} />
-                    <XAxis
-                      dataKey="fullDate"
-                      tickFormatter={(v: string) => (v ? v.substring(5) : "")}
-                      {...chartXAxisProps}
-                    />
-                    <YAxis yAxisId="left" {...chartYAxisProps} width={38} allowDecimals={false} />
-                    <YAxis yAxisId="right" {...chartSecondaryYAxisProps} width={34} allowDecimals={false} />
-                    <Tooltip
-                      contentStyle={tooltipContentStyle}
-                      labelFormatter={(label, payload) => {
-                        const fullDate = payload?.[0]?.payload?.fullDate || label;
-                        return fullDate ? `${fullDate} (클릭하여 필터링)` : label;
-                      }}
-                    />
-                    <Legend verticalAlign="top" height={36} content={<CustomLegend />} />
-                    <Area
-                      yAxisId="left"
-                      type="monotone"
-                      dataKey="logCount"
-                      stroke={CHART_THEME.primary}
-                      strokeWidth={2}
-                      fillOpacity={1}
-                      fill="url(#colorLogCount)"
-                      name={t.activityVolume || "활동량 (로그 수)"}
-                      onClick={(entry: any) => {
-                        const target = entry?.payload?.fullDate || entry?.fullDate;
-                        if (target) onDateClick(target);
-                      }}
-                    />
-                    <Bar
-                      yAxisId="right"
-                      dataKey="userCount"
-                      radius={[4, 4, 0, 0]}
-                      maxBarSize={20}
-                      fill={CHART_THEME.accent}
-                      name={t.activeUsers || "액티브 사용자 (명)"}
-                      onClick={(entry: any) => {
-                        const target = entry?.payload?.fullDate || entry?.fullDate;
-                        if (target) onDateClick(target);
-                      }}
-                    >
-                      {areaChartData.map((entry, index) => {
-                        const isSelected = filterDate === entry.fullDate;
-                        return (
-                          <Cell
-                            key={`bar-cell-${index}`}
-                            fill={
-                              isSelected
-                                ? CHART_THEME.accent
-                                : filterDate
-                                ? "var(--color-semantic-line-normal-normal)"
-                                : CHART_THEME.accent
-                            }
-                            fillOpacity={isSelected ? 1.0 : filterDate ? 0.35 : 0.75}
-                            stroke={isSelected ? CHART_THEME.accent : "none"}
-                            strokeWidth={isSelected ? 1.5 : 0}
-                            className="cursor-pointer"
-                            onClick={(e: any) => {
-                              e?.stopPropagation?.();
-                              onDateClick(entry.fullDate);
-                            }}
-                          />
-                        );
-                      })}
-                    </Bar>
-                  </ComposedChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          )}
-        </SectionCard>
+          }
+        >
+          <ComposedChart
+            data={areaChartData}
+            margin={{ top: 8, right: 6, left: -12, bottom: 0 }}
+            onClick={handleChartClick}
+            className="cursor-pointer select-none"
+          >
+            <defs>
+              <linearGradient id="colorLogCount" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="var(--color-chart-primary)" stopOpacity={0.2} />
+                <stop offset="95%" stopColor="var(--color-chart-primary)" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid {...chartGridProps} />
+            <XAxis
+              dataKey="fullDate"
+              tickFormatter={(v: string) => (v ? v.substring(5) : "")}
+              {...xAxisProps}
+            />
+            <YAxis yAxisId="left" {...yAxisProps} allowDecimals={false} />
+            <YAxis yAxisId="right" {...secondaryYAxisProps} allowDecimals={false} />
+            <Tooltip
+              content={
+                <ChartTooltip formatter={(value) => String(value)} />
+              }
+              cursor={{ stroke: "var(--color-semantic-line-normal-normal)" }}
+            />
+            <Area
+              yAxisId="left"
+              type="monotone"
+              dataKey="logCount"
+              stroke={CHART_THEME.primary}
+              strokeWidth={2}
+              fillOpacity={1}
+              fill="url(#colorLogCount)"
+              name={t.activityVolume || "활동량 (로그 수)"}
+              onClick={(entry: any) => {
+                const target = entry?.payload?.fullDate || entry?.fullDate;
+                if (target) onDateClick(target);
+              }}
+            />
+            <Bar
+              yAxisId="right"
+              dataKey="userCount"
+              radius={[4, 4, 0, 0]}
+              maxBarSize={20}
+              fill={CHART_THEME.accent}
+              name={t.activeUsers || "액티브 사용자 (명)"}
+              onClick={(entry: any) => {
+                const target = entry?.payload?.fullDate || entry?.fullDate;
+                if (target) onDateClick(target);
+              }}
+            >
+              {areaChartData.map((entry, index) => {
+                const isSelected = filterDate === entry.fullDate;
+                return (
+                  <Cell
+                    key={`bar-cell-${index}`}
+                    fill={
+                      isSelected
+                        ? CHART_THEME.accent
+                        : filterDate
+                        ? "var(--color-semantic-line-normal-normal)"
+                        : CHART_THEME.accent
+                    }
+                    fillOpacity={isSelected ? 1.0 : filterDate ? 0.35 : 0.75}
+                    stroke={isSelected ? CHART_THEME.accent : "none"}
+                    strokeWidth={isSelected ? 1.5 : 0}
+                    className="cursor-pointer"
+                    onClick={(e: any) => {
+                      e?.stopPropagation?.();
+                      onDateClick(entry.fullDate);
+                    }}
+                  />
+                );
+              })}
+            </Bar>
+          </ComposedChart>
+        </ChartFrame>
       </div>
 
       {/* 활동 유형별 분포 파이 차트 */}
-      <div className="lg:col-span-1">
-        <SectionCard title={t.activityDistribution || "활동 유형별 분포"}>
-          {loadingStats ? (
-            <div className="flex justify-center items-center h-64">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-            </div>
-          ) : pieChartData.length === 0 ? (
-            <div className="flex justify-center items-center h-64 text-xs text-neutral">
-              데이터 없음
-            </div>
-          ) : (
-            <div className="h-64 w-full flex flex-row items-center justify-between gap-4">
-              <div className="h-48 w-[40%] flex-shrink-0">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={pieChartData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={35}
-                      outerRadius={55}
-                      paddingAngle={3}
-                      dataKey="value"
-                      stroke="none"
-                    >
-                      {pieChartData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={tooltipContentStyle}
-                      formatter={(value) => [`${value}건`, "건수"]}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
+      <div className="xl:col-span-1 min-w-0">
+        <ChartFrame
+          title={t.activityDistribution || "활동 유형별 분포"}
+          loading={loadingStats}
+          empty={pieChartData.length === 0}
+          emptyMessage={t.chartNoData || "데이터 없음"}
+        >
+          <PieChart>
+            <Pie
+              data={pieChartData}
+              cx="50%"
+              cy="50%"
+              innerRadius="42%"
+              outerRadius="68%"
+              paddingAngle={3}
+              dataKey="value"
+              stroke="none"
+            >
+              {pieChartData.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+              ))}
+            </Pie>
+            <Tooltip
+              content={<ChartTooltip formatter={(value) => `${value}${t.countUnit || "건"}`} />}
+            />
+          </PieChart>
+        </ChartFrame>
+
+        {/* 범례는 차트 밖에서 읽기 좋게 나열 */}
+        {pieChartData.length > 0 && (
+          <div className="mt-2 flex max-h-40 flex-wrap gap-x-3 gap-y-1 overflow-y-auto px-1 text-[11px] text-neutral">
+            {pieChartData.map((item, index) => (
+              <div key={item.name} className="flex min-w-0 items-center gap-1.5">
+                <span
+                  className="h-2 w-2 shrink-0 rounded-full"
+                  style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                />
+                <span className="truncate text-strong" title={item.name}>
+                  {item.name}
+                </span>
+                <span className="shrink-0 font-semibold tabular-nums text-neutral">
+                  {item.value}
+                </span>
               </div>
-              {/* 커스텀 레전드 */}
-              <div className="flex-1 max-h-full overflow-y-auto px-2 py-1 flex flex-col gap-2.5 text-[10px] sm:text-xs text-neutral">
-                {pieChartData.map((item, index) => (
-                  <div key={item.name} className="flex items-center gap-1.5 w-full justify-between">
-                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                      <span
-                        className="w-2.5 h-2.5 rounded-full shrink-0"
-                        style={{ backgroundColor: COLORS[index % COLORS.length] }}
-                      />
-                      <span className="truncate text-strong dark:text-neutral" title={item.name}>
-                        {item.name}
-                      </span>
-                    </div>
-                    <span className="shrink-0 font-semibold text-neutral ml-auto">
-                      {item.value}건
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </SectionCard>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

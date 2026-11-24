@@ -48,6 +48,7 @@ export default {
         xl: '1rem',
       },
       boxShadow: {
+        xs: '0 1px 2px 0 rgba(0,0,0,0.04)',
         sm: '0 1px 2px 0 rgba(0,0,0,0.04), 0 1px 1px 0 rgba(23,23,23,0.06)',
       },
     }

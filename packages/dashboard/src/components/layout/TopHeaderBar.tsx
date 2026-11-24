@@ -12,7 +12,7 @@ interface TopHeaderBarProps {
 
 export function TopHeaderBar({ onNavigate, onLogout, theme, setTheme, t }: TopHeaderBarProps) {
   return (
-    <header className="md:hidden sticky top-0 z-40 border-b border-normal bg-elevated/80 backdrop-blur">
+    <header className="md:hidden sticky top-0 z-30 border-b border-normal bg-elevated/80 backdrop-blur">
       <div className="flex h-14 items-center gap-3 px-4">
         <button
           onClick={() => onNavigate("map")}

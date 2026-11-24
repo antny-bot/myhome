@@ -11,7 +11,7 @@
   - 좌측 사이드바: `w-56`(기본) 또는 `w-16`(축소). 상태 영속화(`myhome_sidebar_collapsed`).
   - 콘텐츠 뷰포트: 상단 헤더 배제, `px-6 py-5 max-w-screen-xl mx-auto w-full`.
 - **모바일 (< 768px)**:
-  - 상단 툴바: `h-14 bg-white/80 dark:bg-slate-900/80 backdrop-blur border-b sticky top-0`.
+  - 상단 툴바: `h-14 bg-elevated/80 backdrop-blur border-b border-normal sticky top-0 z-30`.
   - 하단 탭바 (`BottomNav`): 최대 5개 핀 메뉴 + "전체" 드로어 버튼.
   - 전체 메뉴 (`AllMenuDrawer`): 바텀시트 메뉴, 시작 페이지 설정(★) 지원.
 
@@ -55,15 +55,33 @@
 ## 4. 공통 컴포넌트 표준
 
 - **`PageHeader`**: H1/H2 직접 태그 금지. 아이콘, 타이틀, 설명, 우측 액션 슬롯 통합.
-- **`SectionCard`**: `rounded-xl border border-normal bg-elevated shadow-sm`. 헤더 디바이더 `border-b border-normal px-5 py-4`.
-- **`StatCard`**: `rounded-xl border border-normal bg-elevated p-4 shadow-sm`. 양수 `.text-signal`, 음수/경고 `.text-warn`.
-- **`Inputs & Selects`**: `w-full rounded-lg border border-normal bg-normal px-4 py-2 text-sm text-strong outline-none focus:border-primary focus:ring-1 focus:ring-primary disabled:opacity-50`.
+- **`SectionCard`**: `rounded-2xl border border-normal bg-elevated shadow-xs`. 헤더 디바이더 `border-b border-normal/50 px-4 py-3.5 sm:px-5`.
+- **`StatCard`**: `rounded-2xl border border-normal bg-elevated p-3.5 sm:p-4 shadow-xs`. 레이블 `text-xs text-neutral` → 수치 `text-2xl font-bold tabular-nums tracking-tight`. 양수 `.text-signal`, 음수/경고 `.text-warn`.
+- **`ChartFrame`**: 모든 차트 섹션의 표준 프레임. `title`/`subtitle`/`headerRight`(필터·단위 슬롯)/`legend`(범례 토글 전용 줄바꿈 슬롯)/`footer` 슬롯을 제공하고 로딩·빈 상태를 내부에서 처리한다. 본문 높이는 모바일 `h-[240px]` / 태블릿 `h-[280px]` / 데스크톱 `h-[320px]`(`useChartResponsive()`의 `chartHeightClassName`).
+- **`ChartLegendToggles`**: 범례 토글 필(pill) 단일 컴포넌트. 비활성 시리즈는 `opacity-45`만 낮춰 레이아웃 점프를 막는다. 박스플롯 계열은 `boxPlotLegendItems(t)`를 공유한다.
+- **`ChartTooltip` / `ChartStatTooltip`**: 툴팁 단일 규격(금액·건수는 `tabular-nums`). 통계형(최고/최저/사분위)은 `ChartStatTooltip`의 `rows`를 사용한다.
+- **`Inputs & Selects`**: `w-full rounded-lg border border-normal bg-normal px-4 py-2 text-sm text-strong outline-none focus:border-primary focus:ring-1 focus:ring-primary disabled:opacity-50`. 필터 바 컨트롤은 `h-9`로 통일한다.
 - **`Buttons`**:
   - Primary: `rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white shadow-sm hover:opacity-90 disabled:opacity-50`
   - Secondary: `rounded-lg border border-normal bg-normal px-4 py-2 text-sm font-bold text-strong hover:bg-alternative`
 - **`ResponsiveTabs`**:
   - 데스크톱 (>= 768px): Underline 탭 (`border-b-2 -mb-px`, 활성 `border-primary text-primary font-bold`).
   - 모바일 (< 768px): 가로 스크롤 Pill 탭 (`overflow-x-auto scrollbar-none snap-x`, 활성 `bg-primary text-white rounded-full`).
+
+## 4-1. Z-Index 레이어 계층
+
+새 오버레이를 추가할 때는 아래 계층을 따른다(임의의 `z-[99]` 사용 금지).
+
+| 레이어 | z-index | 대상 |
+|---|---|---|
+| 지도·차트 내부 오버레이 | `z-10` | 검색창, 지도 컨트롤, 차트 위 배지 |
+| 모바일 바텀시트 백드롭 | `z-20` | 대시보드 바텀시트 열림 시 딤 |
+| Sticky 헤더·사이드바·바텀시트/탭바 | `z-30` | `SidebarNav`, `TopHeaderBar`, `MobileBottomNav`, 대시보드 바텀시트 |
+| Portal 팝오버·드롭다운 | `z-40` | 사이드바 프로필 메뉴, 필터 드롭다운 |
+| 모달·드로어 | `z-50` 백드롭 / `z-[55]` 본문 | `AllMenuDrawer`, `RegionManagerModal` |
+
+- sticky/`overflow`/`transform` 부모 안에서 잘리는 오버레이는 `createPortal(..., document.body)` + `fixed` 좌표로 렌더링한다(사이드바 프로필 팝오버가 기준 구현).
+
 
 ## 5. 모바일 레이아웃 제약 사항
 
@@ -78,9 +96,10 @@
 
 - **CSS 토큰 바인딩**: 선/면 컬러에 `var(--color-chart-*)` 직접 참조 (HEX 하드코딩 금지).
 - **그리드/축 규격**:
-  - Grid: `strokeDasharray="3 3" stroke="#1e293b"`
-  - XAxis/YAxis: `stroke="#64748b" fontSize={11} tickLine={false}`
-  - YAxis width: `width={52}` 고정 (수치 절삭 방지).
+  - Grid: `strokeDasharray="3 3"` + `var(--color-semantic-line-normal-normal)` (`chartGridProps`)
+  - XAxis/YAxis: `tickLine={false} axisLine={false}` + `fontSize={11}`
+  - 축 폭은 고정값 대신 `useChartResponsive()`를 사용: Y축 `42/46/52px`, 보조 Y축 `34/37/40px` (모바일/태블릿/데스크톱)
+  - X축은 `interval="preserveStartEnd"` + 반응형 `minTickGap`(`28/20/12`)으로 390px 화면에서도 라벨이 겹치지 않게 한다.
 - **Box Plot 동적 Y축 스케일링**:
   - `<Bar>`의 `shape={<BoxPlotShape />}`로 Whisker/Box/Median 일괄 렌더링.
   - Recharts Y축 자동 도메인 지원을 위해 투명 가이드 `<Line>` 조건부 배치:

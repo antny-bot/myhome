@@ -55,7 +55,7 @@ export function OverviewFilterSection({ state }: OverviewFilterSectionProps) {
                     state.handleSelectPreset(val);
                   }
                 }}
-                className={`h-8 bg-normal border border-normal rounded-lg px-2 py-0 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-primary w-28 sm:w-32 ${
+                className={`h-9 bg-normal border border-normal rounded-lg px-2 py-0 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-primary w-28 sm:w-32 ${
                   state.selectedPresetId ? "text-strong" : "text-assistive"
                 }`}
               >
@@ -72,7 +72,7 @@ export function OverviewFilterSection({ state }: OverviewFilterSectionProps) {
                 type="button"
                 onClick={() => state.setIsPresetModalOpen(true)}
                 title={t.presetSaveBtn}
-                className="h-8 w-8 flex items-center justify-center rounded-lg border border-normal bg-normal text-neutral hover:text-strong transition shrink-0"
+                className="h-9 w-9 flex items-center justify-center rounded-lg border border-normal bg-normal text-neutral hover:text-strong transition shrink-0"
               >
                 <Save size={13} />
               </button>
@@ -81,7 +81,7 @@ export function OverviewFilterSection({ state }: OverviewFilterSectionProps) {
                   type="button"
                   onClick={(e) => state.handleDeletePreset(state.selectedPresetId, e)}
                   title="프리셋 삭제"
-                  className="h-8 w-8 flex items-center justify-center rounded-lg border border-normal bg-normal text-warn hover:bg-warn/10 transition shrink-0"
+                  className="h-9 w-9 flex items-center justify-center rounded-lg border border-normal bg-normal text-warn hover:bg-warn/10 transition shrink-0"
                 >
                   <X size={13} />
                 </button>
@@ -97,7 +97,7 @@ export function OverviewFilterSection({ state }: OverviewFilterSectionProps) {
             <button
               type="button"
               onClick={() => state.setShowRegionDropdown(!state.showRegionDropdown)}
-              className={`w-full h-8 bg-normal border border-normal rounded-lg px-2.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-primary text-left flex items-center justify-between ${
+              className={`w-full h-9 bg-normal border border-normal rounded-lg px-2.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-primary text-left flex items-center justify-between ${
                 state.selectedRegions.length > 0 ? "text-strong" : "text-assistive"
               }`}
             >
@@ -193,7 +193,7 @@ export function OverviewFilterSection({ state }: OverviewFilterSectionProps) {
                   state.setStartDate(e.target.value);
                   state.setPeriod("custom");
                 }}
-                className="h-8 flex-1 min-w-[105px] bg-normal border border-normal rounded-lg px-2 py-1 text-xs font-mono font-semibold text-strong focus:outline-none focus:ring-1 focus:ring-primary"
+                className="h-9 flex-1 min-w-[105px] bg-normal border border-normal rounded-lg px-2 py-1 text-xs font-mono font-semibold text-strong focus:outline-none focus:ring-1 focus:ring-primary"
               />
               <span className="text-assistive font-semibold text-xs shrink-0">~</span>
               <input
@@ -203,7 +203,7 @@ export function OverviewFilterSection({ state }: OverviewFilterSectionProps) {
                   state.setEndDate(e.target.value);
                   state.setPeriod("custom");
                 }}
-                className="h-8 flex-1 min-w-[105px] bg-normal border border-normal rounded-lg px-2 py-1 text-xs font-mono font-semibold text-strong focus:outline-none focus:ring-1 focus:ring-primary"
+                className="h-9 flex-1 min-w-[105px] bg-normal border border-normal rounded-lg px-2 py-1 text-xs font-mono font-semibold text-strong focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
           </div>
@@ -222,7 +222,7 @@ export function OverviewFilterSection({ state }: OverviewFilterSectionProps) {
                   key={years}
                   type="button"
                   onClick={() => state.handlePeriodBadgeClick(years)}
-                  className={`h-8 px-2.5 flex items-center justify-center rounded-lg text-xs font-semibold border whitespace-nowrap transition-colors ${
+                  className={`h-9 px-2.5 flex items-center justify-center rounded-lg text-xs font-semibold border whitespace-nowrap transition-colors ${
                     state.period === `${years}y`
                       ? "bg-primary text-white border-primary"
                       : "bg-normal text-neutral border-normal hover:border-primary/50 hover:text-strong"
@@ -238,7 +238,7 @@ export function OverviewFilterSection({ state }: OverviewFilterSectionProps) {
             <button
               type="button"
               onClick={state.handleReset}
-              className="flex items-center justify-center gap-1 h-8 px-2.5 bg-alternative hover:bg-alternative/80 text-neutral hover:text-strong text-xs font-bold rounded-lg transition-colors border border-normal whitespace-nowrap"
+              className="flex items-center justify-center gap-1 h-9 px-2.5 bg-alternative hover:bg-alternative/80 text-neutral hover:text-strong text-xs font-bold rounded-lg transition-colors border border-normal whitespace-nowrap"
             >
               <RotateCcw size={12} />
               <span>{t.buttonReset}</span>
@@ -246,7 +246,7 @@ export function OverviewFilterSection({ state }: OverviewFilterSectionProps) {
             <button
               type="button"
               onClick={state.handleApply}
-              className="flex items-center justify-center gap-1 h-8 px-3.5 bg-primary hover:opacity-90 text-white text-xs font-bold rounded-lg shadow-sm shadow-primary/20 transition-opacity whitespace-nowrap"
+              className="flex items-center justify-center gap-1 h-9 px-3.5 bg-primary hover:opacity-90 text-white text-xs font-bold rounded-lg shadow-sm shadow-primary/20 transition-opacity whitespace-nowrap"
             >
               <Play size={12} />
               <span>{t.buttonApply}</span>

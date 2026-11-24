@@ -238,6 +238,14 @@ textarea {
 .border-normal\/50 { border-color: color-mix(in srgb, var(--color-semantic-line-normal-normal) 50%, transparent); }
 .border-normal\/60 { border-color: color-mix(in srgb, var(--color-semantic-line-normal-normal) 60%, transparent); }
 
+/* 반투명 Surface 유틸리티 — 시맨틱 토큰은 var() 색상이라 Tailwind의 /alpha 수정자가 동작하지 않으므로 직접 정의한다.
+   (지도 위 Floating 컨트롤, sticky 헤더, 바텀시트 배경) */
+.bg-elevated\/80 { background-color: color-mix(in srgb, var(--color-semantic-background-elevated-normal) 80%, transparent); }
+.bg-elevated\/90 { background-color: color-mix(in srgb, var(--color-semantic-background-elevated-normal) 90%, transparent); }
+.bg-elevated\/95 { background-color: color-mix(in srgb, var(--color-semantic-background-elevated-normal) 95%, transparent); }
+.bg-alternative\/50 { background-color: color-mix(in srgb, var(--color-semantic-background-normal-alternative) 50%, transparent); }
+.bg-alternative\/60 { background-color: color-mix(in srgb, var(--color-semantic-background-normal-alternative) 60%, transparent); }
+
 /* Opacity modifier support for semantic dividers */
 .divide-normal\/20 > :not([hidden]) ~ :not([hidden]) { border-color: color-mix(in srgb, var(--color-semantic-line-normal-normal) 20%, transparent); }
 .divide-normal\/30 > :not([hidden]) ~ :not([hidden]) { border-color: color-mix(in srgb, var(--color-semantic-line-normal-normal) 30%, transparent); }

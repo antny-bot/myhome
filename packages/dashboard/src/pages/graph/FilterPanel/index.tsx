@@ -53,7 +53,7 @@ export function FilterPanel({
   };
 
   return (
-    <div className="bg-elevated border border-normal rounded-xl p-3 md:p-4 mb-4 shadow-sm text-strong">
+    <div className="bg-elevated border border-normal rounded-2xl p-3 md:p-4 shadow-xs text-strong">
       {/* 헤더 */}
       <div className="flex items-center justify-between gap-4 mb-2 md:mb-3">
         <div className="flex items-center gap-2 flex-wrap min-w-0">

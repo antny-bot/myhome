@@ -93,6 +93,14 @@ export function Layout({
 
   return (
     <div className="font-app-ui min-h-screen bg-normal flex text-strong">
+      {/**
+       * 전역 레이어 계층 (docs/plans/14_UI_POLISH_AND_CHART_UNIFICATION_PLAN.md)
+       * - z-10: 지도/차트 내부 오버레이·컨트롤
+       * - z-20: 모바일 바텀시트 백드롭
+       * - z-30: sticky 사이드바·상단 헤더·모바일 바텀시트/탭바
+       * - z-40: Portal 팝오버·드롭다운
+       * - z-50 / z-[55]: 모달·드로어 (백드롭 / 본문)
+       */}
       {/* Desktop Sidebar (md+) */}
       {!isMobile && (
         <SidebarNav
@@ -109,8 +117,8 @@ export function Layout({
         />
       )}
 
-      {/* Main Content Column */}
-      <div className="flex-1 flex flex-col min-w-0">
+      {/* Main Content Column — 사이드바(z-30) 아래 레이어로 고정 */}
+      <div className="relative z-0 flex-1 flex flex-col min-w-0">
         {/* Mobile Top Header (md hidden) */}
         {isMobile && (
           <TopHeaderBar
