@@ -123,7 +123,8 @@ export default defineConfig({
             }
           },
           {
-            urlPattern: /^\/api\/.*$/i,
+            // 인증 관련 엔드포인트(/api/auth, /api/v1/auth)는 세션 및 OAuth 리다이렉트 보호를 위해 SW 캐시에서 제외
+            urlPattern: /^\/api\/(?!v1\/auth|auth).*$/i,
             handler: "NetworkFirst",
             options: {
               cacheName: "api-cache",

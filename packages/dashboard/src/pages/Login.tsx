@@ -108,7 +108,7 @@ export function LoginPage({ onNavigate }: LoginPageProps = {}) {
   }, []);
 
   const handleGoogleLogin = () => {
-    window.location.href = "/api/auth/google";
+    window.location.href = "/api/v1/auth/google";
   };
 
   const handleSubmit = async (e: FormEvent) => {
@@ -300,31 +300,31 @@ export function LoginPage({ onNavigate }: LoginPageProps = {}) {
               >
                 {loading ? t.loggingIn : t.login}
               </button>
-
-              <div className="relative my-2">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-slate-200/50 dark:border-slate-800/50" />
-                </div>
-                <div className="relative flex justify-center text-xs">
-                  <span className="bg-white/30 px-2 text-slate-500 backdrop-blur-sm dark:bg-slate-900/30 dark:text-slate-400">{t.or}</span>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleGoogleLogin}
-                className="flex w-full items-center justify-center gap-2.5 rounded-xl border border-slate-200/60 bg-white/40 py-2.5 text-sm font-medium text-slate-700 transition-all hover:bg-white/60 dark:border-slate-800/60 dark:bg-slate-950/20 dark:text-slate-200 dark:hover:bg-slate-950/50 active:scale-[0.98] shadow-sm"
-              >
-                <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true" className="shrink-0">
-                  <path fill="#4285F4" d="M44.5 20H24v8.5h11.9C34.2 33.5 29.6 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 2.9l6.4-6.4C34.5 6.1 29.5 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 19.6-7.7 19.6-20 0-1.3-.1-2.7-.1-4z" />
-                  <path fill="#34A853" d="M6.3 14.7l7 5.1C15 16.5 19.2 14 24 14c3.1 0 5.8 1.1 8 2.9l6.4-6.4C34.5 6.1 29.5 4 24 4c-7.8 0-14.4 4.6-17.7 10.7z" />
-                  <path fill="#FBBC05" d="M24 44c5.4 0 10.3-1.8 14.1-4.9l-6.5-5.4C29.6 35.4 27 36 24 36c-5.5 0-10.1-2.5-12-6.5l-7 5.4C8.6 41.3 15.8 44 24 44z" />
-                  <path fill="#EA4335" d="M44.5 20H24v8.5h11.9c-1 2.7-2.9 4.9-5.4 6.5l6.5 5.4C41.4 36.4 44 30.9 44 24c0-1.3-.1-2.7-.5-4z" />
-                </svg>
-                {t.googleLogin}
-              </button>
             </form>
           )}
+
+          <div className="relative my-4">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-slate-200/50 dark:border-slate-800/50" />
+            </div>
+            <div className="relative flex justify-center text-xs">
+              <span className="bg-white/30 px-2 text-slate-500 backdrop-blur-sm dark:bg-slate-900/30 dark:text-slate-400">{t.or}</span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleGoogleLogin}
+            className="flex w-full items-center justify-center gap-2.5 rounded-xl border border-slate-200/60 bg-white/40 py-2.5 text-sm font-medium text-slate-700 transition-all hover:bg-white/60 dark:border-slate-800/60 dark:bg-slate-950/20 dark:text-slate-200 dark:hover:bg-slate-950/50 active:scale-[0.98] shadow-sm"
+          >
+            <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true" className="shrink-0">
+              <path fill="#4285F4" d="M44.5 20H24v8.5h11.9C34.2 33.5 29.6 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 2.9l6.4-6.4C34.5 6.1 29.5 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 19.6-7.7 19.6-20 0-1.3-.1-2.7-.1-4z" />
+              <path fill="#34A853" d="M6.3 14.7l7 5.1C15 16.5 19.2 14 24 14c3.1 0 5.8 1.1 8 2.9l6.4-6.4C34.5 6.1 29.5 4 24 4c-7.8 0-14.4 4.6-17.7 10.7z" />
+              <path fill="#FBBC05" d="M24 44c5.4 0 10.3-1.8 14.1-4.9l-6.5-5.4C29.6 35.4 27 36 24 36c-5.5 0-10.1-2.5-12-6.5l-7 5.4C8.6 41.3 15.8 44 24 44z" />
+              <path fill="#EA4335" d="M44.5 20H24v8.5h11.9c-1 2.7-2.9 4.9-5.4 6.5l6.5 5.4C41.4 36.4 44 30.9 44 24c0-1.3-.1-2.7-.5-4z" />
+            </svg>
+            {t.googleLogin}
+          </button>
         </div>
 
         {/* 법적 고지 및 공개 링크 (홈, 개인정보, 이용약관) */}

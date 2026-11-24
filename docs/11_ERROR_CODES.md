@@ -30,7 +30,7 @@
 | `ACCOUNT_DEACTIVATED` | 403 Forbidden | 비활성화 계정 | 관리자 승인 문의 안내 |
 | `FORBIDDEN` | 403 Forbidden | 관리자 권한 부족 | 권한 부족 알림 |
 | `PASSWORD_RESET_REQUIRED`| 403 Forbidden | 임시 비밀번호 변경 필요 | 비밀번호 변경 모달 노출 |
-| `ORIGIN_MISMATCH` | 403 Forbidden | Origin 헤더 불일치 (CSRF 차단) | 위변조 요청 차단 안내 |
+| `CSRF_ORIGIN_MISMATCH` | 403 Forbidden | Origin 헤더 불일치 (CSRF 차단, X-Forwarded-Host 및 PWA 스킴 자동 대응) | 출처 위변조 차단 안내 |
 | `CSRF_STATE_MISMATCH` | 400 Bad Request | OAuth state 토큰 불일치 | 소셜 로그인 재시도 안내 |
 | `RATE_LIMIT_EXCEEDED` | 429 Too Many Requests | API 요청 횟수 초과 | 대기 후 재시도 안내 |
 
