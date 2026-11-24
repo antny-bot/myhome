@@ -1,31 +1,15 @@
 import React, { useState } from "react";
-import {
-  ResponsiveContainer,
-  ComposedChart,
-  Bar,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-} from "recharts";
-import {
-  TrendingUp,
-  DollarSign,
-  ArrowUpDown,
-  Layers,
-  Layers2,
-} from "lucide-react";
+import { ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
+import { TrendingUp, DollarSign, ArrowUpDown, Layers, Layers2 } from "lucide-react";
 import { BentoGrid, BentoItem } from "../../../components/common/BentoGrid.js";
-import { SectionCard } from "../../../components/SectionCard.js";
 import { StatCard } from "../../../components/StatCard.js";
 import {
-  BoxPlotShape,
   CHART_THEME,
+  ChartFrame,
+  ChartLegendToggles,
+  ChartStatTooltip,
   chartGridProps,
-  chartXAxisProps,
-  chartYAxisProps,
-  chartSecondaryYAxisProps,
+  useChartResponsive,
 } from "../../../components/charts/index.js";
 import { useLocale } from "../../../lib/i18n.js";
 
@@ -35,17 +19,19 @@ interface ComplexChartsSectionProps {
   areaUnit: "pyeong" | "m2";
 }
 
+const num = (value: any) => (typeof value === "number" && Number.isFinite(value) ? value : 0);
+
 export function ComplexChartsSection({
   kpiData,
   detailData,
   areaUnit,
 }: ComplexChartsSectionProps) {
   const { t } = useLocale();
+  const { xAxisProps, yAxisProps, secondaryYAxisProps } = useChartResponsive();
 
-  const [hiddenKeys, setHiddenKeys] = useState<Record<string, boolean>>({});
-  const [floorHiddenKeys, setFloorHiddenKeys] = useState<Record<string, boolean>>({
-    "최대/최소": true,
-  });
+  // 초기 노출은 거래량·평균가만 두고 최고/최저 레인지는 토글로 켠다.
+  const [hiddenKeys, setHiddenKeys] = useState<Record<string, boolean>>({ "최고/최저": true });
+  const [floorHiddenKeys, setFloorHiddenKeys] = useState<Record<string, boolean>>({});
 
   const toggleKey = (key: string) => {
     setHiddenKeys((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -54,6 +40,12 @@ export function ComplexChartsSection({
   const toggleFloorKey = (key: string) => {
     setFloorHiddenKeys((prev) => ({ ...prev, [key]: !prev[key] }));
   };
+
+  const visibleMap = (hidden: Record<string, boolean>, keys: string[]) =>
+    keys.reduce<Record<string, boolean>>((acc, key) => {
+      acc[key] = !hidden[key];
+      return acc;
+    }, {});
 
   const formatBoxPlotTooltip = ({ active, payload, label, type }: any) => {
     if (!active || !payload || !payload.length) return null;
@@ -67,189 +59,185 @@ export function ComplexChartsSection({
           : `${Math.round(parseFloat(label))}㎡`
         : type === "month"
         ? label
-        : `${label}층`;
+        : `${label}${t.floorUnit}`;
 
     const count = data.count ?? data.거래량 ?? 0;
-    const max = data.max ?? data.최고가 ?? data.최대가 ?? 0;
-    const min = data.min ?? data.최저가 ?? data.최소가 ?? 0;
-    const mean = data.mean ?? data.평균가 ?? 0;
-    const median = data.median ?? data.중위값 ?? 0;
-    const q1 = data.q1 ?? min;
-    const q3 = data.q3 ?? max;
+    const max = num(data.max ?? data.최고가 ?? data.최대가);
+    const min = num(data.min ?? data.최저가 ?? data.최소가);
+    const mean = num(data.mean ?? data.평균가);
+    const median = num(data.median ?? data.중위값);
 
     return (
-      <div className="bg-elevated border border-normal rounded-xl p-3 shadow-lg min-w-[190px] text-xs space-y-2 backdrop-blur-md bg-opacity-95">
-        <div className="font-bold text-strong pb-1 border-b border-normal flex justify-between items-center">
-          <span>{title}</span>
-          <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-semibold">
+      <ChartStatTooltip
+        title={title}
+        badge={
+          <span className="shrink-0 rounded-full bg-primary-light px-2 py-0.5 text-[10px] font-semibold text-primary tabular-nums">
             {count}
             {t.countUnit}
           </span>
-        </div>
-        <div className="grid grid-cols-2 gap-y-1 gap-x-3 text-neutral font-medium">
-          <div className="flex items-center gap-1.5 justify-between">
-            <span className="text-assistive">{t.maxPrice}:</span>
-            <span className="font-mono font-bold" style={{ color: CHART_THEME.max }}>
-              {max.toFixed(2)}
-              {t.eokUnit}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 justify-between">
-            <span className="text-assistive">{t.q3Price} (75%):</span>
-            <span className="font-mono text-strong">
-              {q3.toFixed(2)}
-              {t.eokUnit}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 justify-between">
-            <span className="text-assistive">{t.avgPrice}:</span>
-            <span className="font-mono font-bold" style={{ color: CHART_THEME.accent }}>
-              {mean.toFixed(2)}
-              {t.eokUnit}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 justify-between">
-            <span className="text-assistive">{t.medianPrice}:</span>
-            <span className="font-mono font-semibold" style={{ color: CHART_THEME.median }}>
-              {median.toFixed(2)}
-              {t.eokUnit}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 justify-between">
-            <span className="text-assistive">{t.q1Price} (25%):</span>
-            <span className="font-mono text-strong">
-              {q1.toFixed(2)}
-              {t.eokUnit}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 justify-between">
-            <span className="text-assistive">{t.minPrice}:</span>
-            <span className="font-mono font-bold" style={{ color: CHART_THEME.min }}>
-              {min.toFixed(2)}
-              {t.eokUnit}
-            </span>
-          </div>
-        </div>
-      </div>
+        }
+        rows={[
+          { label: t.maxPrice, value: `${max.toFixed(2)}${t.eokUnit}`, color: CHART_THEME.max },
+          { label: t.avgPrice, value: `${mean.toFixed(2)}${t.eokUnit}`, color: CHART_THEME.accent },
+          {
+            label: t.medianPrice,
+            value: `${median.toFixed(2)}${t.eokUnit}`,
+            color: CHART_THEME.median,
+          },
+          { label: t.minPrice, value: `${min.toFixed(2)}${t.eokUnit}`, color: CHART_THEME.min },
+        ]}
+      />
     );
   };
 
   const hasFloor = !!(detailData?.floorDistribution && detailData.floorDistribution.length > 0);
+  const trendData = detailData?.trend || [];
+  const showRange = !hiddenKeys["최고/최저"];
+  const trendHasSeries = !hiddenKeys["거래량"] || !hiddenKeys["평균가"] || showRange;
+
+  const trendLegendItems = [
+    { key: "거래량", label: t.txCount, color: CHART_THEME.volume },
+    { key: "평균가", label: t.avgPrice, color: CHART_THEME.accent },
+    {
+      key: "최고/최저",
+      label: `${t.maxPrice}/${t.minPrice}`,
+      icon: (
+        <span className="flex h-2.5 w-3.5 shrink-0 flex-col justify-between">
+          <span className="h-px w-full rounded-full" style={{ backgroundColor: CHART_THEME.max }} />
+          <span className="h-px w-full rounded-full" style={{ backgroundColor: CHART_THEME.min }} />
+        </span>
+      ),
+    },
+  ];
+
+  const floorLegendItems = [
+    { key: "거래량", label: t.txCount, color: CHART_THEME.volume },
+    { key: "평균가", label: t.avgPrice, color: CHART_THEME.accent },
+  ];
 
   return (
     <BentoGrid>
       {/* 1. 월별 거래 트렌드 시계열 */}
       <BentoItem md={6} lg={hasFloor ? 8 : 12}>
-      <SectionCard
-        title={
-          <span className="flex items-center gap-2">
-            <TrendingUp size={18} className="text-primary" />
-            <span>{t.monthlyTrendTitle}</span>
-          </span>
-        }
-      >
-        {/* 요약 통계 카드 그리드 */}
-        {kpiData && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
-            <StatCard
-              icon={DollarSign}
-              label={kpiData.latestMonth ? `${t.recentAvgPrice} (${kpiData.latestMonth})` : t.recentAvgPrice}
-              value={`${kpiData.latestAvg.toFixed(2)}${t.eokUnit}`}
-            />
-            <StatCard
-              icon={ArrowUpDown}
-              label={kpiData.yoyMonthStr ? `${t.yoyChange} (${kpiData.yoyMonthStr})` : t.yoyChange}
-              value={
-                kpiData.hasYoy
-                  ? `${kpiData.yoyDiff >= 0 ? "+" : ""}${kpiData.yoyDiff.toFixed(2)}${t.eokUnit} (${kpiData.yoyDiff >= 0 ? "+" : ""}${kpiData.yoyPercent.toFixed(1)}%)`
-                  : t.yoyNoData
-              }
-              tone={
-                kpiData.hasYoy
-                  ? kpiData.yoyDiff > 0
-                    ? "good"
-                    : kpiData.yoyDiff < 0
-                    ? "warn"
+        <div className="flex flex-col gap-4">
+          {/* 요약 통계 카드 그리드 */}
+          {kpiData && (
+            <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+              <StatCard
+                icon={DollarSign}
+                label={kpiData.latestMonth ? `${t.recentAvgPrice} (${kpiData.latestMonth})` : t.recentAvgPrice}
+                value={`${kpiData.latestAvg.toFixed(2)}${t.eokUnit}`}
+              />
+              <StatCard
+                icon={ArrowUpDown}
+                label={kpiData.yoyMonthStr ? `${t.yoyChange} (${kpiData.yoyMonthStr})` : t.yoyChange}
+                value={
+                  kpiData.hasYoy
+                    ? `${kpiData.yoyDiff >= 0 ? "+" : ""}${kpiData.yoyDiff.toFixed(2)}${t.eokUnit} (${kpiData.yoyPercent >= 0 ? "+" : ""}${kpiData.yoyPercent.toFixed(1)}%)`
+                    : t.yoyNoData
+                }
+                tone={
+                  kpiData.hasYoy
+                    ? kpiData.yoyDiff > 0
+                      ? "good"
+                      : kpiData.yoyDiff < 0
+                      ? "warn"
+                      : "default"
                     : "default"
-                  : "default"
-              }
-            />
-            <StatCard
-              icon={Layers}
-              label={t.pastYearVolume}
-              value={`${kpiData.pastYearVolume}${t.countUnit}`}
-            />
-            <StatCard
-              icon={TrendingUp}
-              label={kpiData.maxMonth ? `${t.allTimeHigh} (${kpiData.maxMonth})` : t.allTimeHigh}
-              value={`${(kpiData.maxPrice || 0).toFixed(2)}${t.eokUnit}`}
-            />
-          </div>
-        )}
-
-        {/* 시계열 차트 범례 필터 */}
-        <div className="flex flex-wrap items-center gap-2 mb-3">
-          {[
-            { key: "거래량", label: t.txCount, color: CHART_THEME.volume },
-            { key: "평균가", label: t.avgPrice, color: CHART_THEME.accent },
-            { key: "최고/최저", label: "최고/최저", color: CHART_THEME.max },
-          ].map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              onClick={() => toggleKey(item.key)}
-              className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all border ${
-                !hiddenKeys[item.key]
-                  ? "bg-elevated border-normal text-strong"
-                  : "bg-alternative text-neutral/40 border-normal line-through"
-              }`}
-            >
-              <span
-                className="inline-block w-2 h-2 rounded-full mr-1.5"
-                style={{ backgroundColor: item.color }}
+                }
               />
-              <span>{item.label}</span>
-            </button>
-          ))}
-        </div>
+              <StatCard
+                icon={Layers}
+                label={t.pastYearVolume}
+                value={`${kpiData.pastYearVolume}${t.countUnit}`}
+              />
+              <StatCard
+                icon={TrendingUp}
+                label={kpiData.maxMonth ? `${t.allTimeHigh} (${kpiData.maxMonth})` : t.allTimeHigh}
+                value={`${(kpiData.maxPrice || 0).toFixed(2)}${t.eokUnit}`}
+              />
+            </div>
+          )}
 
-        <div className="h-72 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart
-              data={detailData?.trend || []}
-              margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
-            >
+          <ChartFrame
+            title={
+              <span className="flex items-center gap-2">
+                <TrendingUp size={16} className="text-primary shrink-0" />
+                <span>{t.monthlyTrendTitle}</span>
+              </span>
+            }
+            legend={
+              <ChartLegendToggles
+                items={trendLegendItems}
+                visible={visibleMap(hiddenKeys, ["거래량", "평균가", "최고/최저"])}
+                onToggle={toggleKey}
+              />
+            }
+            empty={trendData.length === 0 || !trendHasSeries}
+            emptyMessage={
+              trendData.length === 0
+                ? (t as Record<string, string>).noActiveChartData
+                : (t as Record<string, string>).chartSelectSeries || "표시할 지표를 하나 이상 선택하세요"
+            }
+          >
+            <ComposedChart data={trendData} margin={{ top: 8, right: 6, left: -12, bottom: 0 }}>
               <CartesianGrid {...chartGridProps} />
-              <XAxis dataKey="month" {...chartXAxisProps} interval="preserveStartEnd" />
-              <YAxis
-                yAxisId="left"
-                {...chartYAxisProps}
-                tickFormatter={(v) => `${v}${t.eokUnit}`}
-              />
+              <XAxis dataKey="month" {...xAxisProps} />
+              <YAxis yAxisId="left" {...yAxisProps} tickFormatter={(v) => `${v}${t.eokUnit}`} />
               <YAxis
                 yAxisId="right"
-                {...chartSecondaryYAxisProps}
+                {...secondaryYAxisProps}
                 tickFormatter={(v) => `${v}${t.countUnit}`}
+                hide={!!hiddenKeys["거래량"]}
               />
               <Tooltip
                 content={({ active, payload, label }) =>
                   formatBoxPlotTooltip({ active, payload, label, type: "month" })
                 }
+                cursor={{ stroke: "var(--color-semantic-line-normal-normal)" }}
               />
               {!hiddenKeys["거래량"] && (
                 <Bar
                   yAxisId="right"
                   dataKey="거래량"
+                  name={t.txCount}
                   fill={CHART_THEME.volume}
                   fillOpacity={0.3}
                   radius={[4, 4, 0, 0]}
                 />
+              )}
+              {showRange && (
+                <>
+                  <Line
+                    yAxisId="left"
+                    type="monotone"
+                    dataKey="최고가"
+                    name={t.maxPrice}
+                    stroke={CHART_THEME.max}
+                    strokeWidth={1.5}
+                    strokeDasharray="3 3"
+                    dot={false}
+                    connectNulls
+                  />
+                  <Line
+                    yAxisId="left"
+                    type="monotone"
+                    dataKey="최소가"
+                    name={t.minPrice}
+                    stroke={CHART_THEME.min}
+                    strokeWidth={1.5}
+                    strokeDasharray="3 3"
+                    dot={false}
+                    connectNulls
+                  />
+                </>
               )}
               {!hiddenKeys["평균가"] && (
                 <Line
                   yAxisId="left"
                   type="monotone"
                   dataKey="평균가"
+                  name={t.avgPrice}
                   stroke={CHART_THEME.accent}
                   strokeWidth={2.5}
                   dot={{ r: 3 }}
@@ -257,99 +245,79 @@ export function ComplexChartsSection({
                 />
               )}
             </ComposedChart>
-          </ResponsiveContainer>
+          </ChartFrame>
         </div>
-      </SectionCard>
       </BentoItem>
 
       {/* 2. 층별 거래 분포 차트 */}
       {hasFloor && (
         <BentoItem md={6} lg={4}>
-        <SectionCard
-          title={
-            <span className="flex items-center gap-2">
-              <Layers2 size={18} className="text-primary" />
-              <span>{t.floorAnalysisTitle}</span>
-            </span>
-          }
-        >
-          <div className="flex flex-wrap items-center gap-2 mb-3">
-            {[
-              { key: "거래량", label: t.txCount, color: CHART_THEME.volume },
-              { key: "평균가", label: t.avgPrice, color: CHART_THEME.accent },
-            ].map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                onClick={() => toggleFloorKey(item.key)}
-                className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all border ${
-                  !floorHiddenKeys[item.key]
-                    ? "bg-elevated border-normal text-strong"
-                    : "bg-alternative text-neutral/40 border-normal line-through"
-                }`}
-              >
-                <span
-                  className="inline-block w-2 h-2 rounded-full mr-1.5"
-                  style={{ backgroundColor: item.color }}
-                />
-                <span>{item.label}</span>
-              </button>
-            ))}
-          </div>
-
-          <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart
-                data={detailData.floorDistribution}
-                margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
-              >
-                <CartesianGrid {...chartGridProps} />
-                <XAxis
-                  dataKey="floor"
-                  {...chartXAxisProps}
-                  tickFormatter={(v) => `${v}${t.floorUnit}`}
-                />
-                <YAxis
-                  yAxisId="left"
-                  {...chartYAxisProps}
-                  tickFormatter={(v) => `${v}${t.eokUnit}`}
-                />
-                <YAxis
+          <ChartFrame
+            title={
+              <span className="flex items-center gap-2">
+                <Layers2 size={16} className="text-primary shrink-0" />
+                <span>{t.floorAnalysisTitle}</span>
+              </span>
+            }
+            legend={
+              <ChartLegendToggles
+                items={floorLegendItems}
+                visible={visibleMap(floorHiddenKeys, ["거래량", "평균가"])}
+                onToggle={toggleFloorKey}
+              />
+            }
+            empty={
+              !floorHiddenKeys["거래량"] && !floorHiddenKeys["평균가"] ? detailData.floorDistribution.length === 0 : false
+            }
+            emptyMessage={(t as Record<string, string>).chartSelectSeries || "표시할 지표를 하나 이상 선택하세요"}
+          >
+            <ComposedChart
+              data={detailData.floorDistribution}
+              margin={{ top: 8, right: 6, left: -12, bottom: 0 }}
+            >
+              <CartesianGrid {...chartGridProps} />
+              <XAxis
+                dataKey="floor"
+                {...xAxisProps}
+                tickFormatter={(v) => `${v}${t.floorUnit}`}
+              />
+              <YAxis yAxisId="left" {...yAxisProps} tickFormatter={(v) => `${v}${t.eokUnit}`} />
+              <YAxis
+                yAxisId="right"
+                {...secondaryYAxisProps}
+                tickFormatter={(v) => `${v}${t.countUnit}`}
+                hide={!!floorHiddenKeys["거래량"]}
+              />
+              <Tooltip
+                content={({ active, payload, label }) =>
+                  formatBoxPlotTooltip({ active, payload, label, type: "floor" })
+                }
+                cursor={{ stroke: "var(--color-semantic-line-normal-normal)" }}
+              />
+              {!floorHiddenKeys["거래량"] && (
+                <Bar
                   yAxisId="right"
-                  {...chartSecondaryYAxisProps}
-                  tickFormatter={(v) => `${v}${t.countUnit}`}
+                  dataKey="count"
+                  name={t.txCount}
+                  fill={CHART_THEME.volume}
+                  fillOpacity={0.3}
+                  radius={[4, 4, 0, 0]}
                 />
-                <Tooltip
-                  content={({ active, payload, label }) =>
-                    formatBoxPlotTooltip({ active, payload, label, type: "floor" })
-                  }
+              )}
+              {!floorHiddenKeys["평균가"] && (
+                <Line
+                  yAxisId="left"
+                  type="monotone"
+                  dataKey="mean"
+                  name={t.avgPrice}
+                  stroke={CHART_THEME.accent}
+                  strokeWidth={2.5}
+                  dot={{ r: 3 }}
+                  connectNulls
                 />
-                {!floorHiddenKeys["거래량"] && (
-                  <Bar
-                    yAxisId="right"
-                    dataKey="count"
-                    name={t.txCount}
-                    fill={CHART_THEME.volume}
-                    fillOpacity={0.3}
-                    radius={[4, 4, 0, 0]}
-                  />
-                )}
-                {!floorHiddenKeys["평균가"] && (
-                  <Line
-                    yAxisId="left"
-                    type="monotone"
-                    dataKey="mean"
-                    name={t.avgPrice}
-                    stroke={CHART_THEME.accent}
-                    strokeWidth={2.5}
-                    dot={{ r: 3 }}
-                    connectNulls
-                  />
-                )}
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div>
-        </SectionCard>
+              )}
+            </ComposedChart>
+          </ChartFrame>
         </BentoItem>
       )}
     </BentoGrid>

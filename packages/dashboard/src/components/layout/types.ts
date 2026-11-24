@@ -39,6 +39,24 @@ export function readCollapsed(): boolean {
   }
 }
 
+/**
+ * 초기 사이드바 상태.
+ * 저장된 사용자 선택이 있으면 그대로 따르고, 없으면 태블릿(md~lg, 768~1023px) 구간은
+ * 본문 최소 가용 폭을 확보하기 위해 접힘(w-16)으로 시작한다.
+ */
+export function readCollapsedInitial(): boolean {
+  try {
+    const stored = localStorage.getItem(COLLAPSED_KEY);
+    if (stored !== null) return stored === "1";
+  } catch {
+    // localStorage 접근 불가 시 아래 기본값으로 진행
+  }
+  if (typeof window !== "undefined" && window.innerWidth >= 768 && window.innerWidth < 1024) {
+    return true;
+  }
+  return false;
+}
+
 export function writeCollapsed(v: boolean) {
   try {
     localStorage.setItem(COLLAPSED_KEY, v ? "1" : "0");

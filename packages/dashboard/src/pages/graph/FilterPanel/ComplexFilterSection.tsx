@@ -73,7 +73,7 @@ export function ComplexFilterSection({
                     state.handleSelectPreset(val);
                   }
                 }}
-                className={`h-8 bg-normal border border-normal rounded-lg px-2.5 py-0 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-primary w-24 md:w-32 ${
+                className={`h-9 bg-normal border border-normal rounded-lg px-2.5 py-0 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-primary w-24 md:w-32 ${
                   state.selectedPresetId ? "text-strong" : "text-assistive"
                 }`}
               >
@@ -90,7 +90,7 @@ export function ComplexFilterSection({
                 type="button"
                 onClick={() => state.setIsPresetModalOpen(true)}
                 title={t.presetSaveBtn}
-                className="h-8 w-8 flex items-center justify-center rounded-lg border border-normal bg-normal text-neutral hover:text-strong transition shrink-0"
+                className="h-9 w-9 flex items-center justify-center rounded-lg border border-normal bg-normal text-neutral hover:text-strong transition shrink-0"
               >
                 <Save size={13} />
               </button>
@@ -99,7 +99,7 @@ export function ComplexFilterSection({
                   type="button"
                   onClick={(e) => state.handleDeletePreset(state.selectedPresetId, e)}
                   title="프리셋 삭제"
-                  className="h-8 w-8 flex items-center justify-center rounded-lg border border-normal bg-normal text-warn hover:bg-warn/10 transition shrink-0"
+                  className="h-9 w-9 flex items-center justify-center rounded-lg border border-normal bg-normal text-warn hover:bg-warn/10 transition shrink-0"
                 >
                   <X size={13} />
                 </button>
@@ -116,7 +116,7 @@ export function ComplexFilterSection({
             <button
               type="button"
               onClick={() => state.setShowAnalysisRegionDropdown(!state.showAnalysisRegionDropdown)}
-              className={`w-full h-8 bg-normal border border-normal rounded-lg px-2.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-primary text-left flex items-center justify-between ${
+              className={`w-full h-9 bg-normal border border-normal rounded-lg px-2.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-primary text-left flex items-center justify-between ${
                 state.regionText ? "text-strong" : "text-assistive"
               }`}
             >
@@ -214,7 +214,7 @@ export function ComplexFilterSection({
             placeholder={
               rawFilter.lawdCode ? t.complexPlaceholderWithCode : t.complexPlaceholderNoCode
             }
-            className="h-8 w-full bg-normal border border-normal rounded-lg px-2.5 text-xs font-semibold text-strong placeholder-assistive focus:outline-none focus:ring-1 focus:ring-primary"
+            className="h-9 w-full bg-normal border border-normal rounded-lg px-2.5 text-xs font-semibold text-strong placeholder-assistive focus:outline-none focus:ring-1 focus:ring-primary"
             autoComplete="off"
           />
 
@@ -259,7 +259,7 @@ export function ComplexFilterSection({
               }
               value={state.isPyungUnit ? state.toPyung(state.minArea) : state.minArea}
               onChange={(e) => state.handleAreaChange(e.target.value, "min")}
-              className="h-8 flex-1 bg-normal border border-normal rounded-lg px-2.5 text-xs font-semibold text-strong focus:outline-none focus:ring-1 focus:ring-primary min-w-0"
+              className="h-9 flex-1 bg-normal border border-normal rounded-lg px-2.5 text-xs font-semibold text-strong focus:outline-none focus:ring-1 focus:ring-primary min-w-0"
             />
             <span className="text-assistive font-semibold text-xs">~</span>
             <input
@@ -269,7 +269,7 @@ export function ComplexFilterSection({
               }
               value={state.isPyungUnit ? state.toPyung(state.maxArea) : state.maxArea}
               onChange={(e) => state.handleAreaChange(e.target.value, "max")}
-              className="h-8 flex-1 bg-normal border border-normal rounded-lg px-2.5 text-xs font-semibold text-strong focus:outline-none focus:ring-1 focus:ring-primary min-w-0"
+              className="h-9 flex-1 bg-normal border border-normal rounded-lg px-2.5 text-xs font-semibold text-strong focus:outline-none focus:ring-1 focus:ring-primary min-w-0"
             />
           </div>
         </div>
@@ -288,7 +288,7 @@ export function ComplexFilterSection({
                   state.setStartDate(e.target.value);
                   state.setPeriod("custom");
                 }}
-                className="h-8 flex-1 md:w-32 bg-normal border border-normal rounded-lg px-2.5 py-1.5 text-xs text-strong focus:outline-none focus:ring-1 focus:ring-primary min-w-0"
+                className="h-9 flex-1 md:w-32 bg-normal border border-normal rounded-lg px-2.5 py-1.5 text-xs text-strong focus:outline-none focus:ring-1 focus:ring-primary min-w-0"
               />
               <span className="text-assistive font-semibold text-xs">~</span>
               <input
@@ -298,7 +298,7 @@ export function ComplexFilterSection({
                   state.setEndDate(e.target.value);
                   state.setPeriod("custom");
                 }}
-                className="h-8 flex-1 md:w-32 bg-normal border border-normal rounded-lg px-2.5 py-1.5 text-xs text-strong focus:outline-none focus:ring-1 focus:ring-primary min-w-0"
+                className="h-9 flex-1 md:w-32 bg-normal border border-normal rounded-lg px-2.5 py-1.5 text-xs text-strong focus:outline-none focus:ring-1 focus:ring-primary min-w-0"
               />
             </div>
           </div>
@@ -315,7 +315,7 @@ export function ComplexFilterSection({
                   key={years}
                   type="button"
                   onClick={() => state.handlePeriodBadgeClick(years)}
-                  className={`h-8 px-2.5 flex-1 sm:flex-initial flex items-center justify-center rounded-lg text-xs font-semibold border transition-colors ${
+                  className={`h-9 px-2.5 flex-1 sm:flex-initial flex items-center justify-center rounded-lg text-xs font-semibold border transition-colors ${
                     state.period === `${years}y`
                       ? "bg-primary text-white border-primary"
                       : "bg-normal text-neutral border-normal hover:border-primary/50 hover:text-strong"
@@ -332,7 +332,7 @@ export function ComplexFilterSection({
           <button
             type="button"
             onClick={state.handleReset}
-            className="flex-1 md:flex-initial flex items-center justify-center gap-1 h-8 px-3 bg-alternative hover:bg-alternative/80 text-neutral hover:text-strong text-xs font-bold rounded-lg transition-colors border border-normal"
+            className="flex-1 md:flex-initial flex items-center justify-center gap-1 h-9 px-3 bg-alternative hover:bg-alternative/80 text-neutral hover:text-strong text-xs font-bold rounded-lg transition-colors border border-normal"
           >
             <RotateCcw size={12} />
             <span>{t.buttonReset}</span>
@@ -340,7 +340,7 @@ export function ComplexFilterSection({
           <button
             type="button"
             onClick={state.handleApply}
-            className="flex-1 md:flex-initial flex items-center justify-center gap-1 h-8 px-4 bg-primary hover:opacity-90 text-white text-xs font-bold rounded-lg shadow-sm shadow-primary/20 transition-opacity"
+            className="flex-1 md:flex-initial flex items-center justify-center gap-1 h-9 px-4 bg-primary hover:opacity-90 text-white text-xs font-bold rounded-lg shadow-sm shadow-primary/20 transition-opacity"
           >
             <Play size={12} />
             <span>{t.buttonApply}</span>
