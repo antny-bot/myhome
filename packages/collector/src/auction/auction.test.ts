@@ -2,7 +2,14 @@ import test, { before, after } from "node:test";
 import assert from "node:assert/strict";
 import { splitLawdCode, buildSearchBody } from "./request.js";
 import { normalizeAuctionItem, parseAreaM2, formatSaleDate, formatSaleTime } from "./normalize.js";
-import { AuctionClient, BlockedError, AuctionClientError } from "./client.js";
+import {
+  AuctionClient,
+  BlockedError,
+  AuctionClientError,
+  extractSetCookieHeaders,
+  parseSetCookieLine,
+  splitSetCookieHeader,
+} from "./client.js";
 import { runAuctionCollector } from "./index.js";
 import { initDb, closeDb, getAuctions, getAuctionCollectRuns } from "@myhome/shared";
 
@@ -174,10 +181,14 @@ test("client: ipcheck: false 감지 시 BlockedError throw", async () => {
 
 test("client: HTTP 500 에러 시 1회 백오프 재시도 동작 검증", async () => {
   const originalFetch = globalThis.fetch;
-  let callCount = 0;
-  globalThis.fetch = async () => {
-    callCount++;
-    if (callCount === 1) {
+  let postCount = 0;
+  globalThis.fetch = async (_url: any, init?: any) => {
+    // 세션 웜업(GET)은 검색 요청 수에 포함하지 않는다.
+    if (init?.method === "GET") {
+      return { ok: true, status: 200 } as any;
+    }
+    postCount++;
+    if (postCount === 1) {
       return { ok: false, status: 500, statusText: "Internal Server Error" } as any;
     }
     return {
@@ -195,8 +206,184 @@ test("client: HTTP 500 에러 시 1회 백오프 재시도 동작 검증", async
   try {
     const client = new AuctionClient({ minDelayMs: 0, jitterMaxMs: 0, retryBackoffMs: 10 });
     const res = await client.postSearch({});
-    assert.equal(callCount, 2);
+    assert.equal(postCount, 2);
     assert.equal(res.data.dlt_srchResult.length, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("client: Set-Cookie 파싱 헬퍼 — getSetCookie·get 폴백·Expires 콤마 처리", () => {
+  // getSetCookie() 우선 사용
+  assert.deepEqual(
+    extractSetCookieHeaders({
+      getSetCookie: () => ["WMONID=A1; Path=/", "JSESSIONID=B2; Path=/; HttpOnly"],
+      get: () => "SID=SHOULD_NOT_BE_USED; Path=/",
+    }),
+    ["WMONID=A1; Path=/", "JSESSIONID=B2; Path=/; HttpOnly"]
+  );
+
+  // get("set-cookie") 폴백: Expires 의 콤마는 쿠키 구분자로 보지 않는다
+  const fallback = extractSetCookieHeaders({
+    get: (name: string) =>
+      name.toLowerCase() === "set-cookie"
+        ? "WMONID=A1; Expires=Wed, 26 Nov 2026 07:00:00 GMT; Path=/, SID=B2; Path=/"
+        : null,
+  });
+  assert.deepEqual(fallback, ["WMONID=A1; Expires=Wed, 26 Nov 2026 07:00:00 GMT; Path=/", "SID=B2; Path=/"]);
+  assert.deepEqual(splitSetCookieHeader(""), []);
+  // headers 자체가 없으면 빈 배열
+  assert.deepEqual(extractSetCookieHeaders(undefined), []);
+
+  // name=value 만 추출(속성 무시), 값 없음/이름 없음은 무시
+  assert.deepEqual(parseSetCookieLine("SID=\"quoted-val\"; Path=/; HttpOnly"), { name: "SID", value: "quoted-val" });
+  assert.deepEqual(parseSetCookieLine("WMONID=abc"), { name: "WMONID", value: "abc" });
+  assert.equal(parseSetCookieLine("Path=/;"), null);
+  assert.equal(parseSetCookieLine("=novalue"), null);
+});
+
+test("client: 세션 웜업(GET /pgj/index.on) 후 모든 POST 에 Cookie 헤더 전달·1회만 웜업", async () => {
+  const originalFetch = globalThis.fetch;
+  const calls: Array<{ url: string; method: string; headers: Record<string, string> }> = [];
+
+  globalThis.fetch = async (url: any, init?: any) => {
+    calls.push({ url: String(url), method: init?.method ?? "GET", headers: { ...(init?.headers ?? {}) } });
+
+    if (init?.method === "GET") {
+      return {
+        ok: true,
+        status: 200,
+        headers: {
+          getSetCookie: () => [
+            "WMONID=warm-1; Path=/; HttpOnly",
+            "JSESSIONID=js-1; Path=/; HttpOnly",
+            "SID=; Path=/", // 값이 빈 쿠키는 저장하지 않는다
+          ],
+        },
+      } as any;
+    }
+
+    return {
+      ok: true,
+      status: 200,
+      headers: {
+        // POST 응답의 Set-Cookie 로 세션이 갱신되는 상황
+        getSetCookie: () => ["JSESSIONID=js-2; Path=/; HttpOnly"],
+      },
+      json: async () => ({
+        data: {
+          ipcheck: true,
+          dma_pageInfo: { totalCnt: "1", pageNo: 1, pageSize: 50 },
+          dlt_srchResult: [{ docid: "DOC1" }],
+        },
+      }),
+    } as any;
+  };
+
+  try {
+    const client = new AuctionClient({ minDelayMs: 0, jitterMaxMs: 0, retryBackoffMs: 0 });
+
+    await client.postSearch({ page: 1 });
+
+    const getCalls = calls.filter((c) => c.method === "GET");
+    const postCalls = calls.filter((c) => c.method === "POST");
+    assert.equal(getCalls.length, 1, "웜업은 1회만 호출되어야 한다");
+    assert.ok(getCalls[0].url.includes("/pgj/index.on"), `웜업 URL 확인: ${getCalls[0].url}`);
+    assert.match(getCalls[0].headers["User-Agent"] ?? "", /Mozilla\/5\.0/);
+    assert.match(getCalls[0].headers["Accept"] ?? "", /text\/html/);
+    assert.equal(getCalls[0].headers["Accept-Language"], "ko-KR,ko;q=0.9");
+
+    // 첫 POST 는 웜업 쿠키를 Cookie 헤더로 전달 (값이 빈 SID 제외)
+    assert.equal(postCalls[0].url, "https://www.courtauction.go.kr/pgj/pgjsearch/searchControllerMain.on");
+    assert.equal(postCalls[0].headers["Cookie"], "WMONID=warm-1; JSESSIONID=js-1");
+    assert.equal(postCalls[0].headers["Accept"], "application/json, text/javascript, */*; q=0.01");
+    assert.equal(postCalls[0].headers["Accept-Language"], "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7");
+    assert.equal(postCalls[0].headers["X-Requested-With"], "XMLHttpRequest");
+
+    // 웜업은 검색 요청 예산(requestCount)에 가산하지 않는다
+    assert.equal(client.getRequestCount(), 1);
+    assert.equal(client.isSessionWarmedUp(), true);
+
+    // 두 번째 호출: 재웜업 없이 갱신된 쿠키(POST 응답 Set-Cookie)를 재사용
+    await client.postSearch({ page: 2 });
+    assert.equal(calls.filter((c) => c.method === "GET").length, 1, "재웜업이 발생하면 안 된다");
+    const secondPost = calls.filter((c) => c.method === "POST")[1];
+    assert.equal(secondPost.headers["Cookie"], "WMONID=warm-1; JSESSIONID=js-2");
+    assert.equal(client.getRequestCount(), 2);
+    assert.equal(client.getCookies().get("JSESSIONID"), "js-2");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("client: 웜업 실패 시 경고 후 쿠키 없이 POST 진행(우회 로직 없음)", async () => {
+  const originalFetch = globalThis.fetch;
+  let getCount = 0;
+  let postHeaders: Record<string, string> | null = null;
+
+  globalThis.fetch = async (_url: any, init?: any) => {
+    if (init?.method === "GET") {
+      getCount++;
+      const err: any = new TypeError("fetch failed");
+      throw err;
+    }
+    postHeaders = { ...(init?.headers ?? {}) };
+    return {
+      ok: true,
+      json: async () => ({
+        data: {
+          ipcheck: true,
+          dma_pageInfo: { totalCnt: "0", pageNo: 1, pageSize: 50 },
+          dlt_srchResult: [],
+        },
+      }),
+    } as any;
+  };
+
+  try {
+    const client = new AuctionClient({ minDelayMs: 0, jitterMaxMs: 0, retryBackoffMs: 0 });
+    const res = await client.postSearch({});
+    assert.equal(res.data.ipcheck, true);
+    assert.equal(getCount, 1, "웜업은 1회만 시도한다");
+    assert.equal(client.isSessionWarmedUp(), false);
+    assert.equal(postHeaders?.["Cookie"], undefined, "쿠키가 없으면 Cookie 헤더를 보내지 않는다");
+
+    // 실패 후 두 번째 호출에서도 매 요청마다 재시도하지 않는다(추가 부하 방지)
+    await client.postSearch({});
+    assert.equal(getCount, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("client: 웜업 후에도 ipcheck: false 면 BlockedError (Playwright 등 우회 없음)", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (_url: any, init?: any) => {
+    if (init?.method === "GET") {
+      return {
+        ok: true,
+        status: 200,
+        headers: { getSetCookie: () => ["WMONID=warm-1; Path=/"] },
+      } as any;
+    }
+    return {
+      ok: true,
+      json: async () => ({
+        data: {
+          ipcheck: false,
+          dma_pageInfo: { totalCnt: "0" },
+          dlt_srchResult: [],
+        },
+      }),
+    } as any;
+  };
+
+  try {
+    const client = new AuctionClient({ minDelayMs: 0, jitterMaxMs: 0 });
+    await assert.rejects(async () => {
+      await client.postSearch({});
+    }, BlockedError);
+    assert.equal(client.getCookies().get("WMONID"), "warm-1");
   } finally {
     globalThis.fetch = originalFetch;
   }
