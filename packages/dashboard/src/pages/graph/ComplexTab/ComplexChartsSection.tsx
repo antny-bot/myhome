@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
-import { TrendingUp, DollarSign, ArrowUpDown, Layers, Layers2 } from "lucide-react";
+import { ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceLine } from "recharts";
+import { TrendingUp, DollarSign, ArrowUpDown, Layers, Layers2, Gavel } from "lucide-react";
 import { BentoGrid, BentoItem } from "../../../components/common/BentoGrid.js";
 import { StatCard } from "../../../components/StatCard.js";
 import {
@@ -12,11 +12,13 @@ import {
   useChartResponsive,
 } from "../../../components/charts/index.js";
 import { useLocale } from "../../../lib/i18n.js";
+import type { AuctionWithMatch } from "@myhome/shared";
 
 interface ComplexChartsSectionProps {
   kpiData: any;
   detailData: any;
   areaUnit: "pyeong" | "m2";
+  auctions?: AuctionWithMatch[];
 }
 
 const num = (value: any) => (typeof value === "number" && Number.isFinite(value) ? value : 0);
@@ -25,6 +27,7 @@ export function ComplexChartsSection({
   kpiData,
   detailData,
   areaUnit,
+  auctions = [],
 }: ComplexChartsSectionProps) {
   const { t } = useLocale();
   const { xAxisProps, yAxisProps, secondaryYAxisProps } = useChartResponsive();
@@ -95,6 +98,13 @@ export function ComplexChartsSection({
   const showRange = !hiddenKeys["최고/최저"];
   const trendHasSeries = !hiddenKeys["거래량"] || !hiddenKeys["평균가"] || showRange;
 
+  const activeAuction = auctions && auctions.length > 0 ? auctions[0] : null;
+  const rawAppraisal = activeAuction?.appraisalAmt ?? activeAuction?.appraisalPrice ?? null;
+  const appraisalEok = rawAppraisal ? rawAppraisal / 100000000 : null;
+  const minPriceEok = activeAuction?.minPrice ? activeAuction.minPrice / 100000000 : null;
+  const failedCnt = activeAuction?.failedCount ?? activeAuction?.bidCount ?? 0;
+  const showAuctionLines = Boolean(activeAuction) && !hiddenKeys["경매"];
+
   const trendLegendItems = [
     { key: "거래량", label: t.txCount, color: CHART_THEME.volume },
     { key: "평균가", label: t.avgPrice, color: CHART_THEME.accent },
@@ -108,6 +118,15 @@ export function ComplexChartsSection({
         </span>
       ),
     },
+    ...(activeAuction
+      ? [
+          {
+            key: "경매",
+            label: t.auctionCount.replace("{count}", String(auctions.length)),
+            color: "#f43f5e",
+          },
+        ]
+      : []),
   ];
 
   const floorLegendItems = [
@@ -169,7 +188,7 @@ export function ComplexChartsSection({
             legend={
               <ChartLegendToggles
                 items={trendLegendItems}
-                visible={visibleMap(hiddenKeys, ["거래량", "평균가", "최고/최저"])}
+                visible={visibleMap(hiddenKeys, ["거래량", "평균가", "최고/최저", "경매"])}
                 onToggle={toggleKey}
               />
             }
@@ -242,6 +261,38 @@ export function ComplexChartsSection({
                   strokeWidth={2.5}
                   dot={{ r: 3 }}
                   connectNulls
+                />
+              )}
+              {showAuctionLines && appraisalEok && (
+                <ReferenceLine
+                  yAxisId="left"
+                  y={appraisalEok}
+                  stroke="#8b5cf6"
+                  strokeDasharray="4 4"
+                  strokeWidth={1.5}
+                  label={{
+                    value: `${t.auctionChartRefAppraisal}: ${appraisalEok.toFixed(2)}${t.eokUnit}`,
+                    position: "insideTopRight",
+                    fill: "#8b5cf6",
+                    fontSize: 10,
+                    fontWeight: 700,
+                  }}
+                />
+              )}
+              {showAuctionLines && minPriceEok && (
+                <ReferenceLine
+                  yAxisId="left"
+                  y={minPriceEok}
+                  stroke="#f43f5e"
+                  strokeDasharray="3 3"
+                  strokeWidth={2}
+                  label={{
+                    value: `${t.auctionChartRefMinPrice}: ${minPriceEok.toFixed(2)}${t.eokUnit}${failedCnt > 0 ? ` (${t.auctionFailedCount.replace("{count}", String(failedCnt))})` : ""}`,
+                    position: "insideBottomRight",
+                    fill: "#f43f5e",
+                    fontSize: 10,
+                    fontWeight: 800,
+                  }}
                 />
               )}
             </ComposedChart>

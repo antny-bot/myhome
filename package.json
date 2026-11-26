@@ -17,8 +17,10 @@
     "build:dashboard": "npm run build --workspace=packages/dashboard",
     "build": "npm run build:shared && npm run build:collector && npm run build:dashboard",
     "test:shared": "npm run test --workspace=packages/shared",
+    "test:collector": "npm run test --workspace=packages/collector",
     "test:dashboard": "npm run test --workspace=packages/dashboard",
-    "test": "npm run test:shared && npm run test:dashboard",
+    "test": "npm run test:shared && npm run test:collector && npm run test:dashboard",
+
     "check:i18n": "node --import tsx scripts/check-i18n.ts"
   },
   "devDependencies": {

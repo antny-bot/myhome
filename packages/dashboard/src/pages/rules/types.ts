@@ -26,4 +26,7 @@ export const initialForm: RuleInput = {
   alertTime: "09:00",
   channels: ["telegram"],
   enabled: true,
+  kind: "transaction",
+  maxFailedCount: undefined,
 };
+

@@ -270,12 +270,21 @@ export function createComplexMarkerHtml(options: ComplexMarkerOptions): string {
           <span class="text-xs font-black tracking-tight">${priceText}</span>
           ${subText ? `<span class="text-[9px] font-normal opacity-85">(${subText})</span>` : ""}
         </div>
-        ${badgeText ? `<span class="text-[8px] font-bold px-1 py-0.2 bg-black/20 text-white/90 rounded mt-0.5">${badgeText}</span>` : ""}
+        ${
+          badgeText
+            ? `<span class="text-[8px] px-1.5 py-0.5 rounded mt-0.5 ${
+                badgeText.includes("경매") || badgeText.includes("Auction")
+                  ? "bg-rose-600 text-white font-extrabold shadow-sm ring-1 ring-rose-400"
+                  : "bg-black/20 text-white/90 font-bold"
+              }">${badgeText}</span>`
+            : ""
+        }
       </div>
       <div class="w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-t-[5px]" style="border-top-color: ${arrowColor}"></div>
     </div>
   `;
 }
+
 
 /**
  * 지하철역 마커 HTML 문자열 생성

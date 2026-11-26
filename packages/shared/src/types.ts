@@ -235,6 +235,10 @@ export interface RegionMapComplexItem {
   totalParking?: number | null;
   parkingPerHousehold?: number | null;
   useApprovalDate?: string | null;
+  auctionCount?: number;
+  lowestAuctionPrice?: number | null;
+  nextSaleDate?: string | null;
+  auctions?: AuctionWithMatch[];
 }
 
 export interface RegionMapData {
@@ -313,6 +317,8 @@ export interface DbWatchRule {
   alertTime?: string;
   channels: AlertChannel[];
   enabled: boolean;
+  kind?: "transaction" | "auction" | "both";
+  maxFailedCount?: number;
   lastCheckedAt?: string;
   createdAt: string;
   updatedAt: string;
@@ -339,3 +345,141 @@ export interface DbNotification {
   dedupeKeys: string[];
   createdAt: string;
 }
+
+export interface AuctionRecord {
+  docid: string;
+  boCd: string;
+  saNo: string;
+  srnSaNo: string;
+  maemulSer: string;
+  mokmulSer: string;
+  lawdCode: string | null;
+  courtName: string | null;
+  deptName: string | null;
+  courtTel: string | null;
+  usageL: string | null;
+  usageM: string | null;
+  usageS: string | null;
+  usageName: string | null;
+  addrSido: string | null;
+  addrSigu: string | null;
+  addrDong: string | null;
+  addrLotno: string | null;
+  addrRoad: string | null;
+  addrBuldNo: string | null;
+  addrFull: string | null;
+  buldName: string | null;
+  dongHo: string | null;
+  areaM2: number | null;
+  areaKey: number | null;
+  appraisalAmt: number | null;
+  minPrice: number | null;
+  minPriceRate: number | null;
+  failedCount: number | null;
+  saleDate: string | null;
+  saleTime: string | null;
+  salePlace: string | null;
+  statusCd: string | null;
+  progressCd: string | null;
+  bidTypeCd: string | null;
+  rawJson?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  geocodedAt?: string | null;
+  candidatesJson?: string | null;
+  matchCheckedAt?: string | null;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  closedAt: string | null;
+  // Convenience & UI aliases
+  caseNo?: string | null;
+  itemNo?: string | null;
+  appraisalPrice?: number | null;
+  bidCount?: number | null;
+  address?: string | null;
+  contact?: string | null;
+  linkUrl?: string | null;
+  status?: string | null;
+  remarks?: string | null;
+}
+
+export interface AuctionMatch {
+  docid: string;
+  complexId: string;
+  method: "manual" | "geo+name" | "geo+name+area" | "name+area";
+  confidence: number;
+  distanceM?: number | null;
+  nameScore?: number | null;
+  areaVerified: boolean;
+  candidatesJson?: string | null;
+  decidedBy: "auto" | "user";
+  createdAt: string;
+}
+
+export interface AuctionCandidate {
+  complexId: string;
+  complexName: string;
+  distanceM: number;
+  nameScore: number;
+  areaVerified: boolean;
+  score: number;
+}
+
+export interface AuctionWithMatch extends AuctionRecord {
+  complexId?: string | null;
+  complexName?: string | null;
+  matchMethod?: string | null;
+  matchConfidence?: number | null;
+  matchDecidedBy?: "auto" | "user" | null;
+  latestPriceEok?: number | null;
+}
+
+export interface UnmatchedAuctionItem {
+  auction: AuctionRecord;
+  candidates: AuctionCandidate[];
+}
+
+export interface AuctionSummary {
+  totalAuctions: number;
+  totalComplexes: number;
+  avgMinPriceRate: number;
+  upcoming7Days: number;
+  totalCount?: number;
+  activeCount?: number;
+  matchRate?: number;
+  unmatchedCount?: number;
+  blockedUntil?: string | null;
+}
+
+export interface AuctionCollectRun {
+  id: string;
+  lawdCode: string | null;
+  startedAt: string;
+  endedAt: string | null;
+  requestCount: number;
+  httpStatus: number | null;
+  ipcheck: number | null;
+  totalCnt: number | null;
+  fetched: number | null;
+  matched: number | null;
+  unmatched: number | null;
+  blocked: number;
+  error: string | null;
+}
+
+export interface AuctionUsageCode {
+  usageL: string;
+  usageM: string;
+  usageS: string;
+  name: string;
+  observedAt: string;
+}
+
+export interface AuctionRegionCode {
+  lawdCode: string;
+  sidoCd: string;
+  sggCd: string;
+  displayName: string | null;
+  verifiedAt: string | null;
+}
+

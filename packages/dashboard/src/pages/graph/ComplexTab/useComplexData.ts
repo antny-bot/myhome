@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { loadComplexDetail } from "../../../api/index.js";
+import { loadComplexDetail, loadComplexAuctions } from "../../../api/index.js";
 import type { ComplexTabProps } from "./types.js";
+import type { AuctionWithMatch } from "@myhome/shared";
 
 export function useComplexData({
   initialComplexName,
@@ -15,6 +16,7 @@ export function useComplexData({
   const [availableSizes, setAvailableSizes] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [detailData, setDetailData] = useState<any>(null);
+  const [auctions, setAuctions] = useState<AuctionWithMatch[]>([]);
   const [error, setError] = useState("");
   const [cache, setCache] = useState<Record<string, any>>({});
 
@@ -57,7 +59,8 @@ export function useComplexData({
     const cacheKey = `${name}_${area !== undefined ? area : "all"}_${startDate ?? ""}_${endDate ?? ""}`;
 
     if (cache[cacheKey]) {
-      setDetailData(cache[cacheKey]);
+      setDetailData(cache[cacheKey].detail);
+      setAuctions(cache[cacheKey].auctions || []);
       setComplexName(name);
       return;
     }
@@ -65,9 +68,13 @@ export function useComplexData({
     setLoading(true);
     setError("");
     try {
-      const res = await loadComplexDetail(name, lawdCode, area, startDate, endDate);
-      setCache((prev) => ({ ...prev, [cacheKey]: res }));
+      const [res, auctionList] = await Promise.all([
+        loadComplexDetail(name, lawdCode, area, startDate, endDate),
+        loadComplexAuctions(name).catch(() => [] as AuctionWithMatch[]),
+      ]);
+      setCache((prev) => ({ ...prev, [cacheKey]: { detail: res, auctions: auctionList } }));
       setDetailData(res);
+      setAuctions(auctionList);
       setComplexName(name);
 
       if (area === undefined && res.areaBreakdown) {
@@ -83,6 +90,7 @@ export function useComplexData({
       console.error(err);
       setError(err.message || "단지 상세 데이터를 불러오지 못했습니다.");
       setDetailData(null);
+      setAuctions([]);
     } finally {
       setLoading(false);
     }
@@ -93,6 +101,7 @@ export function useComplexData({
       fetchDetail(initialComplexName, selectedArea);
     } else {
       setDetailData(null);
+      setAuctions([]);
       setComplexName("");
     }
   }, [initialComplexName, selectedArea, lawdCode, startDate, endDate]);
@@ -201,6 +210,7 @@ export function useComplexData({
     loading,
     error,
     detailData,
+    auctions,
     kpiData,
     groupedTx,
     recentTxStats,

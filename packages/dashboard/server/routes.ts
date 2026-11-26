@@ -6,6 +6,7 @@ import { createConfigRouter } from "./routes/configRoutes.js";
 import { createRuleRouter, ruleSchema, ruleUpdateSchema } from "./routes/ruleRoutes.js";
 import { createTransactionRouter } from "./routes/transactionRoutes.js";
 import { createLogRouter } from "./routes/logRoutes.js";
+import { createAuctionRouter } from "./routes/auctionRoutes.js";
 
 export { ruleSchema, ruleUpdateSchema };
 
@@ -34,6 +35,8 @@ export function createRouter() {
   router.use(createRuleRouter());
   router.use(createTransactionRouter());
   router.use(createLogRouter());
+  router.use(createAuctionRouter());
 
   return router;
 }
+

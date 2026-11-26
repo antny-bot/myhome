@@ -137,5 +137,49 @@ export function getMcpToolsManifest(): McpToolDefinition[] {
         properties: {},
       },
     },
+    {
+      name: "search_auctions",
+      description: "법원경매 진행 물건을 지역코드, 단지명, 기일 범위 등의 조건으로 검색합니다.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          lawd_code: {
+            type: "string",
+            description: "5자리 법정동 시군구 코드 (예: '41117' 영통구, '41135' 분당구)",
+          },
+          complex_name: {
+            type: "string",
+            description: "아파트 단지명 키워드 (예: '영통에듀파크')",
+          },
+          start_date: {
+            type: "string",
+            description: "매각기일 시작일 (YYYY-MM-DD)",
+          },
+          end_date: {
+            type: "string",
+            description: "매각기일 종료일 (YYYY-MM-DD)",
+          },
+          limit: {
+            type: "integer",
+            description: "반환할 최대 물건 수 (기본값: 20, 최대: 100)",
+          },
+        },
+      },
+    },
+    {
+      name: "get_auction_detail",
+      description: "특정 법원경매 물건의 상세 정보(사건번호, 감정가, 최저매각가, 유찰횟수, 매각기일, 법원, 연결 단지 등)를 조회합니다.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          docid: {
+            type: "string",
+            description: "경매 물건 유니크 식별자 (docid)",
+          },
+        },
+        required: ["docid"],
+      },
+    },
   ];
 }
+

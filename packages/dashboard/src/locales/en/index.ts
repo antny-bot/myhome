@@ -6,6 +6,7 @@ import { admin } from "./admin.js";
 import { rules } from "./rules.js";
 import { legal } from "./legal.js";
 import { mcp } from "./mcp.js";
+import { auction } from "./auction.js";
 
 export const en = {
   ...common,
@@ -16,6 +17,8 @@ export const en = {
   ...rules,
   ...legal,
   ...mcp,
+  ...auction,
 } as const;
+
 
 export default en;

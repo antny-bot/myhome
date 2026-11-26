@@ -1,5 +1,5 @@
 import React from "react";
-import { Map as MapIcon, ArrowRight, Bell } from "lucide-react";
+import { Map as MapIcon, ArrowRight, Bell, Gavel } from "lucide-react";
 import type { RegionMapComplexItem } from "@myhome/shared";
 import { ComplexMetaBadges } from "../../components/common/ComplexMetaBadges";
 import { useLocale } from "../../lib/i18n";
@@ -10,6 +10,7 @@ export interface ComplexListItemProps {
   onFocus: (complex: RegionMapComplexItem) => void;
   onSelectComplex: (complexName: string, lawdCode?: string) => void;
   onNavigateToRules?: (initData: { regionName: string; regionCode?: string; apartmentKeywords: string[] }) => void;
+  onOpenAuction?: (complex: RegionMapComplexItem) => void;
 }
 
 export function ComplexListItem({
@@ -17,7 +18,8 @@ export function ComplexListItem({
   isSelected,
   onFocus,
   onSelectComplex,
-  onNavigateToRules
+  onNavigateToRules,
+  onOpenAuction,
 }: ComplexListItemProps) {
   const { t } = useLocale();
   const hasCoords = c.lat !== null && c.lng !== null;
@@ -42,6 +44,31 @@ export function ComplexListItem({
                 {c.dongName}
               </span>
             )}
+            {c.auctionCount != null && c.auctionCount > 0 && (() => {
+              const discountPct =
+                c.latestPriceEok && c.latestPriceEok > 0 && c.lowestAuctionPrice
+                  ? Math.round((1 - c.lowestAuctionPrice / c.latestPriceEok) * 100)
+                  : null;
+              return (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onOpenAuction?.(c);
+                  }}
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-rose-100 text-rose-700 dark:bg-rose-950/70 dark:text-rose-300 text-[10px] font-bold border border-rose-200 dark:border-rose-900 hover:bg-rose-200 dark:hover:bg-rose-900/80 transition-colors shrink-0 shadow-xs active:scale-95 cursor-pointer"
+                  title={t.viewAuctionDetail}
+                >
+                  <Gavel size={10} className="text-rose-600 dark:text-rose-400" />
+                  <span>
+                    {t.auctionCount.replace("{count}", String(c.auctionCount))}
+                    {c.lowestAuctionPrice ? ` · ${t.auctionMinPrice} ${c.lowestAuctionPrice.toFixed(2)}${t.eokUnit}` : ""}
+                    {discountPct != null && discountPct > 0 ? ` (-${discountPct}%)` : ""}
+                    {c.nextSaleDate ? ` · ${c.nextSaleDate.slice(5)}` : ""}
+                  </span>
+                </button>
+              );
+            })()}
             {!hasCoords && (
               <span className="text-[9px] px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 shrink-0 font-medium">
                 좌표미등록

@@ -63,6 +63,8 @@ export function useRuleForm({
         alertTime: editingRule.alertTime ?? "09:00",
         channels: editingRule.channels,
         enabled: editingRule.enabled,
+        kind: editingRule.kind ?? "transaction",
+        maxFailedCount: editingRule.maxFailedCount,
       });
       setLawdCode(editingRule.regionCode ?? "");
       setResolvedRegionName(editingRule.regionName);

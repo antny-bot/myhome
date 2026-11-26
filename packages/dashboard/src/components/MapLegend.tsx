@@ -1,5 +1,6 @@
 import React from "react";
 import { getMapPriceTiers, PriceQuartiles } from "../lib/mapTheme";
+import { useLocale } from "../lib/i18n";
 
 interface MapLegendProps {
   className?: string;
@@ -14,6 +15,7 @@ export function MapLegend({
   showSelected = false,
   quartiles,
 }: MapLegendProps) {
+  const { t } = useLocale();
   const tiers = getMapPriceTiers(quartiles);
   const isQuartileBased = !!(quartiles && quartiles.count >= 2 && quartiles.q1 < quartiles.q3);
 
@@ -43,7 +45,14 @@ export function MapLegend({
           <span className="text-amber-600 dark:text-amber-400 font-extrabold">선택</span>
         </div>
       )}
+      <div className="flex items-center gap-1 shrink-0 border-l border-normal pl-2">
+        <span className="px-1 py-0.5 rounded text-[8px] font-black bg-rose-600 text-white shadow-sm leading-none">
+          {t.auctionBadge} N
+        </span>
+        <span className="text-rose-600 dark:text-rose-400 font-extrabold">{t.auction}</span>
+      </div>
     </div>
   );
 }
+
 

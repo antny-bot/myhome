@@ -8,6 +8,7 @@ interface PragmaColumn {
 }
 
 import { getDb } from "./connection.js";
+import { initAuctionSchema } from "./auctions.js";
 
 /**
  * 데이터베이스 스키마 및 마이그레이션을 초기화합니다.
@@ -360,4 +361,8 @@ export function initDb(): void {
     SELECT name, lawd_code, id FROM complexes
     WHERE NOT EXISTS (SELECT 1 FROM complexes_fts LIMIT 1)
   `);
+
+  // 법원경매 스키마 초기화
+  initAuctionSchema();
 }
+

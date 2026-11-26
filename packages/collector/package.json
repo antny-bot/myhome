@@ -13,8 +13,10 @@
   },
   "scripts": {
     "build": "tsc",
+    "test": "node --import tsx/esm --test \"src/**/*.test.ts\"",
     "start": "tsx src/index.ts"
   },
+
   "dependencies": {
     "@myhome/shared": "*"
   },

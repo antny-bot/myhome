@@ -360,3 +360,6 @@ if (isMain) {
     process.exit(1);
   });
 }
+
+export * from "./auction/index.js";
+

@@ -165,9 +165,10 @@ export function useRegionKakaoMap({
       const el = document.createElement("div");
       el.className = "select-none pointer-events-auto transition-transform duration-150 active:scale-95";
       const overlayZIndex = isSelected ? 50 : isDotOnly ? 5 : hasLeaderLine ? 30 : 20;
-      el.style.zIndex = String(overlayZIndex);
-
-      const badge = c.totalHouseholds
+      const auctionCount = (c as any).auctionCount ?? 0;
+      const badge = auctionCount > 0
+        ? `경매 ${auctionCount}건`
+        : c.totalHouseholds
         ? `${c.totalHouseholds >= 1000 ? "대단지 " : ""}${c.totalHouseholds.toLocaleString()}세대`
         : undefined;
 

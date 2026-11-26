@@ -87,3 +87,88 @@ export async function sendNotifications(rule: WatchRule, matches: TransactionMat
 export function isTelegramConfigured() {
   return Boolean(Config.TELEGRAM_BOT_TOKEN && Config.TELEGRAM_CHAT_ID);
 }
+
+export async function sendAuctionNotifications(
+  rule: any,
+  alertMessage: string,
+  dedupeKeys: string[],
+  email: string = "bootstrap-admin@myhome.local"
+): Promise<NotificationRecord[]> {
+  if (!dedupeKeys || dedupeKeys.length === 0) return [];
+
+  const settings = getUserSettings(email);
+  const token = settings?.telegramBotToken || Config.TELEGRAM_BOT_TOKEN;
+  const chatId = settings?.telegramChatId || Config.TELEGRAM_CHAT_ID;
+
+  const results: NotificationRecord[] = [];
+
+  for (const channel of (rule.channels || ["telegram"])) {
+    let result: SendResult;
+    if (channel === "telegram") {
+      if (!token || !chatId) {
+        result = { channel: "telegram", status: "skipped", message: "Telegram credentials are not configured for this user." };
+      } else {
+        try {
+          const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              chat_id: chatId,
+              text: alertMessage,
+              disable_web_page_preview: true,
+            }),
+            signal: AbortSignal.timeout(10000),
+          });
+
+          if (!response.ok) {
+            const body = await response.text();
+            result = { channel: "telegram", status: "failed", message: `Telegram failed: ${response.status} ${body}` };
+          } else {
+            result = { channel: "telegram", status: "sent", message: "Telegram auction alert sent." };
+          }
+        } catch (err: any) {
+          result = { channel: "telegram", status: "failed", message: `Telegram error: ${err.message}` };
+        }
+      }
+    } else {
+      result = { channel: "kakao", status: "skipped", message: "Kakao is reserved for phase 2." };
+    }
+
+    const record: NotificationRecord = {
+      id: nanoid(),
+      ruleId: rule.id,
+      channel: result.channel,
+      status: result.status,
+      message: result.message,
+      dedupeKeys,
+      createdAt: new Date().toISOString(),
+    };
+    await appendNotification(record, email);
+    results.push(record);
+  }
+
+  return results;
+}
+
+export async function sendSystemAlertTelegram(alertText: string): Promise<boolean> {
+  const token = Config.TELEGRAM_BOT_TOKEN;
+  const chatId = Config.TELEGRAM_CHAT_ID;
+  if (!token || !chatId) return false;
+
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: alertText,
+        disable_web_page_preview: true,
+      }),
+      signal: AbortSignal.timeout(10000),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+

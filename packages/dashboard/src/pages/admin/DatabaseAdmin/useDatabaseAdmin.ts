@@ -12,16 +12,16 @@ import type { QueryResult, SchemaInfo } from "./types.js";
 import { useAdminGeocoding } from "./useAdminGeocoding.js";
 
 export function useDatabaseAdmin() {
-  const [activeTab, setActiveTab] = useState<"sql" | "geocode" | "manage">(() => {
+  const [activeTab, setActiveTab] = useState<"sql" | "geocode" | "manage" | "auction">(() => {
     const params = new URLSearchParams(window.location.search);
     const tabParam = params.get("tab");
-    if (tabParam === "sql" || tabParam === "geocode" || tabParam === "manage") {
+    if (tabParam === "sql" || tabParam === "geocode" || tabParam === "manage" || tabParam === "auction") {
       return tabParam;
     }
     return "sql";
   });
 
-  const handleTabChange = (tab: "sql" | "geocode" | "manage") => {
+  const handleTabChange = (tab: "sql" | "geocode" | "manage" | "auction") => {
     setActiveTab(tab);
     const params = new URLSearchParams(window.location.search);
     params.set("tab", tab);
@@ -33,7 +33,7 @@ export function useDatabaseAdmin() {
     const handlePopState = () => {
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get("tab");
-      if (tabParam === "sql" || tabParam === "geocode" || tabParam === "manage") {
+      if (tabParam === "sql" || tabParam === "geocode" || tabParam === "manage" || tabParam === "auction") {
         setActiveTab(tabParam);
       } else {
         setActiveTab("sql");

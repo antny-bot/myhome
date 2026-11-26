@@ -9,6 +9,7 @@ import {
   RefreshCw,
   Search,
   X,
+  Gavel,
 } from "lucide-react";
 import type { ComplexMetaFilter, RegionMapComplexItem, RegionMapData } from "@myhome/shared";
 import { ComplexMetaFilterBar } from "../../components/common/ComplexMetaFilterBar.js";
@@ -25,6 +26,9 @@ interface ComplexListSectionProps {
   onFocusComplex: (complex: RegionMapComplexItem) => void;
   onSelectComplex: (complexName: string, lawdCode?: string) => void;
   onNavigateToRules?: (initData: { regionName: string; regionCode?: string; apartmentKeywords: string[] }) => void;
+  onOpenAuction?: (complex: RegionMapComplexItem) => void;
+  hasAuctionOnly?: boolean;
+  setHasAuctionOnly?: (val: boolean) => void;
   searchQuery: string;
   setSearchQuery: (val: string) => void;
   selectedDong: string;
@@ -58,6 +62,9 @@ export function ComplexListSection({
   onFocusComplex,
   onSelectComplex,
   onNavigateToRules,
+  onOpenAuction,
+  hasAuctionOnly = false,
+  setHasAuctionOnly,
   searchQuery,
   setSearchQuery,
   selectedDong,
@@ -200,12 +207,28 @@ export function ComplexListSection({
         <ComplexMetaFilterBar filter={metaFilter} onChange={setMetaFilter} />
 
         {/* 정렬 & 페이징 크기 옵션 바 */}
-        <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 shrink-0">
-          <div className="flex items-center gap-1.5">
+        <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 shrink-0 flex-wrap gap-1.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
             <span className="font-semibold text-slate-700 dark:text-slate-300">
               {filteredComplexes.length}
               {t.unitComplex || "개 단지"}
             </span>
+
+            {setHasAuctionOnly && (
+              <button
+                type="button"
+                onClick={() => setHasAuctionOnly(!hasAuctionOnly)}
+                className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-bold transition-all border cursor-pointer ${
+                  hasAuctionOnly
+                    ? "bg-rose-500 text-white border-rose-500 shadow-sm"
+                    : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:text-rose-600 hover:border-rose-300"
+                }`}
+                title={t.auctionOnly || "경매 진행 중인 단지만 필터링"}
+              >
+                <Gavel size={11} className={hasAuctionOnly ? "text-white" : "text-rose-500"} />
+                <span>{t.auctionOnly || "경매 있는 단지만"}</span>
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
@@ -249,6 +272,7 @@ export function ComplexListSection({
                 onFocus={onFocusComplex}
                 onSelectComplex={(name, code) => onSelectComplex(name, code || c.lawdCode)}
                 onNavigateToRules={onNavigateToRules}
+                onOpenAuction={onOpenAuction}
               />
             ))
           )}

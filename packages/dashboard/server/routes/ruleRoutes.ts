@@ -1,9 +1,10 @@
 import express from "express";
 import { z } from "zod";
 import { validateBody } from "../validation.js";
-import { sendNotifications } from "../notifications.js";
+import { sendNotifications, sendAuctionNotifications } from "../notifications.js";
 import { runRuleCheck } from "../ruleEngine.js";
-import { deleteCheckRun, deleteRule, readStateForUser, updateRulePatch, upsertRule } from "../storage.js";
+import { checkAuctionRule } from "../auctionEngine.js";
+import { appendCheckRun, deleteCheckRun, deleteRule, readStateForUser, updateRulePatch, upsertRule } from "../storage.js";
 import type { ComparisonCriteria, RuleInput } from "../types.js";
 import { getAuthenticatedEmail } from "../utils/authUtils.js";
 
@@ -22,10 +23,13 @@ export const ruleSchema = z.object({
   intervalMinutes: z.number().int().min(10).optional(),
   alertTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
   channels: z.array(z.enum(["telegram", "kakao"])).min(1),
-  enabled: z.boolean()
+  enabled: z.boolean(),
+  kind: z.enum(["transaction", "auction", "both"]).optional(),
+  maxFailedCount: z.number().int().min(0).optional()
 });
 
 export const ruleUpdateSchema = ruleSchema.partial();
+
 
 export function createRuleRouter() {
   const router = express.Router();
@@ -94,8 +98,59 @@ export function createRuleRouter() {
         res.status(404).json({ error: "Rule not found" });
         return;
       }
+
+      const kind = rule.kind || "transaction";
+      if (kind === "auction") {
+        const checkRes = checkAuctionRule(rule as any, email);
+        const matchedAuctions = checkRes?.matchedAuctions ?? [];
+        const newKeys = checkRes?.newDedupeKeys ?? [];
+        const notifications =
+          checkRes && matchedAuctions.length > 0
+            ? await sendAuctionNotifications(rule, checkRes.message, newKeys, email)
+            : [];
+        const checkRun = {
+          id: `chk_auc_${Date.now()}_${rule.id}`,
+          ruleId: rule.id,
+          ruleName: rule.name,
+          matched: matchedAuctions.length > 0,
+          summary:
+            matchedAuctions.length > 0
+              ? `경매 물건 ${matchedAuctions.length}건 매칭됨`
+              : "조건에 맞는 신규 경매 물건이 없습니다.",
+          matches: matchedAuctions as any,
+          sourceLimitNotice: "",
+          createdAt: new Date().toISOString(),
+        };
+        await appendCheckRun(checkRun, newKeys, email);
+        res.json({ checkRun, newMatches: matchedAuctions, notifications });
+        return;
+      }
+
       const outcome = await runRuleCheck(rule);
       const notifications = await sendNotifications(rule, outcome.newMatches, email);
+
+      if (kind === "both") {
+        const checkRes = checkAuctionRule(rule as any, email);
+        if (checkRes && checkRes.matchedAuctions.length > 0) {
+          const aucNotifs = await sendAuctionNotifications(rule, checkRes.message, checkRes.newDedupeKeys, email);
+          notifications.push(...aucNotifs);
+          await appendCheckRun(
+            {
+              id: `chk_auc_${Date.now()}_${rule.id}`,
+              ruleId: rule.id,
+              ruleName: rule.name,
+              matched: true,
+              summary: `경매 물건 ${checkRes.matchedAuctions.length}건 매칭됨`,
+              matches: checkRes.matchedAuctions as any,
+              sourceLimitNotice: "",
+              createdAt: new Date().toISOString(),
+            },
+            checkRes.newDedupeKeys,
+            email
+          );
+        }
+      }
+
       res.json({ ...outcome, notifications });
     } catch (error) {
       next(error);

@@ -23,6 +23,8 @@ export type WatchRule = {
   alertTime?: string;
   channels: AlertChannel[];
   enabled: boolean;
+  kind?: "transaction" | "auction" | "both";
+  maxFailedCount?: number;
   lastCheckedAt?: string;
   createdAt: string;
   updatedAt: string;
@@ -43,7 +45,10 @@ export type RuleInput = {
   alertTime?: string;
   channels: AlertChannel[];
   enabled: boolean;
+  kind?: "transaction" | "auction" | "both";
+  maxFailedCount?: number;
 };
+
 
 export type TransactionRecord = {
   apartmentName: string;
@@ -156,3 +161,15 @@ export interface ActivityStats {
   totalUsers: number;
   totalLogs: number;
 }
+
+export type {
+  AuctionRecord,
+  AuctionMatch,
+  AuctionWithMatch,
+  AuctionSummary,
+  AuctionCollectRun,
+  AuctionCandidate,
+  AuctionUsageCode,
+  AuctionRegionCode,
+} from "@myhome/shared";
+

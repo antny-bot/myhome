@@ -1,13 +1,17 @@
 import { runRuleCheck } from "./ruleEngine.js";
-import { sendNotifications } from "./notifications.js";
-import { runCollector } from "@myhome/collector";
+import { sendNotifications, sendAuctionNotifications, sendSystemAlertTelegram } from "./notifications.js";
+import { runCollector, runAuctionCollector } from "@myhome/collector";
 import { getAllRules, mapLimit, getSystemConfigDb, saveSystemConfigDb, createLogger } from "@myhome/shared";
+import { matchPendingAuctions } from "./auctionMatcher.js";
+import { checkAuctionRule } from "./auctionEngine.js";
+import { appendCheckRun } from "./storage.js";
 
 const log = createLogger("Scheduler");
 import { batchGeocodeComplexes } from "./geocoding.js";
 import { Config } from "./config.js";
 import { graphCache } from "./cache.js";
 import { getKstTimeParts, getKstDateString, getKstHour } from "./utils/kstTime.js";
+
 
 /**
  * 수집 작업 동시 실행 방지용 메모리 락
@@ -36,6 +40,35 @@ export class CollectorLock {
     return this._startedAt;
   }
 }
+
+/**
+ * 경매 수집 작업 동시 실행 방지용 메모리 락
+ */
+export class AuctionLock {
+  private static _isLocked = false;
+  private static _startedAt: number | null = null;
+
+  static acquire(): boolean {
+    if (this._isLocked) return false;
+    this._isLocked = true;
+    this._startedAt = Date.now();
+    return true;
+  }
+
+  static release(): void {
+    this._isLocked = false;
+    this._startedAt = null;
+  }
+
+  static isLocked(): boolean {
+    return this._isLocked;
+  }
+
+  static getStartedAt(): number | null {
+    return this._startedAt;
+  }
+}
+
 
 /**
  * 룰 알림 실행 주기 도달 여부 판정 (KST 단일 타임존 기준 순수 함수)
@@ -172,6 +205,106 @@ export async function runDueCollector(): Promise<{ executed: boolean; reason?: s
   }
 }
 
+/**
+ * 1일 1회 대법원 법원경매 데이터 수집 및 룰 알림 실행 (KST 06:40 이후)
+ */
+export async function runDueAuctionCollector(): Promise<{ executed: boolean; reason?: string }> {
+  const now = new Date();
+  const todayStr = getKstDateString(now);
+  const parts = getKstTimeParts(now);
+  const nowMinutes = parts.hour * 60 + parts.minute;
+
+  // 매일 오전 06:40(KST) 이후에 실행
+  if (nowMinutes < 6 * 60 + 40) {
+    return { executed: false, reason: "BEFORE_AUCTION_COLLECT_TIME" };
+  }
+
+  const config = getSystemConfigDb();
+  if (config["auction.enabled"] === "false") {
+    return { executed: false, reason: "AUCTION_DISABLED" };
+  }
+
+  if (config["auction.lastSuccessDate"] === todayStr) {
+    return { executed: false, reason: "ALREADY_COLLECTED_TODAY" };
+  }
+
+  const blockedUntil = config["auction.blockedUntil"];
+  if (blockedUntil && Date.now() < new Date(blockedUntil).getTime()) {
+    log.warn(`[Scheduler] 법원경매 IP 차단 쿨다운 중 (${blockedUntil}). 수집을 건너뜁니다.`);
+    return { executed: false, reason: "BLOCKED_COOLDOWN" };
+  }
+
+  if (!AuctionLock.acquire()) {
+    log.warn("[Scheduler] Auction collector is already running. Skipping this cycle.");
+    return { executed: false, reason: "LOCKED" };
+  }
+
+  try {
+    log.info(`[Scheduler] Daily auction collection triggered for date: ${todayStr}`);
+    const result = await runAuctionCollector();
+    log.info(`[Scheduler] Auction collection finished: fetched ${result.totalFetched}, blocked: ${result.blocked}`);
+
+    if (result.consecutiveFailures && result.consecutiveFailures >= 3) {
+      const latestConfig = getSystemConfigDb();
+      if (latestConfig["auction.lastFailureAlertDate"] !== todayStr) {
+        const sent = await sendSystemAlertTelegram(
+          `⚠️ [MyHome 경매 수집 경고]\n대법원 법원경매 수집이 ${result.consecutiveFailures}회 연속 실패했습니다.\n마지막 오류: ${result.errors.map((e) => `${e.lawdCode}: ${e.error}`).join("; ") || "알 수 없음"}`
+        );
+        if (sent) {
+          saveSystemConfigDb({ "auction.lastFailureAlertDate": todayStr });
+        }
+      }
+    }
+
+    // 신규 수집된 경매 물건 3단계 단지 매칭 수행
+    log.info("[Scheduler] Starting 3-stage complex matching for pending auctions...");
+    const matchResult = await matchPendingAuctions(30);
+    log.info(`[Scheduler] Auction matching finished: processed ${matchResult.totalProcessed}, matched ${matchResult.matchedCount}, unmatched ${matchResult.unmatchedCount}`);
+
+    // 경매 알림 룰 검사 및 발송
+    const rules = getAllRules();
+    const auctionRules = rules.filter(
+      (r) => r.enabled && (r.kind === "auction" || r.kind === "both")
+    );
+
+    if (auctionRules.length > 0) {
+      log.info(`[Scheduler] Checking ${auctionRules.length} auction rules...`);
+      for (const rule of auctionRules) {
+        try {
+          const email = (rule as any).userEmail || "bootstrap-admin@myhome.local";
+          const checkRes = checkAuctionRule(rule, email);
+          if (checkRes && checkRes.matchedAuctions.length > 0) {
+            await sendAuctionNotifications(rule, checkRes.message, checkRes.newDedupeKeys, email);
+            await appendCheckRun(
+              {
+                id: `chk_auc_${Date.now()}_${rule.id}`,
+                ruleId: rule.id,
+                ruleName: rule.name,
+                matched: true,
+                summary: `경매 물건 ${checkRes.matchedAuctions.length}건 매칭됨`,
+                matches: checkRes.matchedAuctions as any,
+                sourceLimitNotice: "",
+                createdAt: new Date().toISOString(),
+              },
+              checkRes.newDedupeKeys,
+              email
+            );
+          }
+        } catch (ruleErr: any) {
+          log.error(`[Scheduler] Auction rule check failed (${rule.name}):`, ruleErr.message);
+        }
+      }
+    }
+
+    return { executed: true };
+  } catch (err: any) {
+    log.error("[Scheduler] Auction collection failed:", err.message);
+    return { executed: false, reason: err.message };
+  } finally {
+    AuctionLock.release();
+  }
+}
+
 export async function runDueRules() {
   if (running) {
     log.info("Scheduler is already running. Skipping this cycle.");
@@ -180,7 +313,12 @@ export async function runDueRules() {
   running = true;
   try {
     const rules = getAllRules();
-    const dueRules = rules.filter((rule) => rule.enabled && isAlertDue(rule.lastCheckedAt, rule.alertTime));
+    const dueRules = rules.filter(
+      (rule) =>
+        rule.enabled &&
+        rule.kind !== "auction" &&
+        isAlertDue(rule.lastCheckedAt, rule.alertTime)
+    );
 
     if (dueRules.length === 0) return;
 
@@ -211,9 +349,12 @@ export function startScheduler() {
   // 기동 시 최초 1회 즉시 실행
   void runDueRules();
   void runDueCollector();
+  void runDueAuctionCollector();
 
   timerId = setInterval(() => {
     void runDueRules();
     void runDueCollector();
+    void runDueAuctionCollector();
   }, intervalMs);
 }
+
