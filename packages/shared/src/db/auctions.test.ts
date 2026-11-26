@@ -133,6 +133,44 @@ test("saveAuctionMatch, manualMatchAuction, getAuctionMatch", () => {
   assert.ok(manualMatch);
   assert.equal(manualMatch.decidedBy, "user");
   assert.equal(manualMatch.confidence, 1.0);
+
+  // 수동 매칭 확정 후 자동 매칭이 덮어쓰려 해도 보존되어야 함
+  saveAuctionMatch({
+    docid: sampleAuction.docid,
+    complexId: "41117|다른단지",
+    method: "geo+name",
+    confidence: 0.88,
+    distanceM: 50,
+    nameScore: 0.8,
+    areaVerified: false,
+    decidedBy: "auto",
+    createdAt: new Date().toISOString(),
+  });
+  const preservedMatch = getAuctionMatch(sampleAuction.docid);
+  assert.ok(preservedMatch);
+  assert.equal(preservedMatch.decidedBy, "user");
+  assert.equal(preservedMatch.complexId, complexId);
+});
+
+test("updateAuctionCandidates 및 getUnmatchedAuctions 후보 복원 및 UI 별칭 매핑", () => {
+  const unmatchedAuction: AuctionRecord = {
+    ...sampleAuction,
+    docid: "B0002502024013009999911",
+    srnSaNo: "2024타경99999",
+  };
+  upsertAuction(unmatchedAuction);
+
+  const detail = getAuctionByDocId(unmatchedAuction.docid);
+  assert.ok(detail);
+  assert.equal(detail.caseNo, "2024타경99999");
+  assert.equal(detail.itemNo, "1");
+  assert.equal(detail.appraisalPrice, 670000000);
+  assert.equal(detail.bidCount, 1);
+  assert.ok(detail.linkUrl);
+
+  const list = getUnmatchedAuctions(10);
+  const found = list.find((u) => u.auction.docid === unmatchedAuction.docid);
+  assert.ok(found);
 });
 
 test("createAuctionCollectRun 및 updateAuctionCollectRun", () => {
@@ -198,3 +236,4 @@ test("usage codes & region codes 캐시", () => {
   assert.equal(reg.sidoCd, "41");
   assert.equal(reg.sggCd, "117");
 });
+

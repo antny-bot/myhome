@@ -99,8 +99,10 @@ export function ComplexChartsSection({
   const trendHasSeries = !hiddenKeys["거래량"] || !hiddenKeys["평균가"] || showRange;
 
   const activeAuction = auctions && auctions.length > 0 ? auctions[0] : null;
-  const appraisalEok = activeAuction?.appraisalPrice ? activeAuction.appraisalPrice / 100000000 : null;
+  const rawAppraisal = activeAuction?.appraisalAmt ?? activeAuction?.appraisalPrice ?? null;
+  const appraisalEok = rawAppraisal ? rawAppraisal / 100000000 : null;
   const minPriceEok = activeAuction?.minPrice ? activeAuction.minPrice / 100000000 : null;
+  const failedCnt = activeAuction?.failedCount ?? activeAuction?.bidCount ?? 0;
   const showAuctionLines = Boolean(activeAuction) && !hiddenKeys["경매"];
 
   const trendLegendItems = [
@@ -120,7 +122,7 @@ export function ComplexChartsSection({
       ? [
           {
             key: "경매",
-            label: `경매 (${auctions.length}건)`,
+            label: t.auctionCount.replace("{count}", String(auctions.length)),
             color: "#f43f5e",
           },
         ]
@@ -269,7 +271,7 @@ export function ComplexChartsSection({
                   strokeDasharray="4 4"
                   strokeWidth={1.5}
                   label={{
-                    value: `경매 감정가: ${appraisalEok.toFixed(2)}억`,
+                    value: `${t.auctionChartRefAppraisal}: ${appraisalEok.toFixed(2)}${t.eokUnit}`,
                     position: "insideTopRight",
                     fill: "#8b5cf6",
                     fontSize: 10,
@@ -285,7 +287,7 @@ export function ComplexChartsSection({
                   strokeDasharray="3 3"
                   strokeWidth={2}
                   label={{
-                    value: `최저매각가: ${minPriceEok.toFixed(2)}억${activeAuction?.bidCount ? ` (${activeAuction.bidCount}회 유찰)` : ""}`,
+                    value: `${t.auctionChartRefMinPrice}: ${minPriceEok.toFixed(2)}${t.eokUnit}${failedCnt > 0 ? ` (${t.auctionFailedCount.replace("{count}", String(failedCnt))})` : ""}`,
                     position: "insideBottomRight",
                     fill: "#f43f5e",
                     fontSize: 10,

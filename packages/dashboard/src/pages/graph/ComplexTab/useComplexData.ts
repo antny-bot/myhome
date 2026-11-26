@@ -59,7 +59,8 @@ export function useComplexData({
     const cacheKey = `${name}_${area !== undefined ? area : "all"}_${startDate ?? ""}_${endDate ?? ""}`;
 
     if (cache[cacheKey]) {
-      setDetailData(cache[cacheKey]);
+      setDetailData(cache[cacheKey].detail);
+      setAuctions(cache[cacheKey].auctions || []);
       setComplexName(name);
       return;
     }
@@ -71,7 +72,7 @@ export function useComplexData({
         loadComplexDetail(name, lawdCode, area, startDate, endDate),
         loadComplexAuctions(name).catch(() => [] as AuctionWithMatch[]),
       ]);
-      setCache((prev) => ({ ...prev, [cacheKey]: res }));
+      setCache((prev) => ({ ...prev, [cacheKey]: { detail: res, auctions: auctionList } }));
       setDetailData(res);
       setAuctions(auctionList);
       setComplexName(name);
@@ -100,6 +101,7 @@ export function useComplexData({
       fetchDetail(initialComplexName, selectedArea);
     } else {
       setDetailData(null);
+      setAuctions([]);
       setComplexName("");
     }
   }, [initialComplexName, selectedArea, lawdCode, startDate, endDate]);

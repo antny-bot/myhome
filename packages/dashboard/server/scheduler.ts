@@ -1,5 +1,5 @@
 import { runRuleCheck } from "./ruleEngine.js";
-import { sendNotifications, sendAuctionNotifications } from "./notifications.js";
+import { sendNotifications, sendAuctionNotifications, sendSystemAlertTelegram } from "./notifications.js";
 import { runCollector, runAuctionCollector } from "@myhome/collector";
 import { getAllRules, mapLimit, getSystemConfigDb, saveSystemConfigDb, createLogger } from "@myhome/shared";
 import { matchPendingAuctions } from "./auctionMatcher.js";
@@ -244,6 +244,18 @@ export async function runDueAuctionCollector(): Promise<{ executed: boolean; rea
     const result = await runAuctionCollector();
     log.info(`[Scheduler] Auction collection finished: fetched ${result.totalFetched}, blocked: ${result.blocked}`);
 
+    if (result.consecutiveFailures && result.consecutiveFailures >= 3) {
+      const latestConfig = getSystemConfigDb();
+      if (latestConfig["auction.lastFailureAlertDate"] !== todayStr) {
+        const sent = await sendSystemAlertTelegram(
+          `⚠️ [MyHome 경매 수집 경고]\n대법원 법원경매 수집이 ${result.consecutiveFailures}회 연속 실패했습니다.\n마지막 오류: ${result.errors.map((e) => `${e.lawdCode}: ${e.error}`).join("; ") || "알 수 없음"}`
+        );
+        if (sent) {
+          saveSystemConfigDb({ "auction.lastFailureAlertDate": todayStr });
+        }
+      }
+    }
+
     // 신규 수집된 경매 물건 3단계 단지 매칭 수행
     log.info("[Scheduler] Starting 3-stage complex matching for pending auctions...");
     const matchResult = await matchPendingAuctions(30);
@@ -301,7 +313,12 @@ export async function runDueRules() {
   running = true;
   try {
     const rules = getAllRules();
-    const dueRules = rules.filter((rule) => rule.enabled && isAlertDue(rule.lastCheckedAt, rule.alertTime));
+    const dueRules = rules.filter(
+      (rule) =>
+        rule.enabled &&
+        rule.kind !== "auction" &&
+        isAlertDue(rule.lastCheckedAt, rule.alertTime)
+    );
 
     if (dueRules.length === 0) return;
 

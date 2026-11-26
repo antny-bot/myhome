@@ -309,7 +309,7 @@ export function useRegionMapData() {
     });
 
     return list;
-  }, [mapData, searchQuery, selectedDong, sortBy, metaFilter]);
+  }, [mapData, searchQuery, selectedDong, sortBy, metaFilter, hasAuctionOnly, complexAuctionMap]);
 
   const quartiles = useMemo(() => {
     if (!filteredComplexes.length) return null;
@@ -321,7 +321,7 @@ export function useRegionMapData() {
 
   useEffect(() => {
     setPage(1);
-  }, [searchQuery, selectedDong, sortBy, selectedLawdCode, pageSize, metaFilter]);
+  }, [searchQuery, selectedDong, sortBy, selectedLawdCode, pageSize, metaFilter, hasAuctionOnly]);
 
   useEffect(() => {
     if (selectedComplex && !filteredComplexes.some((c) => c.id === selectedComplex.id)) {

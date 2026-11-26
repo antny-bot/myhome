@@ -4,6 +4,7 @@ import {
   saveAuctionMatch,
   getAuctionMatch,
   updateAuctionCoords,
+  updateAuctionCandidates,
   createLogger,
   type AuctionRecord,
   type AuctionMatch,
@@ -144,26 +145,42 @@ export function calculateNameScore(auctionName: string, complexName: string, isF
 }
 
 /**
- * 3단계: 전유면적 일치 여부 확인
+ * 3단계: 전유면적 일치 여부 확인 (SARGable 범위 쿼리)
  */
 export function verifyAreaMatch(complexId: string, areaM2?: number | null, areaKey?: number | null): boolean {
   if (areaM2 == null && areaKey == null) return false;
   const db = getDb();
 
   const targetKey = areaKey ?? (areaM2 ? Math.round(areaM2 * 100) : 0);
+  const targetM2 = areaM2 ?? targetKey / 100;
 
-  // ±10 area_key (즉 ±0.1㎡) 또는 transactions 면적 일치 확인
+  // ±10 area_key (즉 ±0.1㎡) 또는 transactions/complex_area_mappings 면적 일치 확인 (SARGable BETWEEN 비교)
   const row = db.prepare(`
     SELECT 1 FROM transactions
     WHERE complex_id = ?
       AND (
-        (area_key IS NOT NULL AND ABS(area_key - ?) <= 10)
-        OR (area_m2 IS NOT NULL AND ABS(area_m2 - ?) <= 0.15)
+        (area_key >= ? AND area_key <= ?)
+        OR (area_m2 >= ? AND area_m2 <= ?)
       )
     LIMIT 1
-  `).get(complexId, targetKey, areaM2 ?? (targetKey / 100));
+  `).get(complexId, targetKey - 10, targetKey + 10, targetM2 - 0.15, targetM2 + 0.15);
 
-  return Boolean(row);
+  if (row) return true;
+
+  try {
+    const camRow = db.prepare(`
+      SELECT 1 FROM complex_area_mappings
+      WHERE complex_id = ?
+        AND (
+          (area_key >= ? AND area_key <= ?)
+          OR (area_m2 >= ? AND area_m2 <= ?)
+        )
+      LIMIT 1
+    `).get(complexId, targetKey - 10, targetKey + 10, targetM2 - 0.15, targetM2 + 0.15);
+    return Boolean(camRow);
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -345,8 +362,9 @@ export async function matchAuction(docid: string): Promise<MatchResult> {
   if (topCandidates.length > 0) {
     const best = topCandidates[0];
     const second = topCandidates[1];
+    const hasGeo = best.distanceM <= 300;
 
-    // 케이스 1: 후보 1개 + 100m 이내 + name_score >= 0.7 -> 자동 확정
+    // 케이스 1: 100m 이내 + name_score >= 0.7 -> 자동 확정
     if (best.distanceM <= 100 && best.nameScore >= 0.7) {
       matched = true;
       bestCandidate = best;
@@ -362,7 +380,7 @@ export async function matchAuction(docid: string): Promise<MatchResult> {
       matched = true;
       bestCandidate = best;
       confidence = 0.9;
-      method = "geo+name+area";
+      method = hasGeo ? "geo+name+area" : "name+area";
     }
     // 케이스 3: 150m 이내 + nameScore >= 0.85
     else if (best.distanceM <= 150 && best.nameScore >= 0.85) {
@@ -376,7 +394,7 @@ export async function matchAuction(docid: string): Promise<MatchResult> {
       matched = true;
       bestCandidate = best;
       confidence = best.score;
-      method = best.areaVerified ? "geo+name+area" : "geo+name";
+      method = best.areaVerified ? (hasGeo ? "geo+name+area" : "name+area") : "geo+name";
     }
   }
 
@@ -406,13 +424,8 @@ export async function matchAuction(docid: string): Promise<MatchResult> {
     };
   }
 
-  // 자동 확정 불가 -> 미매핑 큐 (후보 목록만 기록)
-  // candidates_json을 남겨 관리자 화면에서 확인 가능하게 함
-  db.prepare(`
-    UPDATE auctions
-    SET raw_json = json_set(COALESCE(raw_json, '{}'), '$.candidates', json(?))
-    WHERE docid = ?
-  `).run(JSON.stringify(topCandidates), docid);
+  // 자동 확정 불가 -> 미매핑 큐 (auctions.candidates_json 및 match_checked_at에 기록)
+  updateAuctionCandidates(docid, topCandidates);
 
   log.info(`[AuctionMatcher] 경매 ${docid}(${auction.buldName}) 미매핑 큐 보류 (후보 ${topCandidates.length}건)`);
 
@@ -425,7 +438,7 @@ export async function matchAuction(docid: string): Promise<MatchResult> {
 }
 
 /**
- * 미매칭 경매 물건 일괄 매칭 수행
+ * 미매칭 경매 물건 일괄 매칭 수행 (신규 미시도 물건 우선 처리하여 기아 현상 방지)
  */
 export async function matchPendingAuctions(limit = 30): Promise<{
   totalProcessed: number;
@@ -433,7 +446,7 @@ export async function matchPendingAuctions(limit = 30): Promise<{
   unmatchedCount: number;
 }> {
   const db = getDb();
-  // 아직 auction_matches 에 없거나 미확정인 진행 경매 물건
+  // 아직 auction_matches 에 없는 진행 경매 물건 (신규 미검사 물건을 우선 매칭)
   const rows = db.prepare(`
     SELECT a.docid
     FROM auctions a
@@ -441,7 +454,8 @@ export async function matchPendingAuctions(limit = 30): Promise<{
     WHERE m.docid IS NULL
       AND a.closed_at IS NULL
       AND a.status_cd = '01'
-    ORDER BY a.sale_date ASC
+      AND (a.sale_date IS NULL OR a.sale_date >= date('now', '+9 hours'))
+    ORDER BY (a.match_checked_at IS NOT NULL) ASC, a.sale_date ASC
     LIMIT ?
   `).all(limit) as { docid: string }[];
 

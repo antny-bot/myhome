@@ -46,6 +46,7 @@ const sampleAuction: AuctionWithMatch = {
   firstSeenAt: new Date().toISOString(),
   lastSeenAt: new Date().toISOString(),
   closedAt: null,
+  complexId: "41117|영통에듀파크",
   complexName: "영통에듀파크",
 };
 
@@ -76,8 +77,17 @@ test("makeAuctionAlertKey: 사건번호, 기일, 최저가 조합 확인", () =>
   assert.equal(key, "auction:B0002502024013008779111:2026-12-02:469000000");
 });
 
-test("filterAuctionsForRule: 조건 일치 시 매칭 및 중복 필터링", () => {
+test("filterAuctionsForRule: 조건 일치 시 매칭, 미매칭 물건 제외 및 중복 필터링", () => {
   const alertedKeys = new Set<string>();
+
+  // 0. 단지 매칭이 확정되지 않은 물건(complexId: null)은 알림 제외
+  const unmatchedAuction: AuctionWithMatch = {
+    ...sampleAuction,
+    complexId: null,
+    complexName: null,
+  };
+  const resUnmatched = filterAuctionsForRule(sampleRule, [unmatchedAuction], alertedKeys);
+  assert.equal(resUnmatched.matched.length, 0);
 
   // 1. 최초 매칭
   const res1 = filterAuctionsForRule(sampleRule, [sampleAuction], alertedKeys);
@@ -108,3 +118,4 @@ test("formatAuctionAlertMessage: 메시지 포맷 검증", () => {
   assert.ok(msg.includes("유찰 1회"));
   assert.ok(msg.includes("기일 12-02 10:00"));
 });
+

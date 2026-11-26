@@ -27,20 +27,23 @@ export function splitLawdCode(lawdCode: string): { sidoCd: string; sggCd: string
 }
 
 /**
- * YYYYMMDD 날짜 문자열을 생성합니다. (기본: 오늘 / 오늘+60일)
+ * KST 기준 YYYY-MM-DD 날짜 문자열을 반환합니다.
  */
-export function getDefaultDateRange(): { saleFrom: string; saleTo: string } {
-  const now = new Date();
-  const formatYmd = (d: Date) => {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${y}${m}${day}`;
-  };
+export function getKstDateStr(date: Date = new Date()): string {
+  const kstTime = new Date(date.getTime() + 9 * 60 * 60 * 1000);
+  const y = kstTime.getUTCFullYear();
+  const m = String(kstTime.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(kstTime.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
 
-  const saleFrom = formatYmd(now);
+/**
+ * KST 기준 YYYYMMDD 날짜 문자열을 생성합니다. (기본: 오늘 / 오늘+60일)
+ */
+export function getDefaultDateRange(now: Date = new Date()): { saleFrom: string; saleTo: string } {
+  const saleFrom = getKstDateStr(now).replace(/-/g, "");
   const future = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
-  const saleTo = formatYmd(future);
+  const saleTo = getKstDateStr(future).replace(/-/g, "");
 
   return { saleFrom, saleTo };
 }

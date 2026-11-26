@@ -105,3 +105,22 @@ export async function loadAuctionCollectRuns(): Promise<{
 }> {
   return request<any>("/api/auction/collect-runs");
 }
+
+/**
+ * 경매 수집 설정 업데이트 (활성화 토글 / 쿨다운 해제)
+ */
+export async function updateAuctionConfig(params: {
+  enabled?: boolean;
+  clearCooldown?: boolean;
+}): Promise<{
+  success: boolean;
+  enabled: boolean;
+  blockedUntil: string | null;
+  lastSuccessDate: string | null;
+}> {
+  return request<any>("/api/auction/config", {
+    method: "POST",
+    body: JSON.stringify(params),
+  });
+}
+

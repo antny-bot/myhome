@@ -386,6 +386,8 @@ export interface AuctionRecord {
   lat?: number | null;
   lng?: number | null;
   geocodedAt?: string | null;
+  candidatesJson?: string | null;
+  matchCheckedAt?: string | null;
   firstSeenAt: string;
   lastSeenAt: string;
   closedAt: string | null;

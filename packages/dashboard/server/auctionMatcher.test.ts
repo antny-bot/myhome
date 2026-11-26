@@ -10,6 +10,8 @@ import {
   closeDb,
   upsertAuction,
   getAuctionMatch,
+  getUnmatchedAuctions,
+  manualMatchAuction,
   getDb,
   type AuctionRecord,
 } from "@myhome/shared";
@@ -174,4 +176,17 @@ test("matchAuction 케이스 2: 거리 1km 이상 멀고 면적 불일치 -> 미
 
   const savedMatch = getAuctionMatch(docid);
   assert.equal(savedMatch, undefined); // 미매핑이므로 auction_matches에 없음
+
+  const unmatchedList = getUnmatchedAuctions(10);
+  const foundUnmatched = unmatchedList.find((item) => item.auction.docid === docid);
+  assert.ok(foundUnmatched);
+  assert.ok(Array.isArray(foundUnmatched.candidates));
+
+  // 수동 매칭 확정 후 다시 matchAuction 실행 시 수동 매칭이 유지되는지 검증
+  manualMatchAuction(docid, "41117|다른단지");
+  const rematchRes = await matchAuction(docid);
+  assert.equal(rematchRes.matched, true);
+  assert.equal(rematchRes.method, "manual");
+  assert.equal(rematchRes.complexId, "41117|다른단지");
 });
+

@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS auctions (
   area_key INTEGER,
   appraisal_amt INTEGER,
   min_price INTEGER,
-  min_price_rate INTEGER,
+  min_price_rate REAL,
   failed_count INTEGER,
   sale_date TEXT,
   sale_time TEXT,
@@ -49,6 +49,8 @@ CREATE TABLE IF NOT EXISTS auctions (
   raw_json TEXT,
   lat REAL, lng REAL,
   geocoded_at TEXT,
+  candidates_json TEXT,
+  match_checked_at TEXT,
   first_seen_at TEXT NOT NULL,
   last_seen_at TEXT NOT NULL,
   closed_at TEXT
@@ -58,18 +60,17 @@ CREATE TABLE IF NOT EXISTS auctions (
 ### 2) 단지 매칭 결과 (`auction_matches`)
 ```sql
 CREATE TABLE IF NOT EXISTS auction_matches (
-  docid TEXT PRIMARY KEY,
+  docid TEXT NOT NULL,
   complex_id TEXT NOT NULL,
   method TEXT NOT NULL, -- 'manual' | 'geo+name' | 'geo+name+area' | 'name+area'
   confidence REAL NOT NULL,
   distance_m REAL,
   name_score REAL,
-  area_verified INTEGER DEFAULT 0,
+  area_verified INTEGER,
   candidates_json TEXT,
-  decided_by TEXT NOT NULL, -- 'auto' | 'user'
+  decided_by TEXT, -- 'auto' | 'user'
   created_at TEXT NOT NULL,
-  FOREIGN KEY (docid) REFERENCES auctions(docid) ON DELETE CASCADE,
-  FOREIGN KEY (complex_id) REFERENCES complexes(id)
+  PRIMARY KEY (docid, complex_id)
 );
 ```
 
@@ -80,7 +81,7 @@ CREATE TABLE IF NOT EXISTS auction_collect_runs (
   lawd_code TEXT,
   started_at TEXT NOT NULL,
   ended_at TEXT,
-  request_count INTEGER NOT NULL,
+  request_count INTEGER DEFAULT 0,
   http_status INTEGER,
   ipcheck INTEGER,
   total_cnt INTEGER,
@@ -92,20 +93,35 @@ CREATE TABLE IF NOT EXISTS auction_collect_runs (
 );
 ```
 
+### 4) 실측 용도 코드표 및 지역 코드 캐시 (`auction_usage_codes`, `auction_region_codes`)
+```sql
+CREATE TABLE IF NOT EXISTS auction_usage_codes (
+  usage_l TEXT, usage_m TEXT, usage_s TEXT, name TEXT, observed_at TEXT,
+  PRIMARY KEY (usage_l, usage_m, usage_s)
+);
+
+CREATE TABLE IF NOT EXISTS auction_region_codes (
+  lawd_code TEXT PRIMARY KEY,
+  sido_cd TEXT NOT NULL, sgg_cd TEXT NOT NULL,
+  display_name TEXT, verified_at TEXT
+);
+```
+
 ---
 
 ## 3. 3단계 복합 단지 매칭 알고리즘
 
-1. **1단계: 반경 150m 공간 매칭 (Geospatial Matching)**
-   - 카카오 주소 지오코딩으로 확보한 경매 물건 좌표를 기준으로 기등록 단지들과의 Haversine 거리 계산 ($distance \le 150\text{m}$).
+1. **1단계: 반경 150m~300m 공간 매칭 (Geospatial Matching)**
+   - 카카오 주소 지오코딩으로 확보한 경매 물건 좌표를 기준으로 기등록 단지들과의 Haversine 거리 계산 ($distance \le 150\text{m}$, 후보가 없으면 $300\text{m}$까지 1회 확장).
 2. **2단계: 이름 정규화 및 텍스트 유사도 매칭 (FTS5 + Bi-gram)**
    - 동/층/호수, 괄호, '아파트' 접미어 제거 및 브랜드 통일(예: '이편한세상' → 'e편한세상').
    - `complexes_fts` 접두어 매칭 점수와 2-gram Jaccard / Levenshtein 점수 합성.
 3. **3단계: 전유면적 대조 교차 검증 (Area Key Verification)**
-   - 경매 물건의 `area_key`($\text{ROUND}(\text{area\_m2} \times 100)$)와 해당 단지의 실거래 `area_key`를 대조 ($\pm 10$ 이내 허용).
+   - 경매 물건의 `area_key`($\text{ROUND}(\text{area\_m2} \times 100)$)와 해당 단지의 실거래(`transactions`) 및 분양면적 매핑(`complex_area_mappings`) `area_key`를 SARGable 범위 비교(`BETWEEN target - 10 AND target + 10`)로 대조.
 4. **자동 확정 vs 미매핑 큐 판정**:
-   - $distance \le 80\text{m} \land name\_score \ge 0.6 \land area\_verified$: **자동 확정 (`confidence` 0.85~0.95)**
-   - 그 외 후보군은 `candidates_json`에 저장 후 **미매핑 큐 (`unmatched`)로 이관되어 관리자 화면에서 수동 매칭**.
+   - $distance \le 100\text{m} \land name\_score \ge 0.7$ 또는 유일 면적 일치($name\_score \ge 0.65$) 또는 종합 점수 $\ge 0.85$: **자동 확정 (`confidence` 0.85~0.95)**
+   - 사용자가 수동 확정한 매칭(`decided_by = 'user'`)은 재수집·재매칭 시 덮어쓰지 않고 보존.
+   - 그 외 후보군은 `auctions.candidates_json`에 저장 후 **미매핑 큐 (`unmatched`)로 이관되어 관리자 화면에서 수동 매칭**.
 
 ---
 
@@ -113,9 +129,10 @@ CREATE TABLE IF NOT EXISTS auction_collect_runs (
 
 1. **수집 주기**:
    - 매일 오전 **06:40 KST** 이후 1회 자동 실행 (`runDueAuctionCollector()`).
-   - `auction.enabled === "false"` 또는 `lastSuccessDate === today` 시 건너뜀.
+   - `auction.enabled === "false"` 또는 `lastSuccessDate === today (KST)` 시 건너뜀.
    - `blockedUntil` 시점 이전이면 즉시 스킵하여 IP 보호.
+   - 3회 이상 연속 실패(`auction.consecutiveFailures >= 3`) 시 시스템 텔레그램 경고 발송.
 2. **알림 룰 엔진 (`auctionEngine.ts`)**:
-   - `watch_rules`에 `kind: 'auction' | 'both'` 및 `max_failed_count` 지원.
-   - 중복 알림 방지 키: `auction:{docid}:{sale_date}:{min_price}`.
-   - 감정가, 최저매각가, 유찰횟수, 매각기일, 대법원 링크를 텔레그램으로 전송.
+   - `rules`에 `kind: 'transaction' | 'auction' | 'both'` 및 `max_failed_count` 지원.
+   - 단지가 매칭 확정된 활성 물건만 알림 대상으로 평가하며, 중복 알림 방지 키(`auction:{docid}:{sale_date}:{min_price}`)를 통해 유찰/최저가 하락 시 재알림 허용.
+

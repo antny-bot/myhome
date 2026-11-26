@@ -43,12 +43,17 @@ export function filterAuctionsForRule(
   const keywords = (rule.apartmentKeywords || []).map((k) => k.trim().toLowerCase()).filter(Boolean);
 
   for (const a of auctions) {
+    // 0. 자동/수동 단지 매칭이 확정되지 않은 물건(미매핑 큐)은 알림 제외
+    if (!a.complexId) {
+      continue;
+    }
+
     // 1. 지역 코드 일치 확인
     if (rule.regionCode && a.lawdCode && a.lawdCode !== rule.regionCode) {
       continue;
     }
 
-    // 2. 단지명 키워드 확인 (매칭된 complexName 또는 원본 buldName)
+    // 2. 단지명 키워드 확인 (매칭된 complexName 기준, 보조로 buldName)
     if (keywords.length > 0) {
       const complexTarget = (a.complexName || "").toLowerCase();
       const buldTarget = (a.buldName || "").toLowerCase();
@@ -125,10 +130,11 @@ export function checkAuctionRule(rule: DbWatchRule, email: string): AuctionRuleM
   const ruleKind = rule.kind || "transaction";
   if (ruleKind === "transaction") return null;
 
-  // 활성 진행 중인 경매 물건 목록 조회
+  // 활성 진행 중이며 단지가 매칭 확정된 경매 물건 목록 조회
   const auctions = getAuctions({
     lawdCode: rule.regionCode,
     onlyActive: true,
+    onlyMatched: true,
   });
 
   if (auctions.length === 0) return null;

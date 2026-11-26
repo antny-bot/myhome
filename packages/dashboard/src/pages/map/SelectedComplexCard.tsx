@@ -36,7 +36,7 @@ export function SelectedComplexCard({
             )}
             {complex.auctionCount != null && complex.auctionCount > 0 && (
               <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-rose-500 text-white shadow-xs">
-                경매 {complex.auctionCount}건
+                {t.auctionCount.replace("{count}", String(complex.auctionCount))}
               </span>
             )}
           </div>
@@ -47,7 +47,7 @@ export function SelectedComplexCard({
         <button
           onClick={onClose}
           className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"
-          title="닫기"
+          title={t.close || "Close"}
         >
           <X size={16} />
         </button>
@@ -68,19 +68,19 @@ export function SelectedComplexCard({
         <div className="flex flex-col">
           <span className="text-[10px] text-slate-400">{t.latestDealPrice || "최근 거래"}</span>
           <span className="text-xs font-black text-primary">
-            {complex.latestPriceEok !== null ? `${complex.latestPriceEok}억` : "-"}
+            {complex.latestPriceEok !== null ? `${complex.latestPriceEok}${t.eokUnit}` : "-"}
           </span>
         </div>
         <div className="flex flex-col border-x border-slate-100 dark:border-slate-800">
           <span className="text-[10px] text-slate-400">{t.avgDealPrice || "평균 가격"}</span>
           <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
-            {complex.avgPriceEok !== null ? `${complex.avgPriceEok}억` : "-"}
+            {complex.avgPriceEok !== null ? `${complex.avgPriceEok}${t.eokUnit}` : "-"}
           </span>
         </div>
         <div className="flex flex-col">
           <span className="text-[10px] text-slate-400">{t.dealCountLabel || "총 거래건수"}</span>
           <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
-            {complex.txCount}건
+            {complex.txCount}{t.countUnit}
           </span>
         </div>
       </div>
@@ -91,8 +91,8 @@ export function SelectedComplexCard({
           <div className="flex items-center gap-1.5 text-xs text-rose-800 dark:text-rose-300">
             <Gavel size={13} className="text-rose-600 dark:text-rose-400 shrink-0" />
             <span className="font-bold">
-              진행 중 {complex.auctionCount}건
-              {complex.lowestAuctionPrice ? ` (최저 ${complex.lowestAuctionPrice.toFixed(2)}억)` : ""}
+              {t.auctionCount.replace("{count}", String(complex.auctionCount))}
+              {complex.lowestAuctionPrice ? ` (${t.auctionMinPrice} ${complex.lowestAuctionPrice.toFixed(2)}${t.eokUnit})` : ""}
             </span>
           </div>
           {onOpenAuction && (
@@ -101,7 +101,7 @@ export function SelectedComplexCard({
               onClick={() => onOpenAuction(complex)}
               className="px-2 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold shadow-xs transition-colors"
             >
-              경매 물건 보기
+              {t.viewAuctionDetail}
             </button>
           )}
         </div>

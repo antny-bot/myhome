@@ -257,6 +257,43 @@ export function RuleForm(props: RuleFormProps) {
               </label>
 
               <label className="space-y-1.5">
+                <span className="text-sm font-semibold text-strong">{t.ruleKindLabel}</span>
+                <select
+                  className="w-full rounded-lg border border-normal bg-normal px-3 py-2 text-sm text-strong focus:border-primary outline-none appearance-none"
+                  value={form.kind || "transaction"}
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      kind: event.target.value as "transaction" | "auction" | "both",
+                    })
+                  }
+                >
+                  <option value="transaction">{t.ruleKindTransaction}</option>
+                  <option value="auction">{t.ruleKindAuction}</option>
+                  <option value="both">{t.ruleKindBoth}</option>
+                </select>
+              </label>
+
+              <label className="space-y-1.5">
+                <span className="text-sm font-semibold text-strong">{t.ruleMaxFailedCountLabel}</span>
+                <input
+                  className="w-full rounded-lg border border-normal bg-normal px-4 py-2 text-sm text-strong focus:border-primary outline-none disabled:opacity-50"
+                  type="number"
+                  min={0}
+                  step={1}
+                  disabled={!form.kind || form.kind === "transaction"}
+                  value={form.maxFailedCount ?? ""}
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      maxFailedCount: event.target.value !== "" ? Number(event.target.value) : undefined,
+                    })
+                  }
+                  placeholder={t.ruleMaxFailedCountPlaceholder}
+                />
+              </label>
+
+              <label className="space-y-1.5">
                 <span className="text-sm font-semibold text-strong">{t.comparisonCriteria}</span>
                 <select
                   className="w-full rounded-lg border border-normal bg-normal px-3 py-2 text-sm text-strong focus:border-primary outline-none appearance-none"

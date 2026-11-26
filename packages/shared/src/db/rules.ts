@@ -136,7 +136,7 @@ export function upsertRuleDb(email: string, rule: UpsertRuleInput): void {
       alert_time = excluded.alert_time,
       channels = excluded.channels,
       enabled = excluded.enabled,
-      kind = COALESCE(excluded.kind, rules.kind),
+      kind = COALESCE(excluded.kind, rules.kind, 'transaction'),
       max_failed_count = excluded.max_failed_count,
       last_checked_at = COALESCE(excluded.last_checked_at, rules.last_checked_at),
       updated_at = excluded.updated_at
@@ -156,7 +156,7 @@ export function upsertRuleDb(email: string, rule: UpsertRuleInput): void {
     rule.alertTime || "09:00",
     channelsStr,
     rule.enabled ? 1 : 0,
-    rule.kind || "transaction",
+    rule.kind ?? null,
     rule.maxFailedCount !== undefined ? rule.maxFailedCount : null,
     rule.lastCheckedAt || null,
     rule.createdAt || now,

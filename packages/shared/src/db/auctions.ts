@@ -57,6 +57,8 @@ export function initAuctionSchema(): void {
       lat              REAL,
       lng              REAL,
       geocoded_at      TEXT,
+      candidates_json  TEXT,
+      match_checked_at TEXT,
       first_seen_at    TEXT NOT NULL,
       last_seen_at     TEXT NOT NULL,
       closed_at        TEXT
@@ -114,6 +116,20 @@ export function initAuctionSchema(): void {
       verified_at TEXT
     );
   `);
+
+  // auctions 테이블 컬럼 마이그레이션 (candidates_json, match_checked_at)
+  try {
+    const auctionCols = db.prepare("PRAGMA table_info(auctions)").all() as { name: string }[];
+    const auctionColNames = new Set(auctionCols.map((c) => c.name));
+    if (!auctionColNames.has("candidates_json")) {
+      db.exec("ALTER TABLE auctions ADD COLUMN candidates_json TEXT");
+    }
+    if (!auctionColNames.has("match_checked_at")) {
+      db.exec("ALTER TABLE auctions ADD COLUMN match_checked_at TEXT");
+    }
+  } catch {
+    // ignore
+  }
 
   // rules 테이블 컬럼 마이그레이션 (kind, max_failed_count)
   try {
@@ -208,7 +224,11 @@ export function upsertAuctions(records: AuctionRecord[]): void {
       lng = COALESCE(excluded.lng, auctions.lng),
       geocoded_at = COALESCE(excluded.geocoded_at, auctions.geocoded_at),
       last_seen_at = excluded.last_seen_at,
-      closed_at = excluded.closed_at
+      closed_at = CASE
+        WHEN excluded.closed_at IS NOT NULL THEN COALESCE(auctions.closed_at, excluded.closed_at)
+        WHEN excluded.status_cd = '01' THEN NULL
+        ELSE auctions.closed_at
+      END
   `);
 
   db.exec("BEGIN TRANSACTION");
@@ -267,10 +287,20 @@ export function upsertAuctions(records: AuctionRecord[]): void {
 
 }
 
+const COURT_AUCTION_SEARCH_URL =
+  "https://www.courtauction.go.kr/pgj/index.on?w2xPath=/pgj/ui/pgj100/PGJ151F00.xml&pgjId=151F00";
+
 /**
  * DB row -> AuctionRecord 매핑
  */
 function mapRowToAuction(row: any): AuctionWithMatch {
+  const appraisalAmt = row.appraisal_amt != null ? Number(row.appraisal_amt) : null;
+  const minPrice = row.min_price != null ? Number(row.min_price) : null;
+  const minPriceRate = row.min_price_rate != null ? Number(row.min_price_rate) : null;
+  const failedCount = row.failed_count != null ? Number(row.failed_count) : null;
+  const areaM2 = row.area_m2 != null ? Number(row.area_m2) : null;
+  const areaKey = row.area_key != null ? Number(row.area_key) : null;
+
   return {
     docid: row.docid,
     boCd: row.bo_cd,
@@ -295,12 +325,12 @@ function mapRowToAuction(row: any): AuctionWithMatch {
     addrFull: row.addr_full,
     buldName: row.buld_name,
     dongHo: row.dong_ho,
-    areaM2: row.area_m2 != null ? Number(row.area_m2) : null,
-    areaKey: row.area_key != null ? Number(row.area_key) : null,
-    appraisalAmt: row.appraisal_amt != null ? Number(row.appraisal_amt) : null,
-    minPrice: row.min_price != null ? Number(row.min_price) : null,
-    minPriceRate: row.min_price_rate != null ? Number(row.min_price_rate) : null,
-    failedCount: row.failed_count != null ? Number(row.failed_count) : null,
+    areaM2,
+    areaKey,
+    appraisalAmt,
+    minPrice,
+    minPriceRate,
+    failedCount,
     saleDate: row.sale_date,
     saleTime: row.sale_time,
     salePlace: row.sale_place,
@@ -311,9 +341,21 @@ function mapRowToAuction(row: any): AuctionWithMatch {
     lat: row.lat != null ? Number(row.lat) : null,
     lng: row.lng != null ? Number(row.lng) : null,
     geocodedAt: row.geocoded_at,
+    candidatesJson: row.candidates_json ?? null,
+    matchCheckedAt: row.match_checked_at ?? null,
     firstSeenAt: row.first_seen_at,
     lastSeenAt: row.last_seen_at,
     closedAt: row.closed_at,
+    // Convenience & UI aliases
+    caseNo: row.srn_sa_no || row.sa_no || null,
+    itemNo: row.maemul_ser || null,
+    appraisalPrice: appraisalAmt,
+    bidCount: failedCount,
+    address: row.addr_full || [row.addr_sido, row.addr_sigu, row.addr_dong, row.addr_lotno].filter(Boolean).join(" ") || null,
+    contact: row.court_tel || null,
+    linkUrl: COURT_AUCTION_SEARCH_URL,
+    status: row.status_cd === "01" ? "진행" : row.status_cd,
+    remarks: row.sale_place || null,
     complexId: row.match_complex_id ?? null,
     complexName: row.match_complex_name ?? null,
     matchMethod: row.match_method ?? null,
@@ -331,6 +373,7 @@ export interface GetAuctionsFilter {
   endDate?: string;
   statusCd?: string;
   onlyActive?: boolean;
+  onlyMatched?: boolean;
   limit?: number;
 }
 
@@ -343,7 +386,11 @@ export function getAuctions(filter: GetAuctionsFilter = {}): AuctionWithMatch[] 
   const params: any = {};
 
   if (filter.onlyActive !== false) {
-    whereClauses.push("(a.closed_at IS NULL AND a.status_cd = '01')");
+    whereClauses.push("(a.closed_at IS NULL AND a.status_cd = '01' AND (a.sale_date IS NULL OR a.sale_date >= date('now', '+9 hours')))");
+  }
+
+  if (filter.onlyMatched) {
+    whereClauses.push("m.complex_id IS NOT NULL");
   }
 
   if (filter.lawdCode) {
@@ -357,7 +404,7 @@ export function getAuctions(filter: GetAuctionsFilter = {}): AuctionWithMatch[] 
   }
 
   if (filter.complexName) {
-    whereClauses.push("(c.name = @complexName OR a.buld_name LIKE '%' || @complexName || '%')");
+    whereClauses.push("(c.name = @complexName OR (m.complex_id IS NULL AND a.buld_name = @complexName))");
     params.complexName = filter.complexName;
   }
 
@@ -377,9 +424,33 @@ export function getAuctions(filter: GetAuctionsFilter = {}): AuctionWithMatch[] 
   }
 
   const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
-  const limitSql = filter.limit ? `LIMIT ${Number(filter.limit)}` : "";
+  const safeLimit =
+    filter.limit !== undefined && Number.isFinite(Number(filter.limit)) && Number(filter.limit) > 0
+      ? Math.min(Math.floor(Number(filter.limit)), 1000)
+      : undefined;
+  const limitSql = safeLimit ? `LIMIT ${safeLimit}` : "";
 
   const query = `
+    WITH matched_complexes AS (
+      SELECT DISTINCT m.complex_id
+      FROM auctions a
+      JOIN auction_matches m ON a.docid = m.docid
+      LEFT JOIN complexes c ON m.complex_id = c.id
+      ${whereSql}
+    ),
+    latest_tx AS (
+      SELECT complex_id, price_eok
+      FROM (
+        SELECT
+          t.complex_id,
+          t.price_eok,
+          ROW_NUMBER() OVER (PARTITION BY t.complex_id ORDER BY t.deal_date DESC) AS rn
+        FROM transactions t
+        JOIN matched_complexes mc ON t.complex_id = mc.complex_id
+        WHERE t.cancel_date IS NULL
+      )
+      WHERE rn = 1
+    )
     SELECT
       a.*,
       m.complex_id AS match_complex_id,
@@ -387,16 +458,11 @@ export function getAuctions(filter: GetAuctionsFilter = {}): AuctionWithMatch[] 
       m.method AS match_method,
       m.confidence AS match_confidence,
       m.decided_by AS match_decided_by,
-      (
-        SELECT t.price_eok
-        FROM transactions t
-        WHERE t.complex_id = m.complex_id
-        ORDER BY t.deal_date DESC
-        LIMIT 1
-      ) AS latest_price_eok
+      lt.price_eok AS latest_price_eok
     FROM auctions a
     LEFT JOIN auction_matches m ON a.docid = m.docid
     LEFT JOIN complexes c ON m.complex_id = c.id
+    LEFT JOIN latest_tx lt ON m.complex_id = lt.complex_id
     ${whereSql}
     ORDER BY a.sale_date ASC, a.min_price ASC
     ${limitSql}
@@ -423,6 +489,7 @@ export function getAuctionByDocId(docid: string): AuctionWithMatch | undefined {
         SELECT t.price_eok
         FROM transactions t
         WHERE t.complex_id = m.complex_id
+          AND t.cancel_date IS NULL
         ORDER BY t.deal_date DESC
         LIMIT 1
       ) AS latest_price_eok
@@ -439,15 +506,15 @@ export function getAuctionByDocId(docid: string): AuctionWithMatch | undefined {
 /**
  * 단지별 경매 물건 조회 (차트 및 상세 뷰 연동)
  */
-export function getAuctionsByComplexId(complexId: string): AuctionWithMatch[] {
-  return getAuctions({ complexId, onlyActive: false });
+export function getAuctionsByComplexId(complexId: string, onlyActive = true): AuctionWithMatch[] {
+  return getAuctions({ complexId, onlyActive });
 }
 
 /**
  * 단지명 기준 경매 물건 조회
  */
-export function getAuctionsByComplexName(complexName: string): AuctionWithMatch[] {
-  return getAuctions({ complexName, onlyActive: false });
+export function getAuctionsByComplexName(complexName: string, onlyActive = true): AuctionWithMatch[] {
+  return getAuctions({ complexName, onlyActive });
 }
 
 /**
@@ -463,7 +530,9 @@ export function getAuctionSummary(): AuctionSummary {
       SUM(CASE WHEN a.sale_date BETWEEN date('now', '+9 hours') AND date('now', '+9 hours', '+7 days') THEN 1 ELSE 0 END) AS upcoming_7_days
     FROM auctions a
     LEFT JOIN auction_matches m ON a.docid = m.docid
-    WHERE a.closed_at IS NULL AND a.status_cd = '01'
+    WHERE a.closed_at IS NULL
+      AND a.status_cd = '01'
+      AND (a.sale_date IS NULL OR a.sale_date >= date('now', '+9 hours'))
   `;
   const row = db.prepare(query).get() as any;
 
@@ -476,39 +545,60 @@ export function getAuctionSummary(): AuctionSummary {
 }
 
 /**
- * 단지 매칭 저장
+ * 단지 매칭 저장 (기존 수동 매칭 보존 및 1:1 매칭 보장)
  */
 export function saveAuctionMatch(match: AuctionMatch): void {
   const db = getDb();
-  db.prepare(`
-    INSERT INTO auction_matches (
-      docid, complex_id, method, confidence, distance_m, name_score,
-      area_verified, candidates_json, decided_by, created_at
-    ) VALUES (
-      @docid, @complexId, @method, @confidence, @distanceM, @nameScore,
-      @areaVerified, @candidatesJson, @decidedBy, @createdAt
-    )
-    ON CONFLICT(docid, complex_id) DO UPDATE SET
-      method = excluded.method,
-      confidence = excluded.confidence,
-      distance_m = excluded.distance_m,
-      name_score = excluded.name_score,
-      area_verified = excluded.area_verified,
-      candidates_json = excluded.candidates_json,
-      decided_by = excluded.decided_by,
-      created_at = excluded.created_at
-  `).run({
-    docid: match.docid,
-    complexId: match.complexId,
-    method: match.method,
-    confidence: match.confidence,
-    distanceM: match.distanceM ?? null,
-    nameScore: match.nameScore ?? null,
-    areaVerified: match.areaVerified ? 1 : 0,
-    candidatesJson: match.candidatesJson ?? null,
-    decidedBy: match.decidedBy,
-    createdAt: match.createdAt,
-  });
+
+  // 자동 매칭인 경우 기존에 사용자가 수동 확정한 매칭이 있으면 덮어쓰지 않음
+  if (match.decidedBy !== "user") {
+    const existing = getAuctionMatch(match.docid);
+    if (existing && existing.decidedBy === "user") {
+      return;
+    }
+  }
+
+  db.exec("BEGIN TRANSACTION");
+  try {
+    // 단일 docid에 다중 단지 매칭이 남지 않도록 기존 매칭 삭제 후 삽입
+    db.prepare("DELETE FROM auction_matches WHERE docid = ?").run(match.docid);
+
+    db.prepare(`
+      INSERT INTO auction_matches (
+        docid, complex_id, method, confidence, distance_m, name_score,
+        area_verified, candidates_json, decided_by, created_at
+      ) VALUES (
+        @docid, @complexId, @method, @confidence, @distanceM, @nameScore,
+        @areaVerified, @candidatesJson, @decidedBy, @createdAt
+      )
+    `).run({
+      docid: match.docid,
+      complexId: match.complexId,
+      method: match.method,
+      confidence: match.confidence,
+      distanceM: match.distanceM ?? null,
+      nameScore: match.nameScore ?? null,
+      areaVerified: match.areaVerified ? 1 : 0,
+      candidatesJson: match.candidatesJson ?? null,
+      decidedBy: match.decidedBy,
+      createdAt: match.createdAt,
+    });
+
+    db.prepare(`
+      UPDATE auctions
+      SET candidates_json = @candidatesJson, match_checked_at = @createdAt
+      WHERE docid = @docid
+    `).run({
+      docid: match.docid,
+      candidatesJson: match.candidatesJson ?? null,
+      createdAt: match.createdAt,
+    });
+
+    db.exec("COMMIT");
+  } catch (err) {
+    db.exec("ROLLBACK");
+    throw err;
+  }
 }
 
 /**
@@ -536,10 +626,6 @@ export function getAuctionMatch(docid: string): AuctionMatch | undefined {
  * 수동 매칭 확정
  */
 export function manualMatchAuction(docid: string, complexId: string): void {
-  const db = getDb();
-  // 기존 자동 매칭이 있을 경우 삭제 후 재등록
-  db.prepare("DELETE FROM auction_matches WHERE docid = ?").run(docid);
-
   saveAuctionMatch({
     docid,
     complexId,
@@ -562,10 +648,23 @@ export function deleteAuctionMatch(docid: string): void {
 }
 
 /**
+ * 미매핑 경매 물건의 후보 목록 및 매칭 시도 시각 저장
+ */
+export function updateAuctionCandidates(docid: string, candidates: AuctionCandidate[], checkedAt = new Date().toISOString()): void {
+  const db = getDb();
+  db.prepare(`
+    UPDATE auctions
+    SET candidates_json = ?, match_checked_at = ?
+    WHERE docid = ?
+  `).run(JSON.stringify(candidates), checkedAt, docid);
+}
+
+/**
  * 미매핑 경매 물건 및 후보 조회 (관리자용)
  */
 export function getUnmatchedAuctions(limit = 50): { auction: AuctionRecord; candidates: AuctionCandidate[] }[] {
   const db = getDb();
+  const safeLimit = Number.isFinite(Number(limit)) && Number(limit) > 0 ? Math.min(Math.floor(Number(limit)), 500) : 50;
   const query = `
     SELECT a.*
     FROM auctions a
@@ -573,10 +672,11 @@ export function getUnmatchedAuctions(limit = 50): { auction: AuctionRecord; cand
     WHERE m.docid IS NULL
       AND a.closed_at IS NULL
       AND a.status_cd = '01'
+      AND (a.sale_date IS NULL OR a.sale_date >= date('now', '+9 hours'))
     ORDER BY a.sale_date ASC
     LIMIT ?
   `;
-  const rows = db.prepare(query).all(limit);
+  const rows = db.prepare(query).all(safeLimit);
 
   return rows.map((row: any) => {
     const auction = mapRowToAuction(row);
@@ -587,9 +687,39 @@ export function getUnmatchedAuctions(limit = 50): { auction: AuctionRecord; cand
       } catch {
         candidates = [];
       }
+    } else if (row.raw_json) {
+      try {
+        const parsedRaw = JSON.parse(row.raw_json);
+        if (Array.isArray(parsedRaw?.candidates)) {
+          candidates = parsedRaw.candidates;
+        }
+      } catch {
+        candidates = [];
+      }
     }
     return { auction, candidates };
   });
+}
+
+/**
+ * 당일(KST 기준) 누적 경매 수집 HTTP 요청 횟수 조회
+ */
+export function getTodayAuctionRequestCount(kstDateStr?: string): number {
+  const db = getDb();
+  if (kstDateStr) {
+    const row = db.prepare(`
+      SELECT COALESCE(SUM(request_count), 0) AS total_requests
+      FROM auction_collect_runs
+      WHERE date(started_at, '+9 hours') = ?
+    `).get(kstDateStr) as { total_requests: number } | undefined;
+    return Number(row?.total_requests || 0);
+  }
+  const row = db.prepare(`
+    SELECT COALESCE(SUM(request_count), 0) AS total_requests
+    FROM auction_collect_runs
+    WHERE date(started_at, '+9 hours') = date('now', '+9 hours')
+  `).get() as { total_requests: number } | undefined;
+  return Number(row?.total_requests || 0);
 }
 
 /**

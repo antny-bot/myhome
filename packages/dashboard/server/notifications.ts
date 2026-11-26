@@ -150,3 +150,25 @@ export async function sendAuctionNotifications(
   return results;
 }
 
+export async function sendSystemAlertTelegram(alertText: string): Promise<boolean> {
+  const token = Config.TELEGRAM_BOT_TOKEN;
+  const chatId = Config.TELEGRAM_CHAT_ID;
+  if (!token || !chatId) return false;
+
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: alertText,
+        disable_web_page_preview: true,
+      }),
+      signal: AbortSignal.timeout(10000),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+

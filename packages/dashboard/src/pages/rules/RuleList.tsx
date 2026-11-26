@@ -76,8 +76,16 @@ export function RuleList({ rules, onChanged, onEdit }: RuleListProps) {
           >
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="font-bold text-strong truncate">{rule.name}</h3>
+                  {(rule.kind === "auction" || rule.kind === "both") && (
+                    <span className="bg-rose-100 dark:bg-rose-950/70 text-rose-700 dark:text-rose-300 px-1.5 py-0.5 rounded text-[10px] font-bold border border-rose-200 dark:border-rose-900">
+                      {rule.kind === "auction" ? t.ruleKindAuction : t.ruleKindBoth}
+                      {rule.maxFailedCount !== undefined
+                        ? ` (≤${t.auctionFailedCount.replace("{count}", String(rule.maxFailedCount))})`
+                        : ""}
+                    </span>
+                  )}
                   {!rule.enabled && (
                     <span className="bg-alternative text-neutral px-1.5 py-0.5 rounded text-[10px] font-bold border border-normal">
                       {t.ruleSuspended}

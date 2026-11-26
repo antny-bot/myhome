@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Home } from "lucide-react";
+import { Home, Gavel } from "lucide-react";
 import { useLocale } from "../../../lib/i18n.js";
 import type { ComplexTabProps } from "./types.js";
 import { useComplexData } from "./useComplexData.js";
@@ -8,11 +8,13 @@ import { InfraScoreSection } from "./InfraScoreSection.js";
 import { ComplexChartsSection } from "./ComplexChartsSection.js";
 import { ComplexRecentTradesTable } from "./ComplexRecentTradesTable.js";
 import { InfraModal } from "./InfraModal.js";
+import { ComplexAuctionDetailModal } from "../../../components/ComplexAuctionDetailModal.js";
 
 export function ComplexTab(props: ComplexTabProps) {
   const { t } = useLocale();
   const [showDetailInfras, setShowDetailInfras] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
+  const [showAuctionModal, setShowAuctionModal] = useState(false);
 
   const {
     complexName,
@@ -74,6 +76,39 @@ export function ComplexTab(props: ComplexTabProps) {
         setShowInfoModal={setShowInfoModal}
       />
 
+      {/* 경매 진행 물건 배너 (진행 경매가 있을 때만 표시) */}
+      {auctions.length > 0 && (
+        <div className="p-3.5 rounded-2xl bg-rose-50/80 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/70 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-rose-500/15 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+              <Gavel size={16} />
+            </div>
+            <div>
+              <div className="text-xs sm:text-sm font-black text-rose-900 dark:text-rose-200 flex items-center gap-2">
+                <span>{t.auctionCount.replace("{count}", String(auctions.length))}</span>
+                {auctions[0]?.minPrice && (
+                  <span className="text-xs font-bold text-rose-600 dark:text-rose-400">
+                    · {t.auctionMinPrice} {(auctions[0].minPrice / 100000000).toFixed(2)}
+                    {t.eokUnit}
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-rose-700/80 dark:text-rose-300/80">
+                {auctions[0]?.srnSaNo || auctions[0]?.saNo}
+                {auctions[0]?.saleDate ? ` · ${t.auctionSaleDate}: ${auctions[0].saleDate}` : ""}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowAuctionModal(true)}
+            className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-xs transition-all active:scale-95"
+          >
+            {t.viewAuctionDetail}
+          </button>
+        </div>
+      )}
+
       {/* 2. 지도 및 6대 인프라 평가 섹션 */}
       <InfraScoreSection
         detailData={detailData}
@@ -107,8 +142,34 @@ export function ComplexTab(props: ComplexTabProps) {
 
       {/* 5. 입지 산출 기준 모달 */}
       <InfraModal isOpen={showInfoModal} onClose={() => setShowInfoModal(false)} />
+
+      {/* 6. 경매 상세 모달 */}
+      {showAuctionModal && (
+        <ComplexAuctionDetailModal
+          complex={{
+            id: detailData.complexInfo?.id || `${props.lawdCode || ""}|${complexName}`,
+            lawdCode: props.lawdCode || detailData.complexInfo?.lawdCode || "",
+            regionName: detailData.complexInfo?.regionName || "",
+            dongName: detailData.complexInfo?.dongName ?? null,
+            jibun: detailData.complexInfo?.jibun ?? null,
+            roadName: detailData.complexInfo?.roadName ?? null,
+            name: complexName,
+            lat: detailData.complexInfo?.lat ?? null,
+            lng: detailData.complexInfo?.lng ?? null,
+            txCount: recentTxStats?.totalCount ?? 0,
+            latestPriceEok: kpiData?.latestAvg ?? recentTxStats?.avgPrice ?? null,
+            avgPriceEok: recentTxStats?.avgPrice ? Number(recentTxStats.avgPrice.toFixed(2)) : null,
+            minPriceEok: recentTxStats?.minPrice ?? null,
+            maxPriceEok: recentTxStats?.maxPrice ?? null,
+            latestDealDate: detailData.recentTx?.[0]?.dealDate ?? null,
+          }}
+          auctions={auctions}
+          onClose={() => setShowAuctionModal(false)}
+        />
+      )}
     </div>
   );
 }
 
 export default ComplexTab;
+

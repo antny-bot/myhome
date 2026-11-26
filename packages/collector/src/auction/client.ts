@@ -37,10 +37,11 @@ export interface AuctionSearchResponse {
 
 export interface AuctionClientOptions {
   baseUrl?: string;
-  minDelayMs?: number;       // 기본 3000ms
-  jitterMaxMs?: number;      // 기본 2000ms
-  retryBackoffMs?: number;   // 기본 30000ms (테스트 시 축소 가능)
-  maxRequestsPerRun?: number;// 기본 20회
+  minDelayMs?: number;        // 기본 3000ms
+  jitterMaxMs?: number;       // 기본 2000ms
+  retryBackoffMs?: number;    // 기본 30000ms (테스트 시 축소 가능)
+  maxRequestsPerRun?: number; // 기본 20회
+  initialRequestCount?: number; // 당일 누적 요청 수 반영용
 }
 
 export class AuctionClient {
@@ -58,6 +59,7 @@ export class AuctionClient {
     this.jitterMaxMs = options.jitterMaxMs ?? 2000;
     this.retryBackoffMs = options.retryBackoffMs ?? 30000;
     this.maxRequestsPerRun = options.maxRequestsPerRun ?? 20;
+    this.requestCount = options.initialRequestCount ?? 0;
   }
 
   public getRequestCount(): number {
@@ -93,12 +95,11 @@ export class AuctionClient {
   public async postSearch(payload: Record<string, any>, signal?: AbortSignal): Promise<AuctionSearchResponse> {
     if (this.requestCount >= this.maxRequestsPerRun) {
       throw new AuctionClientError(
-        `1회 수집 상한(${this.maxRequestsPerRun}회)에 도달하여 추가 요청이 중단되었습니다.`
+        `일일/1회 수집 상한(${this.maxRequestsPerRun}회)에 도달하여 추가 요청이 중단되었습니다.`
       );
     }
 
     await this.throttle();
-    this.requestCount++;
 
     const url = `${this.baseUrl}/pgj/pgjsearch/searchControllerMain.on`;
     const headers = {
@@ -115,6 +116,8 @@ export class AuctionClient {
     let attempt = 0;
     while (attempt < 2) {
       attempt++;
+      this.requestCount++;
+      this.lastRequestAt = Date.now();
       try {
         const res = await fetch(url, {
           method: "POST",
@@ -122,9 +125,10 @@ export class AuctionClient {
           body: JSON.stringify(payload),
           signal,
         });
+        this.lastRequestAt = Date.now();
 
         if (!res.ok) {
-          if (attempt === 1) {
+          if (attempt === 1 && this.requestCount < this.maxRequestsPerRun) {
             log.warn(`[AuctionClient] HTTP ${res.status} 발생. ${this.retryBackoffMs}ms 후 1회 재시도합니다.`);
             await this.sleep(this.retryBackoffMs);
             continue;
@@ -147,8 +151,8 @@ export class AuctionClient {
         return json;
       } catch (err: any) {
         if (err instanceof BlockedError) throw err;
-        if (err instanceof AuctionClientError && attempt >= 2) throw err;
-        if (attempt === 1 && (err.name === "TypeError" || err.name === "FetchError")) {
+        if (err instanceof AuctionClientError && (attempt >= 2 || this.requestCount >= this.maxRequestsPerRun)) throw err;
+        if (attempt === 1 && this.requestCount < this.maxRequestsPerRun && (err.name === "TypeError" || err.name === "FetchError")) {
           log.warn(`[AuctionClient] 네트워크 오류 발생. ${this.retryBackoffMs}ms 후 1회 재시도합니다: ${err.message}`);
           await this.sleep(this.retryBackoffMs);
           continue;
