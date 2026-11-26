@@ -213,7 +213,7 @@ export function createMcpRouter(): express.Router {
             },
             serverInfo: {
               name: "myhome-mcp-server",
-              version: "0.6.0",
+              version: "0.6.1",
             },
             instructions: "myhome 국토부 아파트 실거래가 및 단지 분석 MCP 서버입니다.",
           };

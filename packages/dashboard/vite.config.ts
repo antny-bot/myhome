@@ -18,7 +18,7 @@ function getGitCommitHash(): string {
 
 const commitHash = getGitCommitHash();
 const buildTime = new Date().toISOString();
-const appVersion = packageJson.version || "0.6.0";
+const appVersion = packageJson.version || "0.6.1";
 
 export default defineConfig({
   plugins: [
