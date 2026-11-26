@@ -322,16 +322,18 @@ MCP(`server/mcp/manifest.ts`)에 `search_auctions`(지역·단지·기일), `get
 
 ---
 
-## 8. 프론트엔드 UI
+## 8. 프론트엔드 UI (별도 최상위 메뉴 없이 기존 화면 통합)
+
+> **원칙**: 상단/사이드 내비게이션에 별도 '경매' 메뉴를 추가하지 않고, 기존 조회 화면과 관리자 메뉴에 자연스럽게 통합한다.
 
 | 화면 | 파일 | 변경 |
 |---|---|---|
-| 지도 마커 | `components/KakaoMap.tsx`, `lib/mapTheme.ts` | `createComplexMarkerHtml`의 기존 `badgeText` 옵션에 **`경매 N`** 배지(rose 톤). `MapLegend`에 항목 추가 |
-| 단지 목록 | `pages/map/ComplexListItem.tsx`, `ComplexListSection.tsx` | `경매 1건 · 최저 4.69억 · 12-02` pill (거래가 대비 −% 표시) |
-| 단지 상세 | `pages/graph/ComplexTab/ComplexHeaderCard.tsx` | 진행 경매 요약 카드 → `AuctionDetailModal`(감정가·최저가·유찰·기일·법원·`tel`·원문 새 창 링크) |
+| 조회 필터 | `pages/map/` 필터 바 | **"경매 있는 단지만 보기"** 토글/필터 추가 (`hasAuction=true` 기준 지도 마커·단지 목록 동시 필터링) |
+| 지도 마커 | `components/KakaoMap.tsx`, `lib/mapTheme.ts` | `createComplexMarkerHtml`의 기존 `badgeText` 옵션에 **`경매 N`** 배지(rose 톤) 표시. 배지 클릭 시 해당 단지의 경매 정보 페이지/뷰로 이동, `MapLegend`에 항목 추가 |
+| 단지 목록 | `pages/map/ComplexListItem.tsx`, `ComplexListSection.tsx` | 경매 건수가 있는 단지에 **`경매 N건 · 최저 4.69억 · 12-02`** 클릭 가능한 배지 노출(거래가 대비 −% 표시). 배지 클릭 시 해당 단지의 경매 정보 페이지/뷰로 이동 |
+| 단지 경매 페이지(뷰) | `pages/graph/ComplexTab/`(신규 경매 뷰 또는 `/complex/:name/auctions` 라우트) | 뱃지 클릭 시 이동하는 **단지 경매 상세 페이지**(상위 메뉴 노출 없이 딥링크/내부 이동으로만 진입). 사건번호·동/호·감정가·최저매각가(매각가율)·유찰횟수·매각기일·법원·연락처(`tel`)·원문 공고 새 창 링크 및 실거래 대비 비교 표시 |
 | 실거래 차트 | `pages/graph/OverviewTab/TimeSeriesSection.tsx`, `ComplexTab/ComplexChartsSection.tsx` | `ReferenceLine` 2개(**감정가**, **최저매각가**) + 범례 토글(`ChartLegendToggles` 재사용). 단지 필터가 걸린 경우에만 노출, 툴팁에 `유찰 n회 · 기일` 표기 |
-| 대시보드 | `pages/dashboard/DesktopDashboardView.tsx` | KPI에 `진행 경매 N건 / 최저 매각가율 평균` 1칸 추가(선택) |
-| 관리자 | `pages/DatabaseAdmin.tsx` 또는 신규 `pages/admin/AuctionMatches.tsx` | 미매핑 큐 목록·후보 선택·확정 |
+| 관리자 메뉴 | `pages/DatabaseAdmin.tsx` (기존 관리자 메뉴 내 경매 관리 섹션/탭) | 별도 메뉴 신설 없이 관리자 메뉴 안에 **경매 관리** 통합: ① 수집 상태(`auction.enabled` 토글, `blockedUntil` 차단 여부, 최근 수집 이력) 및 수동 수집 버튼(`POST /api/auction/collect`) ② 미매핑 큐 목록·후보 단지 비교·수동 매칭 확정(`POST /api/auctions/:docid/match`) |
 
 - `AGENTS.md` 규칙대로 **한국어/영어 i18n**(`locales/ko`, `locales/en`) 동시 반영, **모바일 퍼스트(390 / 768 / 1280px)** 확인.
 - 신규 타입은 `src/types.ts`의 `AuctionRecord`/`AuctionMatch`로 정의하고 server와 공유.
@@ -353,9 +355,9 @@ MCP(`server/mcp/manifest.ts`)에 `search_auctions`(지역·단지·기일), `get
 - **대상**: `server/scheduler.ts`, `server/auctionEngine.ts`, `server/notifications.ts`, `rules` 마이그레이션
 - **완료 기준**: 06:40 1일 1회 실행·`auction.lastSuccessDate` 중복 차단·`blockedUntil` 게이트 동작, 경매 룰 1건으로 텔레그램 실수신, 동일 물건 재알림 없음(최저가 변경 시만).
 
-### Phase 4. UI
+### Phase 4. UI (기존 화면 및 관리자 메뉴 통합)
 - **대상**: 8장 표의 파일 + `types.ts` + i18n
-- **완료 기준**: 지도 배지·목록 pill·상세 모달·차트 기준선이 실데이터로 표시되고 390/768/1280px 및 다크 모드에서 레이아웃 깨짐 없음.
+- **완료 기준**: 별도 최상위 '경매' 메뉴 없이 기존 조회 화면('경매만 보기' 필터, 지도/목록 경매 배지 및 클릭 시 경매 정보 페이지 이동, 차트 기준선)과 관리자 메뉴(수집 관리·미매핑 큐 수동 매칭)가 실데이터로 동작하고, 390/768/1280px 및 다크 모드에서 레이아웃 깨짐 없음.
 
 ### Phase 5. (선택) 문서·사건 상세 확장
 - 사건/물건 상세(`POST /pgj/pgj15B/selectAuctnCsSrchRslt.on`)로 감정평가 요항표·기일 이력 수집.
