@@ -22,10 +22,13 @@ export const ruleSchema = z.object({
   intervalMinutes: z.number().int().min(10).optional(),
   alertTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
   channels: z.array(z.enum(["telegram", "kakao"])).min(1),
-  enabled: z.boolean()
+  enabled: z.boolean(),
+  kind: z.enum(["transaction", "auction", "both"]).optional(),
+  maxFailedCount: z.number().int().min(0).optional()
 });
 
 export const ruleUpdateSchema = ruleSchema.partial();
+
 
 export function createRuleRouter() {
   const router = express.Router();

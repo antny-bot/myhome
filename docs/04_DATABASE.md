@@ -87,6 +87,12 @@ CREATE VIRTUAL TABLE IF NOT EXISTS complexes_fts USING fts5(
 );
 ```
 
+### H. 대법원 법원경매 테이블군 (`auctions`, `auction_matches`, `auction_collect_runs`)
+- `auctions`: 대법원 법원경매정보 사건 원장.
+- `auction_matches`: 아파트 단지 복합 매칭 결과 (자동 확정 및 수동 매칭).
+- `auction_collect_runs`: 법원경매 수집 이력, 차단(`blocked`) 및 쿨다운 상태 기록.
+- 상세 스키마 DDL: `docs/12_AUCTION_INTEGRATION.md` 참조.
+
 ## 3. 적재 원칙 및 데이터 정합성
 
 - **시군구 단위 일괄 적재**: 국토부 API 특성상 단지 조회 시 해당 시군구 5자리(`LAWD_CD`) 전체 수집. DB 일괄 Upsert로 동일 지역 후속 조회 캐시 히트 극대화.

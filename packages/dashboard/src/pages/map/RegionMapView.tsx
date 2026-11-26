@@ -19,6 +19,7 @@ interface RegionMapViewProps {
   setSelectedComplex: (complex: RegionMapComplexItem | null) => void;
   onSelectComplex: (complexName: string, lawdCode?: string) => void;
   onNavigateToRules?: (initData: { regionName: string; regionCode?: string; apartmentKeywords: string[] }) => void;
+  onOpenAuction?: (complex: RegionMapComplexItem) => void;
 }
 
 export function RegionMapView({
@@ -35,6 +36,7 @@ export function RegionMapView({
   setSelectedComplex,
   onSelectComplex,
   onNavigateToRules,
+  onOpenAuction,
 }: RegionMapViewProps) {
   const { t } = useLocale();
 
@@ -117,6 +119,7 @@ export function RegionMapView({
           onClose={() => setSelectedComplex(null)}
           onSelectComplex={onSelectComplex}
           onNavigateToRules={onNavigateToRules}
+          onOpenAuction={onOpenAuction}
         />
       )}
     </div>

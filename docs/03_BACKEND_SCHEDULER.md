@@ -30,6 +30,11 @@ Express 백엔드 서버, 매물 감시 룰 엔진, 일일 자동 수집 스케�
      - `CollectorLock` 인메모리 락으로 중복 실행 방지.
      - `system_config` 내 `collector.lastSuccessDate` 영속화로 당일 중복 수집 차단.
      - 등록 지역 대상 `@myhome/collector` `runCollector` 실행, SQLite DB 대량 적재.
+  3. **일일 법원경매 자동 수집 & 룰 알림 (매일 1회, KST 06:40 이후)**:
+     - `AuctionLock` 인메모리 락 및 `auction.lastSuccessDate`로 당일 중복 수집 차단.
+     - `auction.blockedUntil` IP 쿨다운 게이트 검증.
+     - 법원경매 데이터 수집, 3단계 단지 매칭(공간+정규화FTS+면적), 경매 룰 알림(`auctionEngine`) 발송.
+     - 상세 규격: `docs/12_AUCTION_INTEGRATION.md` 참조.
 
 ## 4. 로컬 빌드 및 실행
 

@@ -43,7 +43,14 @@ export function MapLegend({
           <span className="text-amber-600 dark:text-amber-400 font-extrabold">선택</span>
         </div>
       )}
+      <div className="flex items-center gap-1 shrink-0 border-l border-normal pl-2">
+        <span className="px-1 py-0.5 rounded text-[8px] font-black bg-rose-600 text-white shadow-sm leading-none">
+          경매 N
+        </span>
+        <span className="text-rose-600 dark:text-rose-400 font-extrabold">진행경매</span>
+      </div>
     </div>
   );
 }
+
 

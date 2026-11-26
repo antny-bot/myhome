@@ -11,6 +11,7 @@ export * from "./rules.js";
 export * from "./presets.js";
 export * from "./activityLogs.js";
 export * from "./mcp.js";
+export * from "./auctions.js";
 
 // 기존 closeGraphDb 호환용 래퍼
 export async function closeGraphDb(): Promise<void> {

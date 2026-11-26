@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useState } from "react";
 import { Layers, List, Map as MapIcon } from "lucide-react";
 import { PageHeader } from "../../components/PageHeader.js";
+import { ComplexAuctionDetailModal } from "../../components/ComplexAuctionDetailModal.js";
 import { useDragScroll } from "../../hooks/useDragScroll.js";
 import { ComplexListSection } from "./ComplexListSection.js";
 import { RegionChips } from "./RegionChips.js";
@@ -8,10 +9,12 @@ import { RegionMapView } from "./RegionMapView.js";
 import type { RegionMapPageProps } from "./types.js";
 import { useRegionKakaoMap } from "./useRegionKakaoMap.js";
 import { useRegionMapData } from "./useRegionMapData.js";
+import type { RegionMapComplexItem } from "@myhome/shared";
 
 export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapPageProps) {
   const mapDataState = useRegionMapData();
   const regionDrag = useDragScroll();
+  const [auctionModalComplex, setAuctionModalComplex] = useState<RegionMapComplexItem | null>(null);
 
   const {
     t,
@@ -22,6 +25,8 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
     mapData,
     selectedComplex,
     setSelectedComplex,
+    hasAuctionOnly,
+    setHasAuctionOnly,
     metaFilter,
     setMetaFilter,
     hasActiveMetaFilters,
@@ -150,6 +155,9 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
           onFocusComplex={handleFocusComplex}
           onSelectComplex={onSelectComplex}
           onNavigateToRules={onNavigateToRules}
+          onOpenAuction={(c) => setAuctionModalComplex(c)}
+          hasAuctionOnly={hasAuctionOnly}
+          setHasAuctionOnly={setHasAuctionOnly}
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
           selectedDong={selectedDong}
@@ -189,8 +197,18 @@ export function RegionMapPage({ onSelectComplex, onNavigateToRules }: RegionMapP
           setSelectedComplex={setSelectedComplex}
           onSelectComplex={onSelectComplex}
           onNavigateToRules={onNavigateToRules}
+          onOpenAuction={(c) => setAuctionModalComplex(c)}
         />
       </div>
+
+      {/* 단지 경매 상세 모달 */}
+      {auctionModalComplex && (
+        <ComplexAuctionDetailModal
+          complex={auctionModalComplex}
+          onClose={() => setAuctionModalComplex(null)}
+          onSelectComplex={onSelectComplex}
+        />
+      )}
     </div>
   );
 }

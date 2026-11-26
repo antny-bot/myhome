@@ -1,5 +1,6 @@
-import { getDb, searchComplexNames } from "@myhome/shared";
+import { getDb, searchComplexNames, getAuctions, getAuctionByDocId } from "@myhome/shared";
 import { monthsAgoCutoff, normalizeDealDate } from "./dateUtils.js";
+
 
 interface ToolHandlerContext {
   userEmail: string;
@@ -422,6 +423,66 @@ export async function handleListMonitoringRules(_args: any, context: ToolHandler
 }
 
 /**
+ * 7. search_auctions
+ */
+export async function handleSearchAuctions(args: any): Promise<string> {
+  const lawdCode = args.lawd_code ? String(args.lawd_code).trim() : undefined;
+  const complexName = args.complex_name ? String(args.complex_name).trim() : undefined;
+  const startDate = args.start_date ? String(args.start_date).trim() : undefined;
+  const endDate = args.end_date ? String(args.end_date).trim() : undefined;
+  const limit = Math.min(Math.max(Number(args.limit) || 20, 1), 100);
+
+  const auctions = getAuctions({
+    lawdCode,
+    complexName,
+    startDate,
+    endDate,
+    onlyActive: true,
+    limit,
+  });
+
+  return JSON.stringify(
+    {
+      count: auctions.length,
+      auctions: auctions.map((a) => ({
+        docid: a.docid,
+        srnSaNo: a.srnSaNo,
+        courtName: a.courtName,
+        deptName: a.deptName,
+        complexName: a.complexName || a.buldName,
+        dongHo: a.dongHo,
+        areaM2: a.areaM2,
+        appraisalAmt: a.appraisalAmt,
+        minPrice: a.minPrice,
+        minPriceRate: a.minPriceRate,
+        failedCount: a.failedCount,
+        saleDate: a.saleDate,
+        saleTime: a.saleTime,
+      })),
+    },
+    null,
+    2
+  );
+}
+
+/**
+ * 8. get_auction_detail
+ */
+export async function handleGetAuctionDetail(args: any): Promise<string> {
+  const docid = String(args.docid || "").trim();
+  if (!docid) {
+    return JSON.stringify({ error: "docid는 필수입니다." });
+  }
+
+  const auction = getAuctionByDocId(docid);
+  if (!auction) {
+    return JSON.stringify({ error: `경매 물건(${docid})을 찾을 수 없습니다.` });
+  }
+
+  return JSON.stringify(auction, null, 2);
+}
+
+/**
  * MCP Tool 실행 분기
  */
 export async function executeMcpTool(
@@ -442,7 +503,12 @@ export async function executeMcpTool(
       return handleSearchRegions(args);
     case "list_monitoring_rules":
       return handleListMonitoringRules(args, context);
+    case "search_auctions":
+      return handleSearchAuctions(args);
+    case "get_auction_detail":
+      return handleGetAuctionDetail(args);
     default:
       throw new Error(`알 수 없거나 지원되지 않는 도구입니다: ${toolName}`);
   }
 }
+

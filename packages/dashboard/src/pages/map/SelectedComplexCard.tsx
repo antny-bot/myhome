@@ -1,5 +1,5 @@
 import React from "react";
-import { X, ArrowRight, Bell } from "lucide-react";
+import { X, ArrowRight, Bell, Gavel } from "lucide-react";
 import type { RegionMapComplexItem } from "@myhome/shared";
 import { ComplexMetaBadges } from "../../components/common/ComplexMetaBadges";
 import { useLocale } from "../../lib/i18n";
@@ -9,13 +9,15 @@ export interface SelectedComplexCardProps {
   onClose: () => void;
   onSelectComplex: (complexName: string, lawdCode?: string) => void;
   onNavigateToRules?: (initData: { regionName: string; regionCode?: string; apartmentKeywords: string[] }) => void;
+  onOpenAuction?: (complex: RegionMapComplexItem) => void;
 }
 
 export function SelectedComplexCard({
   complex,
   onClose,
   onSelectComplex,
-  onNavigateToRules
+  onNavigateToRules,
+  onOpenAuction,
 }: SelectedComplexCardProps) {
   const { t } = useLocale();
 
@@ -23,13 +25,18 @@ export function SelectedComplexCard({
     <div className="absolute bottom-4 inset-x-4 sm:left-auto sm:right-4 sm:w-96 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl p-4 border border-primary/20 dark:border-primary/30 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200">
       <div className="flex items-start justify-between gap-2 mb-2">
         <div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
             <h3 className="text-sm font-black text-slate-900 dark:text-slate-100">
               {complex.name}
             </h3>
             {complex.dongName && (
               <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-primary/10 text-primary">
                 {complex.dongName}
+              </span>
+            )}
+            {complex.auctionCount != null && complex.auctionCount > 0 && (
+              <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-rose-500 text-white shadow-xs">
+                경매 {complex.auctionCount}건
               </span>
             )}
           </div>
@@ -78,8 +85,30 @@ export function SelectedComplexCard({
         </div>
       </div>
 
+      {/* 경매 진행 정보 배너 */}
+      {complex.auctionCount != null && complex.auctionCount > 0 && (
+        <div className="mb-2.5 p-2 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 flex items-center justify-between">
+          <div className="flex items-center gap-1.5 text-xs text-rose-800 dark:text-rose-300">
+            <Gavel size={13} className="text-rose-600 dark:text-rose-400 shrink-0" />
+            <span className="font-bold">
+              진행 중 {complex.auctionCount}건
+              {complex.lowestAuctionPrice ? ` (최저 ${complex.lowestAuctionPrice.toFixed(2)}억)` : ""}
+            </span>
+          </div>
+          {onOpenAuction && (
+            <button
+              type="button"
+              onClick={() => onOpenAuction(complex)}
+              className="px-2 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold shadow-xs transition-colors"
+            >
+              경매 물건 보기
+            </button>
+          )}
+        </div>
+      )}
+
       {/* 하단 액션 버튼 */}
-      <div className="flex items-center gap-2 mt-3 pt-1">
+      <div className="flex items-center gap-2 mt-2 pt-1">
         {onNavigateToRules && (
           <button
             type="button"
@@ -109,3 +138,4 @@ export function SelectedComplexCard({
   );
 }
 export default SelectedComplexCard;
+

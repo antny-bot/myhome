@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { ComplexMetaFilter, RegionMapComplexItem, RegionMapData } from "@myhome/shared";
-import { loadRegionMapComplexes, loadRegionsSummary } from "../../api.js";
+import type { ComplexMetaFilter, RegionMapComplexItem, RegionMapData, AuctionWithMatch } from "@myhome/shared";
+import { loadRegionMapComplexes, loadRegionsSummary, loadAuctions } from "../../api.js";
 import { useBreakpoint } from "../../useBreakpoint.js";
 import { useLocale } from "../../lib/i18n.js";
 import { calculatePriceQuartiles } from "../../lib/mapTheme.js";
@@ -25,6 +25,9 @@ export function useRegionMapData() {
   const [errorMsg, setErrorMsg] = useState("");
   const [mapData, setMapData] = useState<RegionMapData | null>(null);
   const [selectedComplex, setSelectedComplex] = useState<RegionMapComplexItem | null>(null);
+  const [auctions, setAuctions] = useState<AuctionWithMatch[]>([]);
+  const [hasAuctionOnly, setHasAuctionOnly] = useState<boolean>(false);
+  const [selectedAuctionComplex, setSelectedAuctionComplex] = useState<string | null>(null);
 
   const [metaFilter, setMetaFilter] = useState<ComplexMetaFilter>({});
   const [searchQuery, setSearchQuery] = useState("");
@@ -36,6 +39,7 @@ export function useRegionMapData() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const listContainerRef = useRef<HTMLDivElement>(null);
+
 
   const batches = useRegionBatches({
     selectedLawdCode,
@@ -127,14 +131,19 @@ export function useRegionMapData() {
       setSearchQuery("");
 
       try {
-        const data = await loadRegionMapComplexes(selectedLawdCode);
+        const [data, aucData] = await Promise.all([
+          loadRegionMapComplexes(selectedLawdCode),
+          loadAuctions({ lawdCode: selectedLawdCode, onlyActive: true }).catch(() => []),
+        ]);
         if (isMounted) {
           setMapData(data);
+          setAuctions(aucData);
           try {
             localStorage.setItem(LOCAL_STORAGE_KEY_REGION, selectedLawdCode);
           } catch {}
         }
       } catch (err: any) {
+
         if (isMounted) {
           setErrorMsg(err.message || t.searchFailed);
         }
@@ -177,9 +186,65 @@ export function useRegionMapData() {
     );
   }, [metaFilter]);
 
+  const complexAuctionMap = useMemo(() => {
+    const map = new Map<string, AuctionWithMatch[]>();
+    for (const a of auctions) {
+      if (a.complexId) {
+        const list = map.get(a.complexId) || [];
+        list.push(a);
+        map.set(a.complexId, list);
+      }
+      if (a.complexName) {
+        const list = map.get(a.complexName) || [];
+        list.push(a);
+        map.set(a.complexName, list);
+      }
+      if (a.buldName && !a.complexName) {
+        const list = map.get(a.buldName) || [];
+        list.push(a);
+        map.set(a.buldName, list);
+      }
+    }
+    return map;
+  }, [auctions]);
+
   const filteredComplexes = useMemo(() => {
     if (!mapData || !mapData.complexes) return [];
-    let list = [...mapData.complexes];
+    let list = mapData.complexes.map((c) => {
+      const matchedAuctions = complexAuctionMap.get(c.id) || complexAuctionMap.get(c.name) || [];
+      const auctionCount = matchedAuctions.length;
+      let lowestAuctionPrice: number | null = null;
+      let nextSaleDate: string | null = null;
+
+      if (auctionCount > 0) {
+        const prices = matchedAuctions
+          .map((a) => a.minPrice)
+          .filter((p): p is number => p != null && p > 0);
+        if (prices.length > 0) {
+          lowestAuctionPrice = Math.min(...prices) / 100000000;
+        }
+
+        const dates = matchedAuctions
+          .map((a) => a.saleDate)
+          .filter((d): d is string => Boolean(d))
+          .sort();
+        if (dates.length > 0) {
+          nextSaleDate = dates[0];
+        }
+      }
+
+      return {
+        ...c,
+        auctionCount,
+        lowestAuctionPrice,
+        nextSaleDate,
+        auctions: matchedAuctions,
+      };
+    });
+
+    if (hasAuctionOnly) {
+      list = list.filter((c) => c.auctionCount > 0);
+    }
 
     if (metaFilter.minHouseholds && metaFilter.minHouseholds > 0) {
       list = list.filter((c) => c.totalHouseholds != null && c.totalHouseholds >= metaFilter.minHouseholds!);
@@ -239,6 +304,7 @@ export function useRegionMapData() {
       if (sortBy === "name") {
         return a.name.localeCompare(b.name, "ko");
       }
+
       return 0;
     });
 
@@ -353,6 +419,10 @@ export function useRegionMapData() {
     topSectionRef,
     contentHeight,
     pendingBuildingMetaCount,
+    hasAuctionOnly,
+    setHasAuctionOnly,
+    selectedAuctionComplex,
+    setSelectedAuctionComplex,
     ...batches,
   };
 }

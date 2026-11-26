@@ -10,7 +10,7 @@ process.env.ENABLE_BOOTSTRAP_ADMIN = "true";
 
 test("MCP 도구 Manifest 명세 유효성 검증", () => {
   const manifest = getMcpToolsManifest();
-  assert.equal(manifest.length, 6, "총 6개의 MCP 도구가 제공되어야 함");
+  assert.equal(manifest.length, 8, "총 8개의 MCP 도구가 제공되어야 함");
 
   const toolNames = manifest.map((t) => t.name);
   assert.ok(toolNames.includes("search_complexes"));
@@ -19,6 +19,9 @@ test("MCP 도구 Manifest 명세 유효성 검증", () => {
   assert.ok(toolNames.includes("get_transaction_stats"));
   assert.ok(toolNames.includes("search_regions"));
   assert.ok(toolNames.includes("list_monitoring_rules"));
+  assert.ok(toolNames.includes("search_auctions"));
+  assert.ok(toolNames.includes("get_auction_detail"));
+
 
   for (const tool of manifest) {
     assert.ok(tool.description, `${tool.name}에 description이 있어야 함`);

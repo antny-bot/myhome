@@ -22,6 +22,7 @@ export function ComplexTab(props: ComplexTabProps) {
     loading,
     error,
     detailData,
+    auctions,
     kpiData,
     groupedTx,
     recentTxStats,
@@ -86,6 +87,7 @@ export function ComplexTab(props: ComplexTabProps) {
             kpiData={kpiData}
             detailData={detailData}
             areaUnit={props.areaUnit || "pyeong"}
+            auctions={auctions}
           />
 
           {/* 4. 최근 실거래 내역 테이블 */}

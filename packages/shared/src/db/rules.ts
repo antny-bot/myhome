@@ -18,6 +18,8 @@ interface RuleRow {
   alert_time: string | null;
   channels: string | null;
   enabled: number;
+  kind?: string | null;
+  max_failed_count?: number | null;
   last_checked_at: string | null;
   created_at: string;
   updated_at: string;
@@ -54,11 +56,14 @@ function parseRuleRow(row: RuleRow): DbWatchRule {
     alertTime: row.alert_time || "09:00",
     channels,
     enabled: Boolean(row.enabled),
+    kind: (row.kind as any) || "transaction",
+    maxFailedCount: row.max_failed_count !== null && row.max_failed_count !== undefined ? row.max_failed_count : undefined,
     lastCheckedAt: row.last_checked_at || undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
 }
+
 
 export function getRulesByEmail(email: string): DbWatchRule[] {
   const rows = getPreparedStatement(`
@@ -91,6 +96,8 @@ export interface UpsertRuleInput {
   alertTime?: string;
   channels?: AlertChannel[] | string[];
   enabled?: boolean;
+  kind?: "transaction" | "auction" | "both";
+  maxFailedCount?: number;
   lastCheckedAt?: string;
   createdAt?: string;
 }
@@ -112,9 +119,9 @@ export function upsertRuleDb(email: string, rule: UpsertRuleInput): void {
     INSERT INTO rules (
       id, user_email, name, region_name, region_code, apartment_keywords,
       min_price_eok, max_price_eok, min_area, max_area, comparison_criteria,
-      interval_minutes, alert_time, channels, enabled, last_checked_at, created_at, updated_at
+      interval_minutes, alert_time, channels, enabled, kind, max_failed_count, last_checked_at, created_at, updated_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       name = excluded.name,
       region_name = excluded.region_name,
@@ -129,6 +136,8 @@ export function upsertRuleDb(email: string, rule: UpsertRuleInput): void {
       alert_time = excluded.alert_time,
       channels = excluded.channels,
       enabled = excluded.enabled,
+      kind = COALESCE(excluded.kind, rules.kind),
+      max_failed_count = excluded.max_failed_count,
       last_checked_at = COALESCE(excluded.last_checked_at, rules.last_checked_at),
       updated_at = excluded.updated_at
   `).run(
@@ -147,11 +156,14 @@ export function upsertRuleDb(email: string, rule: UpsertRuleInput): void {
     rule.alertTime || "09:00",
     channelsStr,
     rule.enabled ? 1 : 0,
+    rule.kind || "transaction",
+    rule.maxFailedCount !== undefined ? rule.maxFailedCount : null,
     rule.lastCheckedAt || null,
     rule.createdAt || now,
     now
   );
 }
+
 
 export function deleteRuleDb(email: string, id: string): boolean {
   const info = getPreparedStatement("DELETE FROM rules WHERE id = ? AND user_email = ?").run(id, email);
