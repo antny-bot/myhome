@@ -1,18 +1,16 @@
 import React, { useState } from "react";
-import { Settings, ShieldAlert, Sliders, Globe, Bot } from "lucide-react";
+import { Settings, ShieldAlert, Sliders, Globe, Bot, Info } from "lucide-react";
 import { PageHeader } from "../components/PageHeader";
 import { classNames } from "../lib/format";
 import type { DashboardState } from "../types";
-import { copy } from "../locales/ko";
+import { useLocale } from "../lib/i18n";
 import { SettingsMcpSection } from "../components/SettingsMcpSection";
 import { SettingsAccountSection } from "../components/SettingsAccountSection";
 import { SettingsGeneralSection } from "../components/SettingsGeneralSection";
 import { SettingsNotificationSection } from "../components/SettingsNotificationSection";
+import { SettingsAboutSection } from "../components/SettingsAboutSection";
 
-const locale: "ko" | "en" = "ko";
-const t = copy[locale];
-
-type SettingsTab = "api" | "display" | "account" | "mcp";
+type SettingsTab = "api" | "display" | "account" | "mcp" | "about";
 
 interface SettingsPageProps {
   state: DashboardState | undefined;
@@ -22,12 +20,13 @@ interface SettingsPageProps {
 }
 
 export function SettingsPage({ state, onChanged, isAdmin = false, userEmail }: SettingsPageProps) {
+  const { t, locale } = useLocale();
   const [activeTab, setActiveTab] = useState<SettingsTab>("api");
 
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <PageHeader title="환경 설정" icon={Settings} />
+      <PageHeader title={t.navSettings || "환경 설정"} icon={Settings} />
 
       {/* Responsive 2-mode Tab Strip */}
       <div className="relative">
@@ -43,7 +42,7 @@ export function SettingsPage({ state, onChanged, isAdmin = false, userEmail }: S
             )}
           >
             <Globe size={16} />
-            <span>외부 API 연동 설정</span>
+            <span>{t.settingsTabApi || "외부 API 연동 설정"}</span>
           </button>
           <button
             onClick={() => setActiveTab("display")}
@@ -55,7 +54,7 @@ export function SettingsPage({ state, onChanged, isAdmin = false, userEmail }: S
             )}
           >
             <Sliders size={16} />
-            <span>화면 표시 설정</span>
+            <span>{t.settingsTabDisplay || "화면 표시 설정"}</span>
           </button>
           <button
             onClick={() => setActiveTab("account")}
@@ -67,7 +66,7 @@ export function SettingsPage({ state, onChanged, isAdmin = false, userEmail }: S
             )}
           >
             <ShieldAlert size={16} />
-            <span>계정 설정</span>
+            <span>{t.settingsTabAccount || "계정 설정"}</span>
           </button>
           <button
             onClick={() => setActiveTab("mcp")}
@@ -79,7 +78,19 @@ export function SettingsPage({ state, onChanged, isAdmin = false, userEmail }: S
             )}
           >
             <Bot size={16} />
-            <span>{t.mcpTabTitle}</span>
+            <span>{t.mcpTabTitle || "MCP 연동"}</span>
+          </button>
+          <button
+            onClick={() => setActiveTab("about")}
+            className={classNames(
+              "px-5 py-3 text-sm font-semibold border-b-2 -mb-px transition-colors flex items-center gap-2",
+              activeTab === "about"
+                ? "border-primary-600 text-primary-600 dark:border-primary-400 dark:text-primary-400"
+                : "border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
+            )}
+          >
+            <Info size={16} />
+            <span>{t.settingsTabAbout || "서비스 정보"}</span>
           </button>
         </div>
 
@@ -95,7 +106,7 @@ export function SettingsPage({ state, onChanged, isAdmin = false, userEmail }: S
             )}
           >
             <Globe size={14} />
-            <span>연동 설정</span>
+            <span>{t.settingsTabApiMobile || "연동 설정"}</span>
           </button>
           <button
             onClick={() => setActiveTab("display")}
@@ -107,7 +118,7 @@ export function SettingsPage({ state, onChanged, isAdmin = false, userEmail }: S
             )}
           >
             <Sliders size={14} />
-            <span>표시 설정</span>
+            <span>{t.settingsTabDisplayMobile || "표시 설정"}</span>
           </button>
           <button
             onClick={() => setActiveTab("account")}
@@ -119,7 +130,7 @@ export function SettingsPage({ state, onChanged, isAdmin = false, userEmail }: S
             )}
           >
             <ShieldAlert size={14} />
-            <span>계정 설정</span>
+            <span>{t.settingsTabAccountMobile || "계정 설정"}</span>
           </button>
           <button
             onClick={() => setActiveTab("mcp")}
@@ -131,7 +142,19 @@ export function SettingsPage({ state, onChanged, isAdmin = false, userEmail }: S
             )}
           >
             <Bot size={14} />
-            <span>{t.mcpTabTitle}</span>
+            <span>{t.settingsTabMcpMobile || "MCP 연동"}</span>
+          </button>
+          <button
+            onClick={() => setActiveTab("about")}
+            className={classNames(
+              "snap-start shrink-0 px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5",
+              activeTab === "about"
+                ? "bg-primary-600 text-white dark:bg-primary-500"
+                : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+            )}
+          >
+            <Info size={14} />
+            <span>{t.settingsTabAboutMobile || "정보"}</span>
           </button>
         </div>
       </div>
@@ -153,8 +176,10 @@ export function SettingsPage({ state, onChanged, isAdmin = false, userEmail }: S
       {activeTab === "display" && <SettingsGeneralSection />}
 
       {activeTab === "mcp" && (
-        <SettingsMcpSection t={t} userEmail={userEmail} />
+        <SettingsMcpSection t={t as any} userEmail={userEmail} />
       )}
+
+      {activeTab === "about" && <SettingsAboutSection />}
     </div>
   );
 }
