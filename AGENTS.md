@@ -7,6 +7,12 @@
 - **프론트엔드**: 모바일 퍼스트 — 390px 모바일·태블릿·데스크톱 검증.
 - **병렬 작업**: 독립 가능 작업 한정 subagent 병렬 진행.
 
+## 🦀 Rust 우선 원칙
+- **대상**: 실거래 대량 집계·다차원 통계 연산(평형·층수 분포, 시계열 집계)·공간/역세권 계산처럼 데이터량·연산량이 큰 경로 → 신규 TypeScript/Python 구현 전 Rust(네이티브 바이너리·WASM·napi/PyO3) 우선 검토, 이득 확인 시 Rust 개발.
+- **유지**: 단순 Glue·CRUD·라우팅·UI 컴포넌트 → 기존 Node/TypeScript 유지.
+- **경계**: 호출부 시그니처 고정, Rust 미설치·빌드 실패 시 기존 구현 폴백. Docker 멀티스테이지 빌드로 런타임 이미지 경량 유지.
+- **기록**: 채택·미채택 근거(측정값·복잡도) PR 본문 한 줄.
+
 ## 모듈러 아키텍처 규칙 (v0.3.5 이후)
 - **DB 계층**: 2,000줄 이상의 거대 단일 `db.ts` 대신 `packages/shared/src/db/` 하위 전용 도메인 모듈(`transactions.ts`, `analytics.ts`, `regions.ts` 등)에 기능 추가. `db.ts`는 하위 호환 re-export 배럴로 유지.
 - **서버 라우팅**: `server/routes.ts` 단일 파일에 비즈니스 로직을 누적하지 않고 `server/routes/` 하위 도메인 라우터(`ruleRoutes`, `configRoutes`, `transactionRoutes`, `logRoutes`)에 분리 배치.
