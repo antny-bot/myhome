@@ -23,6 +23,12 @@
 1. **위키 우선 조회 (Wiki Consultation)**: 시스템 아키텍처, 국토부/부동산원 API 규격, 캐시 정책, 타 프로젝트 연동 규격, 과거 의사결정 이력 확인 시 코드 탐색 전 반드시 통합 허브 `wiki.deboox.com`(`antny-bot/wiki`, REST·MCP)에서 이 프로젝트(`myhome`)의 결정(`Decision`)·스펙(`Doc`)을 먼저 조회한다. 전체 마크다운 무작정 열람 금지, 관련 결과만 확인.
    - `GET https://wiki.deboox.com/api/query?project=myhome&q=<키워드>` (또는 MCP `query_memory`)
    - 구 `antny-bot/llm-wiki`는 통합 허브로 대체됨 — llm-wiki 조회·기록 금지.
+   - **환경변수 주입 환경(Antigravity 클라우드 등)**: 아래 변수와 헤더로 `wiki.deboox.com` API를 호출한다. 시크릿 원문은 절대 커밋하지 않는다(환경변수·로컬 설정만).
+     - `WIKI_API_URL` — 기본값 `https://wiki.deboox.com`
+     - `Authorization: Bearer $WIKI_API_TOKEN` — 앱 Bearer 키
+     - `CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID` / `CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET` — Cloudflare Access 서비스 토큰
+     - 예시(조회): `curl -sf -H "Authorization: Bearer $WIKI_API_TOKEN" -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" "$WIKI_API_URL/api/query?project=myhome&q=<키워드>"`
+     - 예시(기록): 같은 헤더로 `POST "$WIKI_API_URL/api/decisions"`
 2. **결정 기록 기준 (Decision Log)**: 매 대화·단순 버그 수정마다 기록하지 않는다. 아키텍처·설계·정책·운영 규칙·우선순위가 새로 확정되거나 기존 결정이 바뀔 때만 1건 기록한다.
    - `POST https://wiki.deboox.com/api/decisions` (또는 MCP `add_decision`): `project`·`topic`·`summary`·`rationale` 필수, 앞선 결정을 뒤집으면 `supersedes` 지정. API 키는 커밋 금지(환경변수·로컬 설정).
 3. **세부 명세 원본 참조**: OpenAPI 명세, 지역코드 매핑, DB 스키마 등 특정 모듈의 상세 구현 명세가 필요한 경우 `docs/` 디렉터리 내 해당 원본 문서를 참고한다.
